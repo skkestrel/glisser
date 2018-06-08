@@ -19,6 +19,7 @@
 #include "types.h"
 #include "data.h"
 #include "wh.h"
+#include "convert.h"
 
 #include <thrust/system/cuda/execution_policy.h>
 #include <thrust/for_each.h>
@@ -146,8 +147,9 @@ int main(int argv, char** argc)
 	std::tm tm = *std::localtime(&t);
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
 
-
+	to_helio(hd);
 	initialize(hd.planets, hd.particles);
+	first_step(hd.planets, hd.particles, hd.dt);
 	
 	while (hd.t < hd.t_f)
 	{

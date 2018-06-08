@@ -1,5 +1,27 @@
 #include "convert.h"
 
+void jacobi_to_helio_planets(HostPlanetPhaseSpace& pl)
+{
+	// sun at origin
+	pl.r[0] = f64_3(0);
+	pl.v[0] = f64_3(0);
+
+	pl.r[1] = pl.rj[1];
+	pl.v[1] = pl.vj[1];
+
+	f64_3 rsum(0), vsum(0);
+
+	for (size_t i = 2; i < pl.n; i++)
+	{
+		rsum += pl.rj[i-1] * (pl.m[i - 1] / pl.eta[i-1]);
+		vsum += pl.vj[i-1] * (pl.m[i - 1] / pl.eta[i-1]);
+
+		pl.r[i] = pl.rj[i] + rsum;
+		pl.v[i] = pl.vj[i] + vsum;
+	}
+
+}
+
 // requires pl to have bary_r calculated
 void helio_to_jacobi_r_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p)
 {
@@ -43,7 +65,7 @@ void helio_to_jacobi_v_planets(HostPlanetPhaseSpace& p)
 	p.bary_v = psum / p.eta[p.n - 1];
 }
 
-void helio_to_jacobi_r(HostPlanetPhaseSpace& p)
+void helio_to_jacobi_r_planets(HostPlanetPhaseSpace& p)
 {
 	p.eta[0] = p.m[0];
 
@@ -73,7 +95,7 @@ void helio_to_jacobi_r(HostPlanetPhaseSpace& p)
 	p.bary_r = sum / p.eta[p.n - 1];
 }
 
-void helio_to_bary(HostData& hd)
+void to_bary(HostData& hd)
 {
 	f64_3 r(0);
 	f64_3 v(0);
@@ -104,7 +126,7 @@ void helio_to_bary(HostData& hd)
 	}
 }
 
-void bary_to_helio(HostData& hd)
+void to_helio(HostData& hd)
 {
 	f64_3 r;
 	f64_3 v;
@@ -126,3 +148,4 @@ void bary_to_helio(HostData& hd)
 		hd.particles.v[i] -= v;
 	}
 }
+

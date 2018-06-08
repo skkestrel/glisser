@@ -18,12 +18,12 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 			float64_t irij3 = 1. / (rji2 * std::sqrt(rji2));
 			float64_t fac = pl.m[j] * irij3;
 
-			pl.a[i] -= dr * fac;
+			p.a[i] -= dr * fac;
 		}
 	}
 }
 
-void helio_acc_planets(HostPlanetPhaseSpace& p)
+void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 {
 	Hvf64 inverse_helio_cubed(p.n), inverse_jacobi_cubed(p.n);
 
@@ -49,20 +49,20 @@ void helio_acc_planets(HostPlanetPhaseSpace& p)
 		p.a[i] = a_common;
         }
 
-	p.h0 = a_common - p.m[1] * inverse_helio_cubed[1];
+	p.h0_log[index] = a_common - p.m[1] * inverse_helio_cubed[1];
 	
 	// Now do indirect acceleration ; note that planet 1 does not receive a contribution 
 	for (size_t i = 2; i < p.n; i++)    
 	{
-		p.a[i] += p.m[0] * (p.rj[i] * inverse_jacobi_cubed[i] - p.r[i] * inverse_helio_cubed[i]);
+		p.a[i] += (p.rj[i] * inverse_jacobi_cubed[i] - p.r[i] * inverse_helio_cubed[i]) * p.m[0];
         }
 	
 	/* next term ; again, first planet does not participate */
 	f64_3 a_accum(0);
 	for (size_t i = 2; i < p.n; i++)    
 	{
-		float64_t mfac = m[i] * m[0] * inverse_jacobi_cubed[i] / p.eta[i-1];
-		a_accum += mfac * p.r[i];
+		float64_t mfac = p.m[i] * p.m[0] * inverse_jacobi_cubed[i] / p.eta[i-1];
+		a_accum += p.r[i] * mfac;
 		p.a[i] += a_accum;
         }
 
@@ -76,11 +76,11 @@ void helio_acc_planets(HostPlanetPhaseSpace& p)
 			float64_t irij3 = 1. / (r2 * std::sqrt(r2));
 
 			float64_t mfac = p.m[i] * irij3;
-			p.a[j] -= mfac * dr;
+			p.a[j] -= dr * mfac;
 
 			// acc. on i is just negative, with m[j] instead
 			mfac = p.m[j] * irij3;
-			p.a[i] += mfac * dr;
+			p.a[i] += dr * mfac;
 		}
 	}
 }
@@ -104,8 +104,8 @@ size_t kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE,
 		}
 
 		*dE += delta;
-		*sindE = math::sin(*dE);
-		*cosdE = math::cos(*dE);
+		*sindE = std::sin(*dE);
+		*cosdE = std::cos(*dE);
 	}
 	throw std::exception();
 
@@ -121,20 +121,20 @@ void drift(float64_t t, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t start, size_t 
 
 	Hvf64 dist(n);
 	Hvf64 vsq(n);
-	Hvf64 vdotr(n)
+	Hvf64 vdotr(n);
 	for (size_t i = start; i < start + n; i++)
 	{
 		dist[i] = std::sqrt(r[i].lensq());
 		vsq[i] = v[i].lensq();
-		vdotr[i] = v0 * r0;
+		vdotr[i] = v0[i].x * r0[i].x + v0[i].y * r0[i].y + v0[i].z * r0[i].z;
 	}
 
 	Hvf64 energy = std::move(vsq);
 	// vsq dies!
 	for (size_t i = start; i < start + n; i++)
 	{
-		energy *= 0.5;
-		energy -= mu[i] / dist[i];
+		energy[i] *= 0.5;
+		energy[i] -= mu[i] / dist[i];
 	}
 
 	for (size_t i = start; i < start + n; i++)
@@ -154,13 +154,14 @@ void drift(float64_t t, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t start, size_t 
 			float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
 
 			// subtract off an integer multiple of complete orbits
-			float64_t dM = t * n - M_2PI * (int) (t * n / twopi);
+			float64_t dM = t * n - M_2PI * (int) (t * n / M_2PI);
 
 			// remaining time to advance
 			float64_t dt = dM / n;
 
 			// call kepler equation solver with initial guess in dE already
 			float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
+			float64_t sindE, cosdE;
 			kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
 
 			float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
@@ -169,22 +170,22 @@ void drift(float64_t t, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t start, size_t 
 			float64_t fdot = -n * sindE * a / (dist[i] * fp);
 			float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
 
-			r[i] = f * r0 + g * v0;
-			v[i] = fdot * r0 + gdot * v0;
+			r[i] = r0[i] * f + v0[i] * g;
+			v[i] = r0[i] * fdot + v0[i] * gdot;
 		}
 	}
 }
 
 void initialize(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
 {
-	bary_to_helio_planets(pl);
 	helio_to_jacobi_r_planets(pl);
 	helio_to_jacobi_v_planets(pl);
+}
 
-	bary_to_helio_particles(pl, pa);
-
-	helio_acc_planets(pl);
-	helio_acc_particles(pl, pa);
+void first_step(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, float64_t dt)
+{
+	helio_acc_planets(pl, 0);
+	helio_acc_particles(pl, pa, 0);
 
 	for (size_t i = 1; i < pl.n; i++)
 	{
@@ -206,7 +207,7 @@ void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, 
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(mu, dt, pa.r, pa.v, 0, pa);
+	drift(dt, mu, pa.r, pa.v, 0, pa.n);
 
 	// find the accelerations of the heliocentric velocities
 	helio_acc_particles(pl, pa, index);
@@ -226,20 +227,18 @@ void step_planets(HostPlanetPhaseSpace& pl, size_t index, float64_t dt)
 	for (size_t i = 1; i < pl.n; i++)
 	{
 		// Each Jacobi Kepler problem has a different central mass
-		mu[i] = p.m[0] * pl.eta[i] / pl.eta[i - 1];
+		mu[i] = pl.m[0] * pl.eta[i] / pl.eta[i - 1];
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(mu, dt, pl.rj, pl.vj, 1, pl.n - 1);
+	drift(dt, mu, pl.rj, pl.vj, 1, pl.n - 1);
 
 	// convert Jacobi vectors to helio. ones for acceleration calc 
 	jacobi_to_helio_planets(pl);
 
 	// find the accelerations of the heliocentric velocities
-	helio_acc_planets(pl);
-
+	helio_acc_planets(pl, index);
 	std::copy(pl.r.begin(), pl.r.end(), pl.r_log.begin() + (pl.n - 1) * index);
-	pl.h0_log[index] = pl.h0;
 
 	for (size_t i = 1; i < pl.n; i++)
 	{

@@ -49,7 +49,6 @@ struct HostPlanetPhaseSpace
 	Hvf64_3 h0_log;
 
 	f64_3 bary_r, bary_v;
-	f64_3 h0;
 
 	Hvu8 flags;
 	Hvu32 deathtime;

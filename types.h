@@ -93,49 +93,49 @@ struct v_3
 	}
 
 	__host__ __device__
-	inline v_3<T> operator+(const v_3<T>& b)
+	inline v_3<T> operator+(const v_3<T>& b) const
 	{
 		return v_3<T>(x + b.x, y + b.y, z + b.z);
 	}
 
 	__host__ __device__
-	inline v_3<T> operator-(const v_3<T>& b)
+	inline v_3<T> operator-(const v_3<T>& b) const
 	{
 		return v_3<T>(x - b.x, y - b.y, z - b.z);
 	}
 
 	__host__ __device__
-	inline v_3<T> operator-()
+	inline v_3<T> operator-() const
 	{
 		return v_3<T>(-x, -y, -z);
 	}
 
 	__host__ __device__
-	inline v_3<T> operator/(const v_3<T>& b)
+	inline v_3<T> operator/(const v_3<T>& b) const
 	{
 		return v_3<T>(x / b.x, y / b.y, z / b.z);
 	}
 
 	__host__ __device__
-	inline v_3<T> operator*(const v_3<T>& b)
+	inline v_3<T> operator*(const v_3<T>& b) const
 	{
 		return v_3<T>(x * b.x, y * b.y, z * b.z);
 	}
 
 	__host__ __device__
-	inline v_3<T> operator/(T b)
+	inline v_3<T> operator/(T b) const
 	{
 		return v_3<T>(x / b, y / b, z / b);
 	}
 
 	__host__ __device__
-	inline v_3<T> operator*(T b)
+	inline v_3<T> operator*(T b) const
 	{
 		return v_3<T>(x * b, y * b, z * b);
 	}
 
 	__host__ __device__
-	inline v_3<T> operator*(v_3<T>& b)
+	inline v_3<T> operator*(v_3<T>& b) const
 	{
 		return v_3<T>(x * b, y * b, z * b);
 	}
