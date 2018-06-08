@@ -1,63 +1,57 @@
 #include "data.h"
+#include <fstream>
+#include <iomanip>
 
-bool load_data(HostData& hd, std::string plin, std::string icsin, size_t max_particle = 0, bool readmomenta = true)
+bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t max_particle, bool readmomenta)
 {
 	std::ifstream plinfile(plin), icsinfile(icsin);
 
-	plinfile >> hd.n_planet;
+	size_t npl;
+	plinfile >> npl;
 
-	hd.r_planet = Hvf64_3(hd.n_planet);
-	hd.v_planet = Hvf64_3(hd.n_planet);
-	hd.m_planet = Hvf64(hd.n_planet);
+	hd.planets = HostPlanetPhaseSpace(npl, tbsize);
 
-	size_t lsize = hd.n_planet * (SIMPL_DEGREE - 1) * TIMEBLOCK_SIZE;
-	hd.r_planet_log = Hvf64_3(lsize);
-
-	for (size_t i = 0; i < hd.n_planet; i++)
+	for (size_t i = 0; i < npl; i++)
 	{
-		plinfile >> hd.m_planet[i];
-		plinfile >> hd.r_planet[i].x >> hd.r_planet[i].y >> hd.r_planet[i].z;
-		plinfile >> hd.v_planet[i].x >> hd.v_planet[i].y >> hd.v_planet[i].z;
+		plinfile >> hd.planets.m[i];
+		plinfile >> hd.planets.r[i].x >> hd.planets.r[i].y >> hd.planets.r[i].z;
+		plinfile >> hd.planets.v[i].x >> hd.planets.v[i].y >> hd.planets.v[i].z;
 
 		if (readmomenta)
 		{
-			hd.v_planet[i].x /= hd.m_planet[i];
-			hd.v_planet[i].y /= hd.m_planet[i];
-			hd.v_planet[i].z /= hd.m_planet[i];
+			hd.planets.v[i].x /= hd.planets.m[i];
+			hd.planets.v[i].y /= hd.planets.m[i];
+			hd.planets.v[i].z /= hd.planets.m[i];
 		}
 	}
 
-	icsinfile >> hd.n_part;
-	if (max_particle > 0) hd.n_part = std::min(hd.n_part, max_particle);
+	size_t npart;
+	icsinfile >> npart;
+	if (max_particle > 0) npart = std::min(npart, max_particle);
 
-	hd.r_part = Hvf64_3(hd.n_part);
-	hd.v_part = Hvf64_3(hd.n_part);
-	hd.part_flags = Hvu8(hd.n_part);
-	hd.deathtime = Hvu32(hd.n_part);
-	hd.id = Hvu32(hd.n_part);
+	hd.particles = HostParticlePhaseSpace(npart);
 
-	for (size_t i = 0; i < hd.n_part; i++)
+	for (size_t i = 0; i < npart; i++)
 	{
-		icsinfile >> hd.r_part[i].x >> hd.r_part[i].y >> hd.r_part[i].z;
-		icsinfile >> hd.v_part[i].x >> hd.v_part[i].y >> hd.v_part[i].z;
+		icsinfile >> hd.particles.r[i].x >> hd.particles.r[i].y >> hd.particles.r[i].z;
+		icsinfile >> hd.particles.v[i].x >> hd.particles.v[i].y >> hd.particles.v[i].z;
 
 		std::string s;
 		icsinfile >> s;
 		if (!isdigit(s[0]))
 		{
 			icsinfile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			hd.deathtime[i] = 0;
-			hd.id[i] = i;
-			hd.part_flags[i] = 0;
+			hd.particles.deathtime[i] = 0;
+			hd.particles.id[i] = i;
+			hd.particles.flags[i] = 0;
 		}
 		else
 		{
-			hd.deathtime[i] = std::stod(s);
-			icsinfile >> hd.part_flags[i] >> hd.id[i];
+			hd.particles.deathtime[i] = std::stod(s);
+			icsinfile >> hd.particles.flags[i] >> hd.particles.id[i];
 		}
 	}
 
-	load_coefs(hd.coefdt, hd.dt);
 	return false;
 }
 
@@ -65,22 +59,22 @@ void save_data(const HostData& hd, const DeviceData& dd, std::string plout, std:
 {
 	std::ofstream ploutfile(plout), icsoutfile(icsout), infooutfile(infoout);
 
-	ploutfile << hd.n_planet << std::endl;
+	ploutfile << hd.planets.n << std::endl;
 	ploutfile << std::setprecision(17);
-	for (size_t i = 0; i < hd.n_planet; i++)
+	for (size_t i = 0; i < hd.planets.n; i++)
 	{
-		ploutfile << hd.m_planet[i] << std::endl;
-		ploutfile << hd.r_planet[i].x << " " << hd.r_planet[i].y << " " << hd.r_planet[i].z << std::endl;
-		ploutfile << hd.v_planet[i].x << " " << hd.v_planet[i].y << " " << hd.v_planet[i].z << std::endl;
+		ploutfile << hd.planets.m[i] << std::endl;
+		ploutfile << hd.planets.r[i].x << " " << hd.planets.r[i].y << " " << hd.planets.r[i].z << std::endl;
+		ploutfile << hd.planets.v[i].x << " " << hd.planets.v[i].y << " " << hd.planets.v[i].z << std::endl;
 	}
 
-	icsoutfile << hd.n_part << std::endl;
+	icsoutfile << hd.particles.n << std::endl;
 	icsoutfile << std::setprecision(17);
-	for (size_t i = 0; i < hd.n_part; i++)
+	for (size_t i = 0; i < hd.particles.n; i++)
 	{
-		icsoutfile << hd.r_part[i].x << " " << hd.r_part[i].y << " " << hd.r_part[i].z << std::endl;
-		icsoutfile << hd.v_part[i].x << " " << hd.v_part[i].y << " " << hd.v_part[i].z << std::endl;
-		icsoutfile << hd.deathtime[i] << " " << hd.part_flags[i] << " " << hd.id[i] << std::endl;
+		icsoutfile << hd.particles.r[i].x << " " << hd.particles.r[i].y << " " << hd.particles.r[i].z << std::endl;
+		icsoutfile << hd.particles.v[i].x << " " << hd.particles.v[i].y << " " << hd.particles.v[i].z << std::endl;
+		icsoutfile << hd.particles.deathtime[i] << " " << hd.particles.flags[i] << " " << hd.particles.id[i] << std::endl;
 	}
 
 	infooutfile << std::setprecision(17);
@@ -89,12 +83,13 @@ void save_data(const HostData& hd, const DeviceData& dd, std::string plout, std:
 
 void transfer_data(const HostData& hd, DeviceData& dd)
 {
+	/*
 	dd.log_buffer_id = 0;
 	dd.phase_space_id = 0;
 
-	dd.r_planet_log0 = Dvf64_3(hd.r_planet_log.size());
-	dd.r_planet_log1 = Dvf64_3(hd.r_planet_log.size());
-	dd.m_planet = Dvf64(hd.n_planet);
+	dd.planets.r_log0 = Dvf64_3(hd.planets.r_log.size());
+	dd.planets.r_log1 = Dvf64_3(hd.planets.r_log.size());
+	dd.planets.m = Dvf64(hd.n_planet);
 
 	dd.ps0.r = dd.ps0.v = Dvf64_3(hd.n_part);
 	dd.ps0.flags = Dvu8(hd.n_part);
@@ -111,7 +106,7 @@ void transfer_data(const HostData& hd, DeviceData& dd)
 	dd.n_part_alive = 0;
 	for (size_t i = 0; i < hd.n_part; i++)
 	{
-		if (~hd.part_flags[i] & 0x0001)
+		if (~hd.particles.flags[i] & 0x0001)
 		{
 			dd.n_part_alive++;
 		}
@@ -120,22 +115,32 @@ void transfer_data(const HostData& hd, DeviceData& dd)
 	dd.coefdt = Dvf64(hd.coefdt.size());
 
 	DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
-	thrust::copy(hd.r_part.begin(), hd.r_part.end(), ps.r.begin());
-	thrust::copy(hd.v_part.begin(), hd.v_part.end(), ps.v.begin());
+	thrust::copy(hd.particles.r.begin(), hd.particles.r.end(), ps.r.begin());
+	thrust::copy(hd.particles.v.begin(), hd.particles.v.end(), ps.v.begin());
 
-	thrust::copy(hd.m_planet.begin(), hd.m_planet.end(), dd.m_planet.begin());
+	thrust::copy(hd.planets.m.begin(), hd.planets.m.end(), dd.planets.m.begin());
 	thrust::copy(hd.coefdt.begin(), hd.coefdt.end(), dd.coefdt.begin());
 
 	thrust::copy(hd.id.begin(), hd.id.end(), ps.id.begin());
 	thrust::copy(hd.deathtime.begin(), hd.deathtime.end(), ps.deathtime.begin());
-	thrust::copy(hd.part_flags.begin(), hd.part_flags.end(), ps.flags.begin());
+	thrust::copy(hd.particles.flags.begin(), hd.particles.flags.end(), ps.flags.begin());
+	*/
 }
 
 void recover_data(HostData& hd, const DeviceData& dd, cudaStream_t& stream)
 {
+	/*
 	const DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
 
 	size_t n = hd.n_part;
+
+
+	thrust::copy(thrust::cuda::par.on(stream), ps.r.begin(), ps.r.begin() + n, hd.particles.r.begin());
+	thrust::copy(thrust::cuda::par.on(stream), ps.v.begin(), ps.v.begin() + n, hd.particles.v.begin());
+	thrust::copy(thrust::cuda::par.on(stream), ps.flags.begin(), ps.flags.begin() + n, hd.particles.flags.begin());
+	thrust::copy(thrust::cuda::par.on(stream), ps.deathtime.begin(), ps.deathtime.begin() + n, hd.particles.deathtime.begin());
+	thrust::copy(thrust::cuda::par.on(stream), ps.id.begin(), ps.id.begin() + n, hd.particles.id.begin());
+	*/
 
 	/*
 	// zip will crash the program
@@ -148,14 +153,8 @@ void recover_data(HostData& hd, const DeviceData& dd, cudaStream_t& stream)
 			iterator,
 			iterator + n,
 			thrust::make_zip_iterator(thrust::make_tuple(
-					hd.r_part.begin(), hd.v_part.begin(),
-					hd.part_flags.begin(), hd.deathtime.begin(), hd.id.begin())));
+					hd.particles.r.begin(), hd.particles.v.begin(),
+					hd.particles.flags.begin(), hd.deathtime.begin(), hd.id.begin())));
 	 */
-
-	thrust::copy(thrust::cuda::par.on(stream), ps.r.begin(), ps.r.begin() + n, hd.r_part.begin());
-	thrust::copy(thrust::cuda::par.on(stream), ps.v.begin(), ps.v.begin() + n, hd.v_part.begin());
-	thrust::copy(thrust::cuda::par.on(stream), ps.flags.begin(), ps.flags.begin() + n, hd.part_flags.begin());
-	thrust::copy(thrust::cuda::par.on(stream), ps.deathtime.begin(), ps.deathtime.begin() + n, hd.deathtime.begin());
-	thrust::copy(thrust::cuda::par.on(stream), ps.id.begin(), ps.id.begin() + n, hd.id.begin());
 }
 

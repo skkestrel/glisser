@@ -1,6 +1,11 @@
+#pragma once
 #include <cstdint>
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+
+#define M_PI 3.14159265358979323846
+#define M_2PI M_PI * 2
+
 
 using float64_t = double;
 using float32_t = float;
@@ -34,7 +39,7 @@ struct v_3
 	}
 	
 	__host__ __device__
-	inline const v_3<T>& operator/=(T b)
+	inline const v_3<T>& operator*=(T a)
 	{
 		x *= a;
 		y *= a;
@@ -88,49 +93,56 @@ struct v_3
 	}
 
 	__host__ __device__
-	static inline v_3<T> operator+(const v_3<T>& a, const v_3<T>& b)
+	inline v_3<T> operator+(const v_3<T>& b)
 	{
-		return v_3<T>(a.x + b.x, a.y + b.y, a.z + b.z);
+		return v_3<T>(x + b.x, y + b.y, z + b.z);
 	}
 
 	__host__ __device__
-	static inline v_3<T> operator-(const v_3<T>& a, const v_3<T>& b)
+	inline v_3<T> operator-(const v_3<T>& b)
 	{
-		return v_3<T>(a.x - b.x, a.y - b.y, a.z - b.z);
+		return v_3<T>(x - b.x, y - b.y, z - b.z);
 	}
 
 	__host__ __device__
-	static inline v_3<T> operator/(const v_3<T>& a, const v_3<T>& b)
+	inline v_3<T> operator-()
 	{
-		return v_3<T>(a.x / b.x, a.y / b.y, a.z / b.z);
+		return v_3<T>(-x, -y, -z);
 	}
 
 	__host__ __device__
-	static inline v_3<T> operator*(const v_3<T>& a, const v_3<T>& b)
+	inline v_3<T> operator/(const v_3<T>& b)
 	{
-		return v_3<T>(a.x * b.x, a.y * b.y, a.z * b.z);
+		return v_3<T>(x / b.x, y / b.y, z / b.z);
 	}
 
 	__host__ __device__
-	static inline v_3<T> operator*(const v_3<T>& a, T b)
+	inline v_3<T> operator*(const v_3<T>& b)
 	{
-		return v_3<T>(a.x / b, a.y / b, a.z / b);
+		return v_3<T>(x * b.x, y * b.y, z * b.z);
 	}
 
 	__host__ __device__
-	static inline v_3<T> operator*(const v_3<T>& a, T b)
+	inline v_3<T> operator/(T b)
 	{
-		return v_3<T>(a.x * b, a.y * b, a.z * b);
+		return v_3<T>(x / b, y / b, z / b);
 	}
 
 	__host__ __device__
-	static inline v_3<T> operator*(T b, const v_3<T>& a)
+	inline v_3<T> operator*(T b)
 	{
-		return v_3<T>(a.x * b, a.y * b, a.z * b);
+		return v_3<T>(x * b, y * b, z * b);
+	}
+
+	__host__ __device__
+	inline v_3<T> operator*(v_3<T>& b)
+	{
+		return v_3<T>(x * b, y * b, z * b);
 	}
 };
 
 using f64_3 = v_3<float64_t>;
 
-using Dvf64_3 = thrust::device_vector<f64_3>;
 using Hvf64_3 = thrust::host_vector<f64_3>;
+// using Dvf64_3 = thrust::device_vector<f64_3>;
+using Dvf64_3 = Hvf64_3;

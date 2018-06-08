@@ -7,20 +7,18 @@
 
 *************************************************************/
 
-#include <cmath>
 #include <iostream>
-#include <iomanip>
-#include <chrono>
 #include <fstream>
-#include <vector>
+#include <chrono>
 #include <string>
 #include <ctime>
 #include <thread>
 #include <atomic>
-#include <cstdint>
-#include <limits>
+#include <iomanip>
 
 #include "types.h"
+#include "data.h"
+#include "wh.h"
 
 #include <thrust/system/cuda/execution_policy.h>
 #include <thrust/for_each.h>
@@ -31,6 +29,7 @@ const int TIMEBLOCK_SIZE = 1024;
 
 size_t prune(cudaStream_t& main_stream, cudaStream_t& work_stream, HostData& hd, DeviceData& dd)
 {
+/*
 	DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
 	DevicePhaseSpace& other_ps = dd.phase_space_id % 2 ? dd.ps1 : dd.ps0;
 
@@ -79,6 +78,8 @@ size_t prune(cudaStream_t& main_stream, cudaStream_t& work_stream, HostData& hd,
 	dd.phase_space_id++;
 
 	return pruned;
+*/
+	return 0;
 }
 
 int main(int argv, char** argc)
@@ -100,17 +101,15 @@ int main(int argv, char** argc)
 	size_t max_particle = 0;
 	if (argv >= 5) max_particle = static_cast<size_t>(std::stoi(argc[4]));
 
-	if (load_data(hd, "pl.in", "ics.in", max_particle, false)) return -1;
+	if (load_data(hd, "pl.in", "ics.in", TIMEBLOCK_SIZE, max_particle, false)) return -1;
 
-	convert_to_barycentric(hd);
-
-	double e0 = energy_planet(hd.r_planet, hd.v_planet, hd.m_planet);
+	double e0 = 0;
 	std::cout << std::setprecision(17);
 	std::cout << "e0 (planets) = " << e0 << std::endl;
 	std::cout << "t = " << hd.t << std::endl;
 	std::cout << "dt = " << hd.dt << std::endl;
 	std::cout << "t_f = " << hd.t_f << std::endl;
-	std::cout << "n_particle = " << hd.n_part << std::endl;
+	std::cout << "n_particle = " << hd.particles.n << std::endl;
 	std::cout << "==================================" << std::endl;
 	std::cout << "Sending initial conditions to GPU." << std::endl;
 
@@ -147,6 +146,8 @@ int main(int argv, char** argc)
 	std::tm tm = *std::localtime(&t);
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
 
+
+	initialize(hd.planets, hd.particles);
 	
 	while (hd.t < hd.t_f)
 	{
@@ -157,7 +158,7 @@ int main(int argv, char** argc)
 			double elapsed = millis.count() / 60000;
 			double total = millis.count() / 60000 * (hd.t_f - t0) / (hd.t - t0);
 			std::cout << "t=" << hd.t << " (" << (hd.t - t0) / (hd.t_f - t0) * 100 << "% " << elapsed << "m elapsed, " << total << "m total " << total - elapsed << "m remain)" << std::endl;
-			std::cout << "Error = " << (energy_planet(hd.r_planet, hd.v_planet, hd.m_planet) - e0) / e0 * 100 << ", " << dd.n_part_alive << " particles remaining" << std::endl;
+			std::cout << "Error = " << (0 - e0) / e0 * 100 << ", " << dd.n_part_alive << " particles remaining" << std::endl;
 
 			timelog << std::setprecision(17) << "timing " << hd.t << " " << millis.count() / 60000 << " " << dd.n_part_alive << std::endl;
 		}
@@ -168,21 +169,27 @@ int main(int argv, char** argc)
 		}
 
 		// advance planets
+		for (size_t i = 0; i < TIMEBLOCK_SIZE; i++)
+		{
+			step_planets(hd.planets, i, hd.dt);
+		}
 
-
-
+		/*
 		// copy planet log to the buffer currently NOT in use
 		Dvf64_3& r_log_buffer = dd.log_buffer_id % 2 ? dd.r_planet_log0 : dd.r_planet_log1;
 		thrust::copy(thrust::cuda::par.on(htd_stream), hd.r_planet_log.begin(), hd.r_planet_log.end(), r_log_buffer.begin());
 		dd.log_buffer_id++;
-
+		*/
 
 		if (prune_counter % prune_every == 0)
 		{
+/*
 			cudaStreamSynchronize(dth_stream);
 			prune(work_stream, dth_stream, hd, dd);
+*/
 		}
 
+/*
 		// pruning might have moved things to the other buffer
 		DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
 
@@ -194,6 +201,12 @@ int main(int argv, char** argc)
 
 		// recover data from gpu (optional)
 		// recover_data(hd, dd, dth_stream);
+*/
+
+		for (size_t i = 0; i < TIMEBLOCK_SIZE; i++)
+		{
+			step_particles(hd.planets, hd.particles, i, hd.dt);
+		}
 
 		print_counter++;
 		prune_counter++;
@@ -216,7 +229,7 @@ int main(int argv, char** argc)
 	double elapsed = millis.count() / 60000;
 	double total = millis.count() / 60000 * (hd.t_f - t0) / (hd.t - t0);
 	std::cout << "t=" << hd.t << " (" << (hd.t - t0) / (hd.t_f - t0) * 100 << "% " << elapsed << "m elapsed, " << total << "m total " << total - elapsed << "m remain)" << std::endl;
-	std::cout << "Error = " << (energy_planet(hd.r_planet, hd.v_planet, hd.m_planet) - e0) / e0 * 100 << ", " << dd.n_part_alive << " particles remaining" << std::endl;
+	std::cout << "Error = " << (0 - e0) / e0 * 100 << ", " << dd.n_part_alive << " particles remaining" << std::endl;
 
 	timelog << std::setprecision(17) << "timing " << hd.t << " " << millis.count() / 60000 << " " << dd.n_part_alive << std::endl;
 
