@@ -21,27 +21,44 @@
 #include "wh.h"
 #include "convert.h"
 
+#ifdef GCC
+#define cudaStreamCreate(...)
+#define cudaStreamSynchronize(...)
+#else
 #include <thrust/system/cuda/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/zip_iterator.h>
+#endif
 
 const int SIMPL_DEGREE = 4;
-const int TIMEBLOCK_SIZE = 1024;
+const int TIMEBLOCK_SIZE = 1;
 
 size_t prune(cudaStream_t& main_stream, cudaStream_t& work_stream, HostData& hd, DeviceData& dd)
 {
-/*
+	(void) main_stream;
+	(void) work_stream;
+	
+	hd.particles.n_alive = hd.particles.n;
+	for (size_t i = 0; i < hd.particles.n; i++)
+	{
+		if (hd.particles.flags[i] > 0)
+		{
+			hd.particles.n_alive--;
+		}
+	}
+	
+	/*
 	DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
 	DevicePhaseSpace& other_ps = dd.phase_space_id % 2 ? dd.ps1 : dd.ps0;
 
-	thrust::copy(thrust::cuda::par.on(work_stream), ps.flags.begin(), ps.flags.begin() + dd.n_part_alive, hd.part_flags.begin());
+	thrust::copy(thrust::cuda::par.on(work_stream), ps.flags.begin(), ps.flags.begin() + hd.particles.n_alive, hd.part_flags.begin());
 	Hvu32 indices = Hvu32(hd.n_part);
 
 	// start placing alive particles at the front and dead particles at the back
 	uint32_t front_counter = 0;
-	uint32_t back_counter = dd.n_part_alive - 1;
+	uint32_t back_counter = hd.particles.n_alive - 1;
 
-	for (size_t i = 0; i < dd.n_part_alive; i++)
+	for (size_t i = 0; i < hd.particles.n_alive; i++)
 	{
 		if (hd.part_flags[i] & 0x0001) // dead particle
 		{
@@ -52,7 +69,7 @@ size_t prune(cudaStream_t& main_stream, cudaStream_t& work_stream, HostData& hd,
 			indices[front_counter++] = i;
 		}
 	}
-	for (size_t i = dd.n_part_alive; i < hd.n_part; i++)
+	for (size_t i = hd.particles.n_alive; i < hd.n_part; i++)
 	{
 		indices[i] = i;
 	}
@@ -60,8 +77,8 @@ size_t prune(cudaStream_t& main_stream, cudaStream_t& work_stream, HostData& hd,
 	cudaStreamSynchronize(work_stream);
 	thrust::copy(thrust::cuda::par.on(work_stream), indices.begin(), indices.end(), dd.gather_indices.begin());
 
-	size_t pruned = dd.n_part_alive - front_counter;
-	dd.n_part_alive = front_counter;
+	size_t pruned = hd.particles.n_alive - front_counter;
+	hd.particles.n_alive = front_counter;
 
 	cudaStreamSynchronize(main_stream);
 	cudaStreamSynchronize(work_stream);
@@ -160,9 +177,9 @@ int main(int argv, char** argc)
 			double elapsed = millis.count() / 60000;
 			double total = millis.count() / 60000 * (hd.t_f - t0) / (hd.t - t0);
 			std::cout << "t=" << hd.t << " (" << (hd.t - t0) / (hd.t_f - t0) * 100 << "% " << elapsed << "m elapsed, " << total << "m total " << total - elapsed << "m remain)" << std::endl;
-			std::cout << "Error = " << (0 - e0) / e0 * 100 << ", " << dd.n_part_alive << " particles remaining" << std::endl;
+			std::cout << "Error = " << (0 - e0) / e0 * 100 << ", " << hd.particles.n_alive << " particles remaining" << std::endl;
 
-			timelog << std::setprecision(17) << "timing " << hd.t << " " << millis.count() / 60000 << " " << dd.n_part_alive << std::endl;
+			timelog << std::setprecision(17) << "timing " << hd.t << " " << millis.count() / 60000 << " " << hd.particles.n_alive << std::endl;
 		}
 
 		if (pull_counter >= pull_every && !is_pulling_data)
@@ -173,7 +190,7 @@ int main(int argv, char** argc)
 		// advance planets
 		for (size_t i = 0; i < TIMEBLOCK_SIZE; i++)
 		{
-			step_planets(hd.planets, i, hd.dt);
+			step_planets(hd.planets, hd.t, i, hd.dt);
 		}
 
 		/*
@@ -187,8 +204,8 @@ int main(int argv, char** argc)
 		{
 /*
 			cudaStreamSynchronize(dth_stream);
-			prune(work_stream, dth_stream, hd, dd);
 */
+			prune(work_stream, dth_stream, hd, dd);
 		}
 
 /*
@@ -196,7 +213,7 @@ int main(int argv, char** argc)
 		DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
 
 
-		size_t n = dd.n_part_alive;
+		size_t n = hd.particles.n_alive;
 		cudaStreamSynchronize(htd_stream);
 		cudaStreamSynchronize(gather_stream);
 		cudaStreamSynchronize(work_stream);
@@ -207,7 +224,7 @@ int main(int argv, char** argc)
 
 		for (size_t i = 0; i < TIMEBLOCK_SIZE; i++)
 		{
-			step_particles(hd.planets, hd.particles, i, hd.dt);
+			step_particles(hd.planets, hd.particles, hd.t, i, hd.dt);
 		}
 
 		print_counter++;
@@ -220,7 +237,7 @@ int main(int argv, char** argc)
 	prune(work_stream, gather_stream, hd, dd);
 	cudaStreamSynchronize(gather_stream);
 
-	std::cout << "Simulation finished. t = " << hd.t << ". n_particle = " << dd.n_part_alive << std::endl;
+	std::cout << "Simulation finished. t = " << hd.t << ". n_particle = " << hd.particles.n_alive << std::endl;
 
 	cudaStreamSynchronize(dth_stream);
 	recover_data(hd, dd, dth_stream);
@@ -231,9 +248,9 @@ int main(int argv, char** argc)
 	double elapsed = millis.count() / 60000;
 	double total = millis.count() / 60000 * (hd.t_f - t0) / (hd.t - t0);
 	std::cout << "t=" << hd.t << " (" << (hd.t - t0) / (hd.t_f - t0) * 100 << "% " << elapsed << "m elapsed, " << total << "m total " << total - elapsed << "m remain)" << std::endl;
-	std::cout << "Error = " << (0 - e0) / e0 * 100 << ", " << dd.n_part_alive << " particles remaining" << std::endl;
+	std::cout << "Error = " << (0 - e0) / e0 * 100 << ", " << hd.particles.n_alive << " particles remaining" << std::endl;
 
-	timelog << std::setprecision(17) << "timing " << hd.t << " " << millis.count() / 60000 << " " << dd.n_part_alive << std::endl;
+	timelog << std::setprecision(17) << "timing " << hd.t << " " << millis.count() / 60000 << " " << hd.particles.n_alive << std::endl;
 
 	save_data(hd, dd, "pl.out", "ics.out", "info.out");
 

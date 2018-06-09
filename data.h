@@ -1,46 +1,67 @@
 #pragma once
 #include "types.h"
+#include <string>
 
-struct DevicePhaseSpace
+#include <cstdlib>
+using size_t = std::size_t;
+
+struct DeviceParticlePhaseSpace
 {
+	Dvf64_3 r, v;
+
+	size_t n_total;
+	size_t n_alive;
+
+	inline DeviceParticlePhaseSpace() { }
+	inline DeviceParticlePhaseSpace(size_t n) : r(n), v(n), n_total(n), n_alive(n) { }
+};
+
+struct DevicePlanetPhaseSpace
+{
+	Dvf64 m;
+	Dvf64_3 r_log;
+	Dvf64_3 h0_log;
+
+	size_t n_total;
+	size_t n_alive;
+
+	inline DevicePlanetPhaseSpace() { }
+	inline DevicePlanetPhaseSpace(size_t n, size_t tbsize) : m(n), r_log(n * tbsize), h0_log(tbsize),
+		n_total(n), n_alive(n) { }
 };
 
 struct DeviceData
 {
 	// double buffer for HtD transfer of planet locations
-	Dvf64_3 r_planet_log0, r_planet_log1;
-
-	Dvf64 m_planet;
-
-	DevicePhaseSpace ps0, ps1;
+	DeviceParticlePhaseSpace particles0, particles1;
+	DevicePlanetPhaseSpace planets0, planets1;
 
 	Dvu32 gather_indices;
 
 	size_t log_buffer_id, phase_space_id;
-	size_t n_part_alive;
-
-	Dvf64 coefdt;
 
 	inline DeviceData() { }
 };
 
 struct HostParticlePhaseSpace
 {
-	size_t n;
+	size_t n, n_alive;
+
 	Hvf64_3 r, v, rj, vj;
 	Hvf64_3 a;
 
 	Hvu8 flags;
-	Hvu32 deathtime;
+	Hvf32 deathtime;
+	Hvu32 deathtime_index;
 	Hvu32 id;
 
 	inline HostParticlePhaseSpace() { }
-	inline HostParticlePhaseSpace(size_t n) : n(n), r(n), v(n), a(n), flags(n), deathtime(n), id(n) { }
+	inline HostParticlePhaseSpace(size_t n) : n(n), n_alive(n), r(n), v(n), a(n), flags(n), deathtime(n), deathtime_index(n), id(n) { }
 };
 
 struct HostPlanetPhaseSpace
 {
-	size_t n;
+	size_t n, n_alive;
 	Hvf64 m, eta;
 	Hvf64_3 r, v, rj, vj;
 	Hvf64_3 a;
@@ -51,15 +72,16 @@ struct HostPlanetPhaseSpace
 	f64_3 bary_r, bary_v;
 
 	Hvu8 flags;
-	Hvu32 deathtime;
+	Hvf32 deathtime;
+	Hvu32 deathtime_index;
 	Hvu32 id;
 
 	inline HostPlanetPhaseSpace() { }
 	inline HostPlanetPhaseSpace(size_t n, size_t tb_size) :
-		n(n), m(n), eta(n), r(n), v(n), rj(n), vj(n),
+		n(n), n_alive(n), m(n), eta(n), r(n), v(n), rj(n), vj(n),
 		a(n),
 		r_log(n * tb_size), h0_log(tb_size),
-       		flags(n), deathtime(n), id(n) { }
+       		flags(n), deathtime(n), deathtime_index(n), id(n) { }
 };
 
 struct HostData
@@ -70,6 +92,7 @@ struct HostData
 	Hvf64 coefdt;
 
 	double t, dt, t_f;
+	size_t tbsize;
 
 	inline HostData() { }
 };

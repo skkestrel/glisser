@@ -1,7 +1,23 @@
 #pragma once
 #include <cstdint>
+
+#ifdef GCC
+#include <vector>
+namespace thrust
+{
+	template<typename T>
+	using host_vector = std::vector<T>;
+	template<typename T>
+	using device_vector = std::vector<T>;
+}
+#define __host__
+#define __device__
+using cudaStream_t = int;
+
+#else
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
+#endif
 
 #define M_PI 3.14159265358979323846
 #define M_2PI M_PI * 2

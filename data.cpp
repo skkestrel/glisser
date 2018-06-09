@@ -1,9 +1,11 @@
 #include "data.h"
 #include <fstream>
 #include <iomanip>
+#include <limits>
 
 bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t max_particle, bool readmomenta)
 {
+	hd.tbsize = tbsize;
 	std::ifstream plinfile(plin), icsinfile(icsin);
 
 	size_t npl;
@@ -78,11 +80,17 @@ void save_data(const HostData& hd, const DeviceData& dd, std::string plout, std:
 	}
 
 	infooutfile << std::setprecision(17);
-	infooutfile << hd.t << " " << dd.n_part_alive << std::endl;
+	infooutfile << hd.t << " " << hd.particles.n_alive << std::endl;
 }
 
 void transfer_data(const HostData& hd, DeviceData& dd)
 {
+	dd.particles0 = DeviceParticlePhaseSpace(hd.particles.n);
+	dd.particles1 = DeviceParticlePhaseSpace(hd.particles.n);
+
+	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, hd.tbsize);
+	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, hd.tbsize);
+
 	/*
 	dd.log_buffer_id = 0;
 	dd.phase_space_id = 0;
@@ -103,12 +111,12 @@ void transfer_data(const HostData& hd, DeviceData& dd)
 
 	dd.gather_indices = Dvu32(hd.n_part);
 
-	dd.n_part_alive = 0;
+	dd.particles.n_alive = 0;
 	for (size_t i = 0; i < hd.n_part; i++)
 	{
 		if (~hd.particles.flags[i] & 0x0001)
 		{
-			dd.n_part_alive++;
+			dd.particles.n_alive++;
 		}
 	}
 

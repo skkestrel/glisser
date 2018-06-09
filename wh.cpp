@@ -1,12 +1,13 @@
 #include "wh.h"
 #include "convert.h"
 
+#include <iostream>
 #include <cmath>
 
 const size_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-13;
 
-void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t index)
+void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, float64_t time, size_t index)
 {
 	for (size_t i = 0; i < p.n; i++)
 	{
@@ -19,6 +20,12 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 			float64_t fac = pl.m[j] * irij3;
 
 			p.a[i] -= dr * fac;
+
+			if (rji2 < 0.5 * 0.5)
+			{
+				p.deathtime[i] = time;
+				p.flags[i] = j;
+			}
 		}
 	}
 }
@@ -113,7 +120,7 @@ done:
 	return i;
 }
 
-void drift(float64_t t, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t start, size_t n)
+void drift(float64_t t, Hvu8& mask, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t start, size_t n)
 {
 	// save initial values
 	Hvf64_3 r0 = r;
@@ -139,6 +146,7 @@ void drift(float64_t t, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t start, size_t 
 
 	for (size_t i = start; i < start + n; i++)
 	{
+		if (mask[i]) continue;
 		if (energy[i] >= 0)
 		{
 			std::cerr << "unbound orbit" << std::endl;
@@ -185,7 +193,7 @@ void initialize(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
 void first_step(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, float64_t dt)
 {
 	helio_acc_planets(pl, 0);
-	helio_acc_particles(pl, pa, 0);
+	helio_acc_particles(pl, pa, 0, 0);
 
 	for (size_t i = 1; i < pl.n; i++)
 	{
@@ -198,19 +206,21 @@ void first_step(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, float64_t 
 	}
 }
 
-void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t index, float64_t dt)
+void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, float64_t t, size_t index, float64_t dt)
 {
 	Hvf64 mu(pa.n);
+	Hvu8 mask(pa.n);
 	for (size_t i = 0; i < pa.n; i++)
 	{
 		mu[i] = pl.m[0];
+		mask[i] = pa.flags[i] > 0;
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(dt, mu, pa.r, pa.v, 0, pa.n);
+	drift(dt, mask, mu, pa.r, pa.v, 0, pa.n);
 
 	// find the accelerations of the heliocentric velocities
-	helio_acc_particles(pl, pa, index);
+	helio_acc_particles(pl, pa, t, index);
 
 	for (size_t i = 0; i < pa.n; i++)
 	{
@@ -218,20 +228,22 @@ void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, 
 	}
 }
 
-void step_planets(HostPlanetPhaseSpace& pl, size_t index, float64_t dt)
+void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t dt)
 {
 	// Convert the heliocentric velocities to Jacobi velocities 
 	helio_to_jacobi_v_planets(pl);
 
 	Hvf64 mu(pl.n);
+	Hvu8 mask(pl.n);
 	for (size_t i = 1; i < pl.n; i++)
 	{
 		// Each Jacobi Kepler problem has a different central mass
 		mu[i] = pl.m[0] * pl.eta[i] / pl.eta[i - 1];
+		mask[i] = 0;
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(dt, mu, pl.rj, pl.vj, 1, pl.n - 1);
+	drift(dt, mask, mu, pl.rj, pl.vj, 1, pl.n - 1);
 
 	// convert Jacobi vectors to helio. ones for acceleration calc 
 	jacobi_to_helio_planets(pl);
