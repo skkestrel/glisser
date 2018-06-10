@@ -12,6 +12,7 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 	for (size_t i = 0; i < p.n; i++)
 	{
 		p.a[i] = pl.h0_log[index];
+
 		for (size_t j = 1; j < pl.n; j++)
 		{
 			f64_3 dr = p.r[i] - pl.r[j];
@@ -56,7 +57,7 @@ void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 		p.a[i] = a_common;
         }
 
-	p.h0_log[index] = a_common - p.m[1] * inverse_helio_cubed[1];
+	p.h0_log[index] = a_common - p.r[1] * p.m[1] * inverse_helio_cubed[1];
 	
 	// Now do indirect acceleration ; note that planet 1 does not receive a contribution 
 	for (size_t i = 2; i < p.n; i++)    
@@ -186,6 +187,8 @@ void drift(float64_t t, Hvu8& mask, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t st
 
 void initialize(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
 {
+	(void) pa;
+
 	helio_to_jacobi_r_planets(pl);
 	helio_to_jacobi_v_planets(pl);
 }
@@ -230,6 +233,8 @@ void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, 
 
 void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t dt)
 {
+	(void) t;
+
 	// Convert the heliocentric velocities to Jacobi velocities 
 	helio_to_jacobi_v_planets(pl);
 

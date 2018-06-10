@@ -2,25 +2,30 @@
 #include <cstdint>
 
 #ifdef GCC
-#include <vector>
-namespace thrust
-{
-	template<typename T>
-	using host_vector = std::vector<T>;
-	template<typename T>
-	using device_vector = std::vector<T>;
-}
-#define __host__
-#define __device__
-using cudaStream_t = int;
-
+	#include <vector>
+	namespace thrust
+	{
+		template<typename T>
+		using host_vector = std::vector<T>;
+		template<typename T>
+		using device_vector = std::vector<T>;
+	}
+	#define __host__
+	#define __device__
+	#define cudaStreamCreate(...)
+	#define cudaStreamSynchronize(...)
+	using cudaStream_t = int;
 #else
-#include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
+	#include <thrust/system/cuda/execution_policy.h>
+	#include <thrust/for_each.h>
+	#include <thrust/iterator/zip_iterator.h>
+	#include <thrust/host_vector.h>
+	#include <thrust/device_vector.h>
 #endif
 
 #define M_PI 3.14159265358979323846
 #define M_2PI M_PI * 2
+
 
 
 using float64_t = double;
@@ -44,7 +49,7 @@ struct v_3
 	__host__ __device__
 	inline v_3() { }
 	__host__ __device__
-	inline v_3(T t) : x(t), y(t), z(t) { }
+	explicit inline v_3(T t) : x(t), y(t), z(t) { }
 	__host__ __device__
 	inline v_3(T x, T y, T z) : x(x), y(y), z(z) { }
 
