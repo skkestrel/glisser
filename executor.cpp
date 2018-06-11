@@ -4,7 +4,7 @@
 #include "wh.h"
 #include <fstream>
 
-struct ParticleAlivePredicate()
+struct DeviceParticleUnflaggedPredicate()
 {
 	template<typename Tuple>
 	__host__ __device__
@@ -12,6 +12,17 @@ struct ParticleAlivePredicate()
 	{
 		uint8_t flag = thrust::get<2>(args);
 		return flag == 0;
+	}
+};
+
+struct HostParticleAlivePredicate()
+{
+	template<typename Tuple>
+	__host__
+	bool operator()(Tuple& args)
+	{
+		uint32_t flag = thrust::get<3>(args);
+		return ~flag & 0x0001;
 	}
 };
 
@@ -55,6 +66,8 @@ void Executor::init()
 
 void Executor::upload_data()
 {
+	std::partition(hd.particles.begin(), hd.particles.end(), HostParticleAlivePredicate());
+
 	dd.particles0 = DeviceParticlePhaseSpace(hd.particles.n);
 	dd.particles1 = DeviceParticlePhaseSpace(hd.particles.n);
 
@@ -65,17 +78,12 @@ void Executor::upload_data()
 	dd.particle_data_id = 0;
 
 	auto particles = dd.particle_phase_space();
+	thrust::copy(hd.particles.r.begin(), hd.particles.r.end(), particles.r.begin());
+	thrust::copy(hd.particles.v.begin(), hd.particles.v.end(), particles.v.begin());
+	thrust::copy(hd.id.begin(), hd.id.end(), particles.id.begin());
 
-	DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
-	thrust::copy(hd.particles.r.begin(), hd.particles.r.end(), ps.r.begin());
-	thrust::copy(hd.particles.v.begin(), hd.particles.v.end(), ps.v.begin());
-
-	thrust::copy(hd.planets.m.begin(), hd.planets.m.end(), dd.planets.m.begin());
-	thrust::copy(hd.coefdt.begin(), hd.coefdt.end(), dd.coefdt.begin());
-
-	thrust::copy(hd.id.begin(), hd.id.end(), ps.id.begin());
-	thrust::copy(hd.deathtime.begin(), hd.deathtime.end(), ps.deathtime.begin());
-	thrust::copy(hd.particles.flags.begin(), hd.particles.flags.end(), ps.flags.begin());
+	auto planets = dd.planet_phase_space();
+	thrust::copy(hd.planets.m.begin(), hd.planets.m.end(), planets.m.begin());
 }
 
 void Executor::download_data()

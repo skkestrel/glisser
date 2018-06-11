@@ -1,7 +1,7 @@
 #pragma once
 #include "types.h"
 #include <string>
-
+#include <utility>
 #include <cstdlib>
 using size_t = std::size_t;
 
@@ -9,6 +9,7 @@ struct DeviceParticlePhaseSpace
 {
 	Dvf64_3 r, v;
 	Dvu8 flags;
+	Dvu32 id;
 
 	size_t n_total;
 	size_t n_alive;
@@ -16,6 +17,15 @@ struct DeviceParticlePhaseSpace
 
 	inline DeviceParticlePhaseSpace() { }
 	inline DeviceParticlePhaseSpace(size_t n) : r(n), v(n), flags(n), n_total(n), n_alive(n) { }
+
+	using iterator_tuple = decltype(thrust::make_tuple(r.begin(), v.begin(), flags.begin(), id.begin()));
+	using iterator = thrust::zip_iterator<iterator_tuple>;
+
+	inline iterator begin()
+	{
+		return thrust::make_zip_iterator(thrust::make_tuple(
+			r.begin(), v.begin(), flags.begin(), id.begin()));
+	}
 };
 
 struct DevicePlanetPhaseSpace
@@ -49,16 +59,28 @@ struct HostParticlePhaseSpace
 {
 	size_t n, n_alive;
 
-	Hvf64_3 r, v, rj, vj;
+	Hvf64_3 r, v;
 	Hvf64_3 a;
 
-	Hvu8 flags;
+	Hvu32 flags;
 	Hvf32 deathtime;
 	Hvu32 deathtime_index;
 	Hvu32 id;
 
 	inline HostParticlePhaseSpace() { }
 	inline HostParticlePhaseSpace(size_t n) : n(n), n_alive(n), r(n), v(n), a(n), flags(n), deathtime(n), deathtime_index(n), id(n) { }
+
+	using iterator_tuple = decltype(thrust::make_tuple(
+			r.begin(), v.begin(), a.begin(), flags.begin(),
+			deathtime.begin(), deathtime_index.begin(), id.begin()));
+	using iterator = thrust::zip_iterator<iterator_tuple>;
+
+	inline iterator iterator()
+	{
+		return thrust::make_zip_iterator(thrust::make_tuple(
+			r.begin(), v.begin(), a.begin(), flags.begin(),
+			deathtime.begin(), deathtime_index.begin(), id.begin()));
+	}
 };
 
 struct HostPlanetPhaseSpace
