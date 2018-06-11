@@ -8,12 +8,14 @@ using size_t = std::size_t;
 struct DeviceParticlePhaseSpace
 {
 	Dvf64_3 r, v;
+	Dvu8 flags;
 
 	size_t n_total;
 	size_t n_alive;
+	size_t n_encounter;
 
 	inline DeviceParticlePhaseSpace() { }
-	inline DeviceParticlePhaseSpace(size_t n) : r(n), v(n), n_total(n), n_alive(n) { }
+	inline DeviceParticlePhaseSpace(size_t n) : r(n), v(n), flags(n), n_total(n), n_alive(n) { }
 };
 
 struct DevicePlanetPhaseSpace
@@ -36,11 +38,11 @@ struct DeviceData
 	DeviceParticlePhaseSpace particles0, particles1;
 	DevicePlanetPhaseSpace planets0, planets1;
 
-	Dvu32 gather_indices;
-
-	size_t log_buffer_id, phase_space_id;
+	size_t particle_data_id, planet_data_id;
 
 	inline DeviceData() { }
+	inline DeviceParticlePhaseSpace& particle_phase_space() { return particle_data_id % 2 ? particles1 : particles0; }
+	inline DevicePlanetPhaseSpace& planet_phase_space() { return planet_data_id % 2 ? planets1 : planets0; }
 };
 
 struct HostParticlePhaseSpace
@@ -86,7 +88,7 @@ struct HostPlanetPhaseSpace
 
 struct HostData
 {
-	HostParticlePhaseSpace particles;
+	HostParticlePhaseSpace particles, encounter_particles;
 	HostPlanetPhaseSpace planets;
 
 	size_t tbsize;

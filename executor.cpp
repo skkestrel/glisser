@@ -4,6 +4,17 @@
 #include "wh.h"
 #include <fstream>
 
+struct ParticleAlivePredicate()
+{
+	template<typename Tuple>
+	__host__ __device__
+	bool operator()(Tuple& args)
+	{
+		uint8_t flag = thrust::get<2>(args);
+		return flag == 0;
+	}
+};
+
 Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), print_every(10), print_counter(0), tbsize(128), output(out) { }
 
 void Executor::init()
@@ -40,7 +51,6 @@ void Executor::init()
 	starttime = std::chrono::high_resolution_clock::now();
 
 	output << "       Starting simulation.       " << std::endl << std::endl;
-
 }
 
 void Executor::upload_data()
@@ -51,36 +61,10 @@ void Executor::upload_data()
 	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, hd.tbsize);
 	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, hd.tbsize);
 
-	/*
-	dd.log_buffer_id = 0;
-	dd.phase_space_id = 0;
+	dd.planet_data_id = 0;
+	dd.particle_data_id = 0;
 
-	dd.planets.r_log0 = Dvf64_3(hd.planets.r_log.size());
-	dd.planets.r_log1 = Dvf64_3(hd.planets.r_log.size());
-	dd.planets.m = Dvf64(hd.n_planet);
-
-	dd.ps0.r = dd.ps0.v = Dvf64_3(hd.n_part);
-	dd.ps0.flags = Dvu8(hd.n_part);
-	dd.ps0.deathtime = Dvu32(hd.n_part);
-	dd.ps0.id = Dvu32(hd.n_part);
-
-	dd.ps1.r = dd.ps1.v = Dvf64_3(hd.n_part);
-	dd.ps1.flags = Dvu8(hd.n_part);
-	dd.ps1.deathtime = Dvu32(hd.n_part);
-	dd.ps1.id = Dvu32(hd.n_part);
-
-	dd.gather_indices = Dvu32(hd.n_part);
-
-	dd.particles.n_alive = 0;
-	for (size_t i = 0; i < hd.n_part; i++)
-	{
-		if (~hd.particles.flags[i] & 0x0001)
-		{
-			dd.particles.n_alive++;
-		}
-	}
-
-	dd.coefdt = Dvf64(hd.coefdt.size());
+	auto particles = dd.particle_phase_space();
 
 	DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
 	thrust::copy(hd.particles.r.begin(), hd.particles.r.end(), ps.r.begin());
@@ -92,7 +76,6 @@ void Executor::upload_data()
 	thrust::copy(hd.id.begin(), hd.id.end(), ps.id.begin());
 	thrust::copy(hd.deathtime.begin(), hd.deathtime.end(), ps.deathtime.begin());
 	thrust::copy(hd.particles.flags.begin(), hd.particles.flags.end(), ps.flags.begin());
-	*/
 }
 
 void Executor::download_data()
@@ -210,6 +193,12 @@ void Executor::resync()
 			hd.particles.n_alive--;
 		}
 	}
+
+	// pull data
+	// merge data with existing finished CE particles
+	// find CE particles (on gpu or cpu?)
+	// run CEs
+	// generate gather indices (?)
 	
 	/*
 	DevicePhaseSpace& ps = dd.phase_space_id % 2 ? dd.ps0 : dd.ps1;
