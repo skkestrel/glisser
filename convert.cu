@@ -22,7 +22,7 @@ void jacobi_to_helio_planets(HostPlanetPhaseSpace& pl)
 
 }
 
-// requires pl to have bary_r calculated
+/*
 void helio_to_jacobi_r_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p)
 {
 	for (size_t i = 0; i < p.n; i++)
@@ -38,6 +38,7 @@ void helio_to_jacobi_v_particles(const HostPlanetPhaseSpace& pl, HostParticlePha
 		p.vj[i] = p.v[i] - pl.bary_v;
 	}
 }
+*/
 
 void helio_to_jacobi_v_planets(HostPlanetPhaseSpace& p)
 {

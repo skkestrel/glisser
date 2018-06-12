@@ -23,6 +23,7 @@ struct Executor
 
 	void init();
 	void upload_data();
+	void upload_planet_log();
 	void download_data();
 
 	double time() const;

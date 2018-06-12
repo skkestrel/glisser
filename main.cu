@@ -36,7 +36,7 @@ int main(int argv, char** argc)
 	ex.t_0 = ex.t;
 	ex.dt = std::stod(argc[2]);
 	ex.t_f = std::stod(argc[3]);
-	ex.tbsize = 1; 
+	ex.tbsize = 1;
 
 	size_t max_particle = 0;
 	if (argv >= 5) max_particle = static_cast<size_t>(std::stoi(argc[4]));

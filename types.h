@@ -33,6 +33,12 @@ struct v_3
 	inline v_3(T x, T y, T z) : x(x), y(y), z(z) { }
 
 	__host__ __device__
+	inline v_3 cross(const v_3<T>& b) const
+	{
+		return v_3<T>(y * b.z - z * b.y, z * b.x - x * b.z, x * b.y - y * b.x);
+	}
+
+	__host__ __device__
 	inline T lensq() const
 	{
 		return x * x + y * y + z * z;
@@ -144,5 +150,4 @@ struct v_3
 using f64_3 = v_3<float64_t>;
 
 using Hvf64_3 = thrust::host_vector<f64_3>;
-// using Dvf64_3 = thrust::device_vector<f64_3>;
-using Dvf64_3 = Hvf64_3;
+using Dvf64_3 = thrust::device_vector<f64_3>;
