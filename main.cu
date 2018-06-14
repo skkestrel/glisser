@@ -37,14 +37,12 @@ int main(int argv, char** argc)
 	ex.dt = std::stod(argc[2]);
 	ex.t_f = std::stod(argc[3]);
 	ex.tbsize = 1;
+	ex.print_every = 10;
 
 	size_t max_particle = 0;
 	if (argv >= 5) max_particle = static_cast<size_t>(std::stoi(argc[4]));
 
 	if (load_data(hd, "pl.in", "ics.in", ex.tbsize, max_particle, false)) return -1;
-
-	ex.print_every = 10;
-	ex.init();
 
 	std::ofstream timelog("time.out");
 	std::time_t t = std::time(nullptr);
@@ -53,15 +51,16 @@ int main(int argv, char** argc)
 	std::cout << "Saving to disk." << std::endl;
 	save_data(hd, "pl.part.out", "ics.part.out");
 
-
+	ex.timing_output = &timelog;
 
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
 
+
+	ex.init();
 	while (ex.t < ex.t_f)
 	{
 		ex.loop();
 	}
-
 	ex.finish();
 
 	std::cout << "Saving to disk." << std::endl;

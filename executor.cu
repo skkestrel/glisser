@@ -12,19 +12,18 @@ struct DeviceParticleUnflaggedPredicate
 	__host__ __device__
 	bool operator()(const Tuple& args)
 	{
-		uint8_t flag = thrust::get<2>(args);
+		uint8_t flag = thrust::get<3>(args);
 		return flag == 0;
 	}
 };
 
-
-Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), print_every(10), print_counter(0), tbsize(128), output(out) { }
+Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), print_every(10), print_counter(0), tbsize(128), output(out), timing_output(nullptr) { }
 
 void Executor::init()
 {
 	to_helio(hd);
 
-	e_0 = energy_planets(hd.planets);
+	calculate_planet_metrics(hd.planets, &e_0, nullptr);
 
 	output << std::setprecision(17);
 	output << "e_0 (planets) = " << e_0 << std::endl;
@@ -36,7 +35,6 @@ void Executor::init()
 	output << "Running for half a time step.     " << std::endl;
 
 	initialize(hd.planets, hd.particles);
-	first_step(hd.planets, hd.particles, dt);
 
 	output << "==================================" << std::endl;
 	output << "Sending initial conditions to GPU." << std::endl;
@@ -47,13 +45,19 @@ void Executor::init()
 	cudaStreamCreate(&dth_stream);
 
 	upload_data();
-	download_data();
+	cudaStreamSynchronize(htd_stream);
 
+	download_data();
 	cudaStreamSynchronize(dth_stream);
 
 	starttime = std::chrono::high_resolution_clock::now();
 
 	output << "       Starting simulation.       " << std::endl << std::endl;
+
+	if (timing_output)
+	{
+		*timing_output << std::setprecision(17);
+	}
 }
 
 void Executor::upload_data()
@@ -70,6 +74,7 @@ void Executor::upload_data()
 	auto& particles = dd.particle_phase_space();
 	thrust::copy(thrust::cuda::par.on(htd_stream), hd.particles.r.begin(), hd.particles.r.end(), particles.r.begin());
 	thrust::copy(thrust::cuda::par.on(htd_stream), hd.particles.v.begin(), hd.particles.v.end(), particles.v.begin());
+	thrust::copy(thrust::cuda::par.on(htd_stream), hd.particles.a.begin(), hd.particles.a.end(), particles.a.begin());
 	thrust::copy(thrust::cuda::par.on(htd_stream), hd.particles.id.begin(), hd.particles.id.end(), particles.id.begin());
 
 	thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.m.begin(), hd.planets.m.end(), dd.planet_phase_space().m.begin());
@@ -84,10 +89,21 @@ void Executor::download_data()
 	auto& particles = dd.particle_phase_space();
 	size_t n = hd.particles.n;
 
+	Hvu8 flags(n);
+
 	thrust::copy(thrust::cuda::par.on(dth_stream), particles.r.begin(), particles.r.begin() + n, hd.particles.r.begin());
 	thrust::copy(thrust::cuda::par.on(dth_stream), particles.v.begin(), particles.v.begin() + n, hd.particles.v.begin());
+	thrust::copy(thrust::cuda::par.on(dth_stream), particles.a.begin(), particles.a.begin() + n, hd.particles.a.begin());
+	thrust::copy(thrust::cuda::par.on(dth_stream), particles.flags.begin(), particles.flags.begin() + n, flags.begin());
 	thrust::copy(thrust::cuda::par.on(dth_stream), particles.id.begin(), particles.id.begin() + n, hd.particles.id.begin());
 	cudaStreamSynchronize(dth_stream);
+
+
+	for (size_t i = 0; i < n; i++)
+	{
+		hd.particles.flags[i] = flags[i];
+	}
+	hd.particles.n_alive = dd.particle_phase_space().n_alive;
 
 	/*
 	// zip will crash the program
@@ -124,12 +140,14 @@ void Executor::loop()
 {
 	if (print_counter % print_every == 0)
 	{
-		double e = energy_planets(hd.planets);
+		double e;
+		calculate_planet_metrics(hd.planets, &e, nullptr);
+
 		double elapsed = time();
 		double total = elapsed * (t_f - t_0) / (t - t_0);
 
 		output << "t=" << t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, " << total << "m total " << total - elapsed << "m remain)" << std::endl;
-		output << "Error = " << (e - e_0) / e_0 * 100 << ", " << hd.particles.n_alive << " particles remaining" << std::endl;
+		output << "Error = " << (e - e_0) / e_0 * 100 << ", " << dd.particle_phase_space().n_alive << " particles remaining" << std::endl;
 	}
 	print_counter++;
 
@@ -137,46 +155,68 @@ void Executor::loop()
 	for (size_t i = 0; i < tbsize; i++)
 	{
 		step_planets(hd.planets, t, i, dt);
+
+		if (timing_output)
+		{
+			double e_;
+			f64_3 l_;
+			calculate_planet_metrics(hd.planets, &e_, &l_);
+		
+			*timing_output << "ep " << e_ << std::endl;
+			*timing_output << "lp " << l_.x << " " << l_.y << " " << l_.z << std::endl;
+		}
 	}
 
 	upload_planet_log();
 	download_data();
 
+	cudaStreamSynchronize(dth_stream);
+	// animate();
 
-	cudaStreamSynchronize(htd_stream);
-	step_particles_cuda(dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
+	cudaStreamSynchronize(main_stream);
 	resync();
 
-	/*
-	std::ofstream anilog("animation.out", std::ios_base::app);
-
-	to_bary(hd);
-	for (size_t j = 0; j < hd.planets.n; j++)
-	{
-		anilog << hd.planets.r[j].x << " " << hd.planets.r[j].y << " " << hd.planets.r[j].z << std::endl << std::flush;
-	}
-	for (size_t j = 0; j < hd.particles.n; j++)
-	{
-		anilog << hd.particles.r[j].x << " " << hd.particles.r[j].y << " " << hd.particles.r[j].z << std::endl << std::flush;
-	}
-	to_helio(hd);
-	*/
-
+	cudaStreamSynchronize(htd_stream);
+	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
 
 	t += dt * tbsize;
 }
 
-void Executor::resync()
-{
-	hd.particles.n_alive = hd.particles.n;
+std::ofstream anilog("animation.out", std::ios_base::app);
 
+void Executor::animate()
+{
+	Hvf64_3 r(hd.planets.n);
+	Hvf64_3 rp(hd.particles.n);
+
+	f64_3 bary_r, bary_v;
+
+	find_barycenter(hd.planets.r, hd.planets.v, hd.planets.m, hd.planets.n, bary_r, bary_v);
+
+	for (size_t i = 0; i < hd.planets.n; i++)
+	{
+		r[i] = hd.planets.r[i] - bary_r;
+	}
 	for (size_t i = 0; i < hd.particles.n; i++)
 	{
-		if (hd.particles.flags[i] > 0)
-		{
-			hd.particles.n_alive--;
-		}
+		rp[i] = hd.particles.r[i] - bary_r;
 	}
+
+	for (size_t j = 0; j < hd.planets.n; j++)
+	{
+		anilog << r[j].x << " " << r[j].y << " " << r[j].z << std::endl << std::flush;
+	}
+	for (size_t j = 0; j < hd.particles.n; j++)
+	{
+		anilog << rp[j].x << " " << rp[j].y << " " << rp[j].z << std::endl << std::flush;
+	}
+}
+
+void Executor::resync()
+{
+	auto& particles = dd.particle_phase_space();
+	particles.n_alive = thrust::partition(thrust::cuda::par.on(par_stream), particles.begin(), particles.begin() + particles.n_alive, DeviceParticleUnflaggedPredicate())
+		- particles.begin();
 
 	// partition data on GPU
 	// start GPU kernel

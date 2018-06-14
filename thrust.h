@@ -6,5 +6,6 @@
 #include <thrust/for_each.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/host_vector.h>
+#include <thrust/partition.h>
 #include <thrust/device_vector.h>
 #pragma GCC diagnostic pop

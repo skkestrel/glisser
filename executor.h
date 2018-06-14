@@ -1,8 +1,7 @@
 #include "data.h"
 #include <ctime>
 #include <chrono>
-#include <iostream>
-
+#include <iostream> 
 struct Executor
 {
 	HostData& hd;
@@ -17,6 +16,8 @@ struct Executor
 	size_t tbsize;
 
 	std::ostream& output;
+	std::ostream* timing_output;
+
 	std::chrono::time_point<std::chrono::high_resolution_clock> starttime;
 
 	Executor(HostData& hd, DeviceData& dd, std::ostream& out);
@@ -29,5 +30,6 @@ struct Executor
 	double time() const;
 	void loop();
 	void resync();
+	void animate();
 	void finish();
 };

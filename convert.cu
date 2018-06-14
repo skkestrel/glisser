@@ -96,23 +96,29 @@ void helio_to_jacobi_r_planets(HostPlanetPhaseSpace& p)
 	p.bary_r = sum / p.eta[p.n - 1];
 }
 
-void to_bary(HostData& hd)
+void find_barycenter(const Hvf64_3& r, const Hvf64_3& v, const Hvf64& m, size_t n, f64_3& r_out, f64_3& v_out)
 {
-	f64_3 r(0);
-	f64_3 v(0);
+	f64_3 rsum(0);
+	f64_3 vsum(0);
 
 	double totalm = 0;
 
-	for (size_t i = 0; i < hd.planets.n; i++)
+	for (size_t i = 0; i < n; i++)
 	{
-		r += hd.planets.r[i] * hd.planets.m[i];
-		v += hd.planets.v[i] * hd.planets.m[i];
+		rsum += r[i] * m[i];
+		vsum += v[i] * m[i];
 
-		totalm += hd.planets.m[i];
+		totalm += m[i];
 	}
 
-	r /= totalm;
-	v /= totalm;
+	r_out = rsum / totalm;
+	v_out = vsum / totalm;
+}
+
+void to_bary(HostData& hd)
+{
+	f64_3 r, v;
+	find_barycenter(hd.planets.r, hd.planets.v, hd.planets.m, hd.planets.n, r, v);
 
 	for (size_t i = 0; i < hd.planets.n; i++)
 	{
@@ -139,9 +145,6 @@ void to_helio(HostData& hd)
 		hd.planets.r[i] -= r;
 		hd.planets.v[i] -= v;
 	}
-
-	hd.planets.bary_r = -r;
-	hd.planets.bary_v = -v;
 
 	for (size_t i = 0; i < hd.particles.n; i++)
 	{
