@@ -1,7 +1,9 @@
+#include "data.cuh"
 #include "data.h"
 #include <ctime>
 #include <chrono>
 #include <iostream> 
+
 struct Executor
 {
 	HostData& hd;

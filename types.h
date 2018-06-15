@@ -1,9 +1,16 @@
 #pragma once
+#include <vector>
 #include <cstdint>
-#include "thrust.h"
 
 #define M_PI 3.14159265358979323846
 #define M_2PI M_PI * 2
+
+#ifndef __host__
+#define __host__
+#endif
+#ifndef __device__
+#define __device__
+#endif
 
 using float64_t = double;
 using float32_t = float;
@@ -13,21 +20,13 @@ using Vu32 = std::vector<uint32_t>;
 using Vu8 = std::vector<uint8_t>;
 using Vf32 = std::vector<float32_t>;
 
-using Hvf64 = thrust::host_vector<float64_t>;
-using Hvu32 = thrust::host_vector<uint32_t>;
-using Hvu8 = thrust::host_vector<uint8_t>;
-using Hvf32 = thrust::host_vector<float32_t>;
-
-using Dvf64 = thrust::device_vector<float64_t>;
-using Dvu32 = thrust::device_vector<uint32_t>;
-using Dvu8 = thrust::device_vector<uint8_t>;
-using Dvf32 = thrust::device_vector<float32_t>;
-
 template<typename T>
 struct v_3
 {
 	T x, y, z;
 
+	__host__ __device__
+	inline v_3(const v_3<T>& other) : x(other.x), y(other.y), z(other.z) { }
 	__host__ __device__
 	inline v_3() { }
 	__host__ __device__
@@ -153,5 +152,3 @@ struct v_3
 using f64_3 = v_3<float64_t>;
 
 using Vf64_3 = std::vector<f64_3>;
-using Hvf64_3 = thrust::host_vector<f64_3>;
-using Dvf64_3 = thrust::device_vector<f64_3>;

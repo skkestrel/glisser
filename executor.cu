@@ -2,7 +2,9 @@
 #include <fstream>
 #include <algorithm>
 
-#include "executor.h"
+#include "types.h"
+#include "executor.cuh"
+#include "wh.cuh"
 #include "convert.h"
 #include "wh.h"
 
@@ -47,8 +49,13 @@ void Executor::init()
 	upload_data();
 	cudaStreamSynchronize(htd_stream);
 
+	resync();
+	cudaStreamSynchronize(par_stream);
+
+	output << "begin download" << std::endl;
 	download_data();
 	cudaStreamSynchronize(dth_stream);
+	output << "end download" << std::endl;
 
 	starttime = std::chrono::high_resolution_clock::now();
 
@@ -72,15 +79,25 @@ void Executor::upload_data()
 	dd.particle_data_id = 0;
 
 	auto& particles = dd.particle_phase_space();
-	thrust::copy(thrust::cuda::par.on(htd_stream), hd.particles.r.begin(), hd.particles.r.end(), particles.r.begin());
-	thrust::copy(thrust::cuda::par.on(htd_stream), hd.particles.v.begin(), hd.particles.v.end(), particles.v.begin());
-	thrust::copy(thrust::cuda::par.on(htd_stream), hd.particles.a.begin(), hd.particles.a.end(), particles.a.begin());
-	thrust::copy(thrust::cuda::par.on(htd_stream), hd.particles.id.begin(), hd.particles.id.end(), particles.id.begin());
 
-	thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.m.begin(), hd.planets.m.end(), dd.planet_phase_space().m.begin());
+	cudaMemcpyAsync(particles.r.data().get(), hd.particles.r.data(), hd.particles.r.size() * sizeof(hd.particles.r[0]), cudaMemcpyHostToDevice, htd_stream);
+	cudaStreamSynchronize(htd_stream);
+	cudaMemcpyAsync(particles.v.data().get(), hd.particles.v.data(), hd.particles.v.size() * sizeof(hd.particles.v[0]), cudaMemcpyHostToDevice, htd_stream);
+	cudaStreamSynchronize(htd_stream);
+	cudaMemcpyAsync(particles.a.data().get(), hd.particles.a.data(), hd.particles.a.size() * sizeof(hd.particles.a[0]), cudaMemcpyHostToDevice, htd_stream);
+	cudaStreamSynchronize(htd_stream);
+	cudaMemcpyAsync(particles.flags.data().get(), hd.particles.flags.data(), hd.particles.flags.size() * sizeof(hd.particles.flags[0]), cudaMemcpyHostToDevice, htd_stream);
+	cudaStreamSynchronize(htd_stream);
+	cudaMemcpyAsync(particles.id.data().get(), hd.particles.id.data(), hd.particles.id.size() * sizeof(hd.particles.id[0]), cudaMemcpyHostToDevice, htd_stream);
+	cudaStreamSynchronize(htd_stream);
+
+	// thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.m.begin(), hd.planets.m.end(), dd.planet_phase_space().m.begin());
+	cudaMemcpyAsync(dd.planet_phase_space().m.data().get(), hd.planets.m.data(), hd.planets.m.size() * sizeof(hd.planets.m[0]), cudaMemcpyHostToDevice, htd_stream);
+	cudaStreamSynchronize(htd_stream);
+
 	dd.planet_data_id++;
-	thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.m.begin(), hd.planets.m.end(), dd.planet_phase_space().m.begin());
-	
+	// thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.m.begin(), hd.planets.m.end(), dd.planet_phase_space().m.begin());
+	cudaMemcpyAsync(dd.planet_phase_space().m.data().get(), hd.planets.m.data(), hd.planets.m.size() * sizeof(hd.planets.m[0]), cudaMemcpyHostToDevice, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 }
 
@@ -89,20 +106,19 @@ void Executor::download_data()
 	auto& particles = dd.particle_phase_space();
 	size_t n = hd.particles.n;
 
-	Hvu8 flags(n);
+	Vu8 flags(n);
 
-	thrust::copy(thrust::cuda::par.on(dth_stream), particles.r.begin(), particles.r.begin() + n, hd.particles.r.begin());
-	thrust::copy(thrust::cuda::par.on(dth_stream), particles.v.begin(), particles.v.begin() + n, hd.particles.v.begin());
-	thrust::copy(thrust::cuda::par.on(dth_stream), particles.a.begin(), particles.a.begin() + n, hd.particles.a.begin());
-	thrust::copy(thrust::cuda::par.on(dth_stream), particles.flags.begin(), particles.flags.begin() + n, flags.begin());
-	thrust::copy(thrust::cuda::par.on(dth_stream), particles.id.begin(), particles.id.begin() + n, hd.particles.id.begin());
+	cudaMemcpyAsync(hd.particles.r.data(), particles.r.data().get(), hd.particles.r.size() * sizeof(hd.particles.r[0]), cudaMemcpyDeviceToHost, dth_stream);
+	cudaStreamSynchronize(dth_stream);
+	cudaMemcpyAsync(hd.particles.v.data(), particles.v.data().get(), hd.particles.v.size() * sizeof(hd.particles.v[0]), cudaMemcpyDeviceToHost, dth_stream);
+	cudaStreamSynchronize(dth_stream);
+	cudaMemcpyAsync(hd.particles.a.data(), particles.a.data().get(), hd.particles.a.size() * sizeof(hd.particles.a[0]), cudaMemcpyDeviceToHost, dth_stream);
+	cudaStreamSynchronize(dth_stream);
+	cudaMemcpyAsync(hd.particles.id.data(), particles.id.data().get(), hd.particles.id.size() * sizeof(hd.particles.id[0]), cudaMemcpyDeviceToHost, dth_stream);
+	cudaStreamSynchronize(dth_stream);
+	cudaMemcpyAsync(hd.particles.flags.data(), particles.flags.data().get(), hd.particles.flags.size() * sizeof(hd.particles.flags[0]), cudaMemcpyDeviceToHost, dth_stream);
 	cudaStreamSynchronize(dth_stream);
 
-
-	for (size_t i = 0; i < n; i++)
-	{
-		hd.particles.flags[i] = flags[i];
-	}
 	hd.particles.n_alive = dd.particle_phase_space().n_alive;
 
 	/*
@@ -125,9 +141,14 @@ void Executor::upload_planet_log()
 {
 	dd.planet_data_id++;
 	auto& planets = dd.planet_phase_space();
+	/*
 	thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.h0_log.begin(), hd.planets.h0_log.end(), planets.h0_log.begin());
 	thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.r_log.begin(), hd.planets.r_log.end(), planets.r_log.begin());
+	*/
+	cudaMemcpyAsync(planets.h0_log.data().get(), hd.planets.h0_log.data(), hd.planets.h0_log.size() * sizeof(hd.planets.h0_log[0]), cudaMemcpyHostToDevice, htd_stream);
+	cudaMemcpyAsync(planets.r_log.data().get(), hd.planets.r_log.data(), hd.planets.r_log.size() * sizeof(hd.planets.r_log[0]), cudaMemcpyHostToDevice, htd_stream);
 }
+
 
 double Executor::time() const
 {
@@ -155,26 +176,26 @@ void Executor::loop()
 	for (size_t i = 0; i < tbsize; i++)
 	{
 		step_planets(hd.planets, t, i, dt);
+	}
 
-		if (timing_output)
-		{
-			double e_;
-			f64_3 l_;
-			calculate_planet_metrics(hd.planets, &e_, &l_);
-		
-			*timing_output << "ep " << e_ << std::endl;
-			*timing_output << "lp " << l_.x << " " << l_.y << " " << l_.z << std::endl;
-		}
+	if (timing_output)
+	{
+		double e_;
+		f64_3 l_;
+		calculate_planet_metrics(hd.planets, &e_, &l_);
+	
+		*timing_output << "ep " << e_ << std::endl;
+		*timing_output << "lp " << l_.x << " " << l_.y << " " << l_.z << std::endl;
 	}
 
 	upload_planet_log();
 	cudaStreamSynchronize(htd_stream);
 
-	download_data();
-	cudaStreamSynchronize(dth_stream);
 
 	cudaStreamSynchronize(main_stream);
 	resync();
+	download_data();
+
 
 	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
 
@@ -237,7 +258,7 @@ void Executor::resync()
 	DevicePhaseSpace& other_ps = dd.phase_space_id % 2 ? dd.ps1 : dd.ps0;
 
 	thrust::copy(thrust::cuda::par.on(main_stream), ps.flags.begin(), ps.flags.begin() + hd.particles.n_alive, hd.part_flags.begin());
-	Hvu32 indices = Hvu32(hd.n_part);
+	Vu32 indices = Vu32(hd.n_part);
 
 	// start placing alive particles at the front and dead particles at the back
 	uint32_t front_counter = 0;
@@ -286,12 +307,12 @@ void Executor::resync()
 void Executor::finish()
 {
 	cudaStreamSynchronize(main_stream);
-	resync();
 
+	resync();
 	cudaStreamSynchronize(par_stream);
+
+	download_data();
 
 	output << "Simulation finished. t = " << t << ". n_particle = " << hd.particles.n_alive << std::endl;
 
-	cudaStreamSynchronize(dth_stream);
-	download_data();
 }

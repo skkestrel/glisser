@@ -96,7 +96,7 @@ void helio_to_jacobi_r_planets(HostPlanetPhaseSpace& p)
 	p.bary_r = sum / p.eta[p.n - 1];
 }
 
-void find_barycenter(const Hvf64_3& r, const Hvf64_3& v, const Hvf64& m, size_t n, f64_3& r_out, f64_3& v_out)
+void find_barycenter(const Vf64_3& r, const Vf64_3& v, const Vf64& m, size_t n, f64_3& r_out, f64_3& v_out)
 {
 	f64_3 rsum(0);
 	f64_3 vsum(0);

@@ -14,8 +14,8 @@
 #include <thread>
 #include <iomanip>
 
-#include "types.h"
-#include "executor.h"
+#include "types.cuh"
+#include "executor.cuh"
 #include "data.h"
 #include "wh.h"
 #include "convert.h"
