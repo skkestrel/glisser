@@ -168,26 +168,26 @@ void Executor::loop()
 	}
 
 	upload_planet_log();
-	download_data();
+	cudaStreamSynchronize(htd_stream);
 
+	download_data();
 	cudaStreamSynchronize(dth_stream);
-	// animate();
 
 	cudaStreamSynchronize(main_stream);
 	resync();
 
-	cudaStreamSynchronize(htd_stream);
 	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
 
 	t += dt * tbsize;
 }
 
-std::ofstream anilog("animation.out", std::ios_base::app);
-
+std::ofstream anilog("animation.out");
 void Executor::animate()
 {
-	Hvf64_3 r(hd.planets.n);
-	Hvf64_3 rp(hd.particles.n);
+	Vf64_3 r(hd.planets.n);
+	Vf64_3 v(hd.planets.n);
+	Vf64_3 rp(hd.particles.n);
+	Vf64_3 vp(hd.particles.n);
 
 	f64_3 bary_r, bary_v;
 
@@ -196,20 +196,25 @@ void Executor::animate()
 	for (size_t i = 0; i < hd.planets.n; i++)
 	{
 		r[i] = hd.planets.r[i] - bary_r;
+		v[i] = hd.planets.v[i] - bary_v;
 	}
 	for (size_t i = 0; i < hd.particles.n; i++)
 	{
 		rp[i] = hd.particles.r[i] - bary_r;
+		vp[i] = hd.particles.v[i] - bary_v;
 	}
 
 	for (size_t j = 0; j < hd.planets.n; j++)
 	{
-		anilog << r[j].x << " " << r[j].y << " " << r[j].z << std::endl << std::flush;
+		anilog << std::setprecision(17) << r[j].x << " " << r[j].y << " " << r[j].z << std::endl << std::flush;
+		anilog << std::setprecision(17) << v[j].x << " " << v[j].y << " " << v[j].z << std::endl << std::flush;
 	}
+/*
 	for (size_t j = 0; j < hd.particles.n; j++)
 	{
 		anilog << rp[j].x << " " << rp[j].y << " " << rp[j].z << std::endl << std::flush;
 	}
+*/
 }
 
 void Executor::resync()

@@ -5,10 +5,13 @@
 #define M_PI 3.14159265358979323846
 #define M_2PI M_PI * 2
 
-
-
 using float64_t = double;
 using float32_t = float;
+
+using Vf64 = std::vector<float64_t>;
+using Vu32 = std::vector<uint32_t>;
+using Vu8 = std::vector<uint8_t>;
+using Vf32 = std::vector<float32_t>;
 
 using Hvf64 = thrust::host_vector<float64_t>;
 using Hvu32 = thrust::host_vector<uint32_t>;
@@ -149,5 +152,6 @@ struct v_3
 
 using f64_3 = v_3<float64_t>;
 
+using Vf64_3 = std::vector<f64_3>;
 using Hvf64_3 = thrust::host_vector<f64_3>;
 using Dvf64_3 = thrust::device_vector<f64_3>;

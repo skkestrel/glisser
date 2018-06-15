@@ -2,9 +2,10 @@
 #include "convert.h"
 
 #include <iostream>
+#include <iomanip>
 #include <cmath>
 
-const size_t MAXKEP = 15;
+const size_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-14;
 
 void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, float64_t time, size_t index)
@@ -33,7 +34,7 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 
 void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 {
-	Hvf64 inverse_helio_cubed(p.n), inverse_jacobi_cubed(p.n);
+	Vf64 inverse_helio_cubed(p.n), inverse_jacobi_cubed(p.n);
 
 	for (size_t i = 1; i < p.n; i++)
 	{
@@ -70,7 +71,7 @@ void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	for (size_t i = 2; i < p.n; i++)    
 	{
 		float64_t mfac = p.m[i] * p.m[0] * inverse_jacobi_cubed[i] / p.eta[i-1];
-		a_accum += p.r[i] * mfac;
+		a_accum += p.rj[i] * mfac;
 		p.a[i] += a_accum;
         }
 
@@ -122,23 +123,19 @@ done:
 	return i;
 }
 
-void drift(float64_t t, Hvu8& mask, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t start, size_t n)
+void drift(float64_t t, Vu8& mask, Vf64& mu, Hvf64_3& r, Hvf64_3& v, size_t start, size_t n)
 {
-	// save initial values
-	Hvf64_3 r0 = r;
-	Hvf64_3 v0 = v;
-
-	Hvf64 dist(n);
-	Hvf64 vsq(n);
-	Hvf64 vdotr(n);
+	Vf64 dist(n);
+	Vf64 vsq(n);
+	Vf64 vdotr(n);
 	for (size_t i = start; i < start + n; i++)
 	{
 		dist[i] = std::sqrt(r[i].lensq());
 		vsq[i] = v[i].lensq();
-		vdotr[i] = v0[i].x * r0[i].x + v0[i].y * r0[i].y + v0[i].z * r0[i].z;
+		vdotr[i] = v[i].x * r[i].x + v[i].y * r[i].y + v[i].z * r[i].z;
 	}
 
-	Hvf64 energy = std::move(vsq);
+	Vf64 energy = std::move(vsq);
 	// vsq dies!
 	for (size_t i = start; i < start + n; i++)
 	{
@@ -163,6 +160,9 @@ void drift(float64_t t, Hvu8& mask, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t st
 		}
 		else
 		{
+			f64_3 r0 = r[i];
+			f64_3 v0 = v[i];
+
 			// maybe parallelize this
 			float64_t a = -0.5 * mu[i] / energy[i];
 			float64_t n_ = std::sqrt(mu[i] / (a * a * a));
@@ -187,8 +187,8 @@ void drift(float64_t t, Hvu8& mask, Hvf64& mu, Hvf64_3& r, Hvf64_3& v, size_t st
 			float64_t fdot = -n_ * sindE * a / (dist[i] * fp);
 			float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
 
-			r[i] = r0[i] * f + v0[i] * g;
-			v[i] = r0[i] * fdot + v0[i] * gdot;
+			r[i] = r0 * f + v0 * g;
+			v[i] = r0 * fdot + v0 * gdot;
 		}
 	}
 }
@@ -211,8 +211,8 @@ void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, 
 		pa.v[i] += pa.a[i] * (dt / 2);
 	}
 
-	Hvf64 mu(pa.n_alive);
-	Hvu8 mask(pa.n_alive);
+	Vf64 mu(pa.n_alive);
+	Vu8 mask(pa.n_alive);
 	for (size_t i = 0; i < pa.n_alive; i++)
 	{
 		mu[i] = pl.m[0];
@@ -243,8 +243,8 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
 	// Convert the heliocentric velocities to Jacobi velocities 
 	helio_to_jacobi_v_planets(pl);
 
-	Hvf64 mu(pl.n);
-	Hvu8 mask(pl.n);
+	Vf64 mu(pl.n);
+	Vu8 mask(pl.n);
 	for (size_t i = 1; i < pl.n; i++)
 	{
 		// Each Jacobi Kepler problem has a different central mass
@@ -270,7 +270,7 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
 
 void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64_3* l)
 {
-	Hvf64_3 r(p.n), v(p.n);
+	Vf64_3 r(p.n), v(p.n);
 	f64_3 bary_r, bary_v;
 
 	find_barycenter(p.r, p.v, p.m, p.n, bary_r, bary_v);

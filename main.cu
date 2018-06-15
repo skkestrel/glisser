@@ -36,7 +36,7 @@ int main(int argv, char** argc)
 	ex.t_0 = ex.t;
 	ex.dt = std::stod(argc[2]);
 	ex.t_f = std::stod(argc[3]);
-	ex.tbsize = 1;
+	ex.tbsize = 1024;
 	ex.print_every = 10;
 
 	size_t max_particle = 0;
