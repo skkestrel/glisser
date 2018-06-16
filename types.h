@@ -1,6 +1,7 @@
 #pragma once
 #include <vector>
 #include <cstdint>
+#include <iostream>
 
 #define M_PI 3.14159265358979323846
 #define M_2PI M_PI * 2
@@ -17,6 +18,7 @@ using float32_t = float;
 
 using Vf64 = std::vector<float64_t>;
 using Vu32 = std::vector<uint32_t>;
+using Vu16 = std::vector<uint16_t>;
 using Vu8 = std::vector<uint8_t>;
 using Vf32 = std::vector<float32_t>;
 
@@ -149,6 +151,11 @@ struct v_3
 	}
 };
 
-using f64_3 = v_3<float64_t>;
+template<typename T>
+inline std::ostream& operator<<(std::ostream& stream, const v_3<T>& v)
+{
+	return stream << v.x << " " << v.y << " " << v.z;
+}
 
+using f64_3 = v_3<float64_t>;
 using Vf64_3 = std::vector<f64_3>;

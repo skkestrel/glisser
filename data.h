@@ -12,13 +12,14 @@ struct HostParticlePhaseSpace
 	Vf64_3 r, v;
 	Vf64_3 a;
 
-	Vu32 flags;
+	Vu16 deathflags;
 	Vf32 deathtime;
-	Vu32 deathtime_index;
 	Vu32 id;
 
 	inline HostParticlePhaseSpace() { }
-	inline HostParticlePhaseSpace(size_t n) : n(n), n_alive(n), n_encounter(0), r(n), v(n), a(n), flags(n), deathtime(n), deathtime_index(n), id(n) { }
+	inline HostParticlePhaseSpace(size_t n) : n(n), n_alive(n), n_encounter(0), r(n), v(n), a(n), deathflags(n), deathtime(n), id(n) { }
+
+	void stable_partition_alive();
 };
 
 struct HostPlanetPhaseSpace
@@ -31,11 +32,13 @@ struct HostPlanetPhaseSpace
 	Vf64_3 r_log;
 	Vf64_3 h0_log;
 
+	Vf64_3 r_log_prev;
+	Vf64_3 h0_log_prev;
+
 	f64_3 bary_r, bary_v;
 
-	Vu32 flags;
+	Vu16 deathflags;
 	Vf32 deathtime;
-	Vu32 deathtime_index;
 	Vu32 id;
 
 	inline HostPlanetPhaseSpace() { }
@@ -43,7 +46,8 @@ struct HostPlanetPhaseSpace
 		n(n), n_alive(n), m(n), eta(n), r(n), v(n), rj(n), vj(n),
 		a(n),
 		r_log((n - 1) * tb_size), h0_log(tb_size),
-       		flags(n), deathtime(n), deathtime_index(n), id(n) { }
+		r_log_prev((n - 1) * tb_size), h0_log_prev(tb_size),
+       		deathflags(n), deathtime(n), id(n) { }
 };
 
 struct HostData

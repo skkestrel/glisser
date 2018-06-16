@@ -45,21 +45,32 @@ int main(int argv, char** argc)
 	if (load_data(hd, "pl.in", "ics.in", ex.tbsize, max_particle, false)) return -1;
 
 	std::ofstream timelog("time.out");
+	std::ofstream disclog("disc.out");
+
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
 
-	std::cout << "Saving to disk." << std::endl;
-	save_data(hd, "pl.part.out", "ics.part.out");
-
 	ex.timing_output = &timelog;
+	ex.discard_output = &disclog;
 
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
 
-
 	ex.init();
+	std::cout << "Saving to disk." << std::endl;
+	save_data(hd, "pl.part.out", "ics.part.out");
+
+	size_t counter = 0;
+	size_t save_every = 50;
+
 	while (ex.t < ex.t_f)
 	{
 		ex.loop();
+
+		if (counter++ % save_every == 0)
+		{
+			std::cout << "Saving to disk. t = " << ex.t << " minus one timeblock" << std::endl;
+			save_data(hd, "pl.out", "ics.out");
+		}
 	}
 	ex.finish();
 

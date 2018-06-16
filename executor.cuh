@@ -19,6 +19,7 @@ struct Executor
 
 	std::ostream& output;
 	std::ostream* timing_output;
+	std::ostream* discard_output;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> starttime;
 

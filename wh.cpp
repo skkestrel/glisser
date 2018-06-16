@@ -26,7 +26,7 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 			if (rji2 < 0.5 * 0.5)
 			{
 				p.deathtime[i] = time;
-				p.flags[i] = p.flags[i] | (j << 8) | 0x0001;
+				p.deathflags[i] = p.deathflags[i] | (j << 8) | 0x0001;
 			}
 		}
 
@@ -34,12 +34,12 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 		if (rji2 < 0.5 * 0.5)
 		{
 			p.deathtime[i] = time;
-			p.flags[i] = p.flags[i] | 0x0001;
+			p.deathflags[i] = p.deathflags[i] | 0x0001;
 		}
 		if (rji2 > 200 * 200)
 		{
 			p.deathtime[i] = time;
-			p.flags[i] = p.flags[i] | 0x0002;
+			p.deathflags[i] = p.deathflags[i] | 0x0002;
 		}
 	}
 }
@@ -228,7 +228,7 @@ void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, 
 	for (size_t i = 0; i < pa.n_alive; i++)
 	{
 		mu[i] = pl.m[0];
-		mask[i] = pa.flags[i] > 0;
+		mask[i] = pa.deathflags[i] != 0;
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses

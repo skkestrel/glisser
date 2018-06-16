@@ -3,6 +3,32 @@
 #include <fstream>
 #include <iomanip>
 #include <limits>
+#include <algorithm>
+#include <numeric>
+
+template<typename T>
+void gather(std::vector<T>& values, const std::vector<size_t>& indices)
+{
+	std::vector<T> copy(values.begin(), values.end());
+	for (size_t i = 0; i < values.size(); i++)
+	{
+		values[i] = copy[indices[i]];
+	}
+}
+
+void HostParticlePhaseSpace::stable_partition_alive()
+{
+	std::vector<size_t> indices(n);
+	std::iota(indices.begin(), indices.end(), 0);
+	n_alive = std::stable_partition(indices.begin(), indices.end(), [this](size_t index)
+			{ return deathflags[index] == 0; }) - indices.begin();
+
+	gather(r, indices);
+	gather(v, indices);
+	gather(deathtime, indices);
+	gather(deathflags, indices);
+	gather(id, indices);
+}
 
 bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t max_particle, bool readmomenta)
 {
@@ -46,14 +72,16 @@ bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize,
 			icsinfile.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 			hd.particles.deathtime[i] = 0;
 			hd.particles.id[i] = i;
-			hd.particles.flags[i] = 0;
+			hd.particles.deathflags[i] = 0;
 		}
 		else
 		{
 			hd.particles.deathtime[i] = std::stod(s);
-			icsinfile >> hd.particles.flags[i] >> hd.particles.id[i];
+			icsinfile >> hd.particles.deathflags[i] >> hd.particles.id[i];
 		}
 	}
+
+	hd.particles.stable_partition_alive();
 
 	return false;
 }
@@ -77,6 +105,6 @@ void save_data(const HostData& hd, std::string plout, std::string icsout)
 	{
 		icsoutfile << hd.particles.r[i].x << " " << hd.particles.r[i].y << " " << hd.particles.r[i].z << std::endl;
 		icsoutfile << hd.particles.v[i].x << " " << hd.particles.v[i].y << " " << hd.particles.v[i].z << std::endl;
-		icsoutfile << hd.particles.deathtime[i] << " " << hd.particles.flags[i] << " " << hd.particles.id[i] << std::endl;
+		icsoutfile << hd.particles.deathtime[i] << " " << hd.particles.deathflags[i] << " " << hd.particles.id[i] << std::endl;
 	}
 }
