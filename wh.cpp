@@ -8,11 +8,33 @@
 const size_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-14;
 
-void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, float64_t time, size_t index)
+void helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t i, float64_t time, size_t timestep_index)
 {
-	for (size_t i = 0; i < p.n; i++)
+	p.a[i] = pl.h0_log[timestep_index];
+
+	for (size_t j = 1; j < pl.n; j++)
 	{
-		p.a[i] = pl.h0_log[index];
+		f64_3 dr = p.r[i] - pl.r[j];
+		float64_t rji2 = dr.lensq();
+		float64_t irij3 = 1. / (rji2 * std::sqrt(rji2));
+		float64_t fac = pl.m[j] * irij3;
+
+		p.a[i] -= dr * fac;
+	}
+
+	float64_t rji2 = p.r[i].lensq();
+	if (rji2 > 200 * 200)
+	{
+		p.deathtime[i] = time;
+		p.deathflags[i] = p.deathflags[i] | 0x0002;
+	}
+}
+
+void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t begin, size_t length, float64_t time, size_t timestep_index)
+{
+	for (size_t i = begin; i < begin + length; i++)
+	{
+		p.a[i] = pl.h0_log[timestep_index];
 
 		for (size_t j = 1; j < pl.n; j++)
 		{
@@ -135,6 +157,57 @@ done:
 	return i;
 }
 
+void drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v)
+{
+	float64_t dist, vsq, vdotr;
+	dist = std::sqrt(r->lensq());
+	vsq = v->lensq();
+	vdotr = v->x * r->x + v->y * r->y + v->z * r->z;
+
+	float64_t energy = vsq;
+	energy *= 0.5;
+	energy -= mu / dist;
+
+	if (energy >= 0)
+	{
+		// TODO
+		std::cerr << "unbound orbit of particle, energy = " << energy << std::endl;
+		throw std::exception();
+	}
+	else
+	{
+		f64_3 r0 = *r;
+		f64_3 v0 = *v;
+
+		// maybe parallelize this
+		float64_t a = -0.5 * mu / energy;
+		float64_t n_ = std::sqrt(mu / (a * a * a));
+		float64_t ecosEo = 1.0 - dist / a;
+		float64_t esinEo = vdotr / (n_ * a * a);
+		float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
+
+		// subtract off an integer multiple of complete orbits
+		float64_t dM = t * n_ - M_2PI * (int) (t * n_ / M_2PI);
+
+		// remaining time to advance
+		float64_t dt = dM / n_;
+
+		// call kepler equation solver with initial guess in dE already
+		float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
+		float64_t sindE, cosdE;
+		kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
+
+		float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
+		float64_t f = 1.0 + a * (cosdE - 1.0) / dist;
+		float64_t g = dt + (sindE - dE) / n_;
+		float64_t fdot = -n_ * sindE * a / (dist * fp);
+		float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
+
+		*r = r0 * f + v0 * g;
+		*v = r0 * fdot + v0 * gdot;
+	}
+}
+
 void drift(float64_t t, Vu8& mask, Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start, size_t n)
 {
 	Vf64 dist(n);
@@ -213,34 +286,53 @@ void initialize(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
 	helio_to_jacobi_v_planets(pl);
 
 	helio_acc_planets(pl, 0);
-	helio_acc_particles(pl, pa, 0, 0);
+	helio_acc_particles(pl, pa, 0, pa.n_alive, 0, 0);
 }
 
-void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, float64_t t, size_t index, float64_t dt)
+void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index, float64_t dt)
 {
-	for (size_t i = 0; i < pa.n_alive; i++)
+	Vu8 mask(length);
+	for (size_t i = begin; i < begin + length; i++)
 	{
-		pa.v[i] += pa.a[i] * (dt / 2);
+		mask[i] = !((pa.deathflags[i] & 0x0001) || (pa.deathflags[i] == 0));
+		if (!mask[i]) pa.v[i] += pa.a[i] * (dt / 2);
 	}
 
-	Vf64 mu(pa.n_alive);
-	Vu8 mask(pa.n_alive);
-	for (size_t i = 0; i < pa.n_alive; i++)
+	Vf64 mu(length);
+	for (size_t i = begin; i < begin + length; i++)
 	{
 		mu[i] = pl.m[0];
-		mask[i] = pa.deathflags[i] != 0;
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(dt, mask, mu, pa.r, pa.v, 0, pa.n_alive);
+	drift(dt, mask, mu, pa.r, pa.v, begin, length);
 
 	// find the accelerations of the heliocentric velocities
-	helio_acc_particles(pl, pa, t, index);
+	helio_acc_particles(pl, pa, begin, length, t, timestep_index);
 
-	for (size_t i = 0; i < pa.n_alive; i++)
+	for (size_t i = begin; i < begin + length; i++)
 	{
-		pa.v[i] += pa.a[i] * (dt / 2);
+		if (!mask[i]) pa.v[i] += pa.a[i] * (dt / 2);
 	}
+}
+
+void step_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t t, size_t timestep_index, float64_t dt)
+{
+	size_t i = particle_index;
+	if ((pa.deathflags[i] & 0x0001) || (pa.deathflags[i] == 0))
+	{
+		return;
+	}
+
+	pa.v[i] += pa.a[i] * (dt / 2);
+
+	// Drift all the particles along their Jacobi Kepler ellipses
+	drift_single(dt, pl.m[0], &pa.r[i], &pa.v[i]);
+
+	// find the accelerations of the heliocentric velocities
+	helio_acc_particle_ce(pl, pa, i, t, timestep_index);
+
+	pa.v[i] += pa.a[i] * (dt / 2);
 }
 
 void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t dt)

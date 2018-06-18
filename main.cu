@@ -20,6 +20,8 @@
 #include "wh.h"
 #include "convert.h"
 
+#include <execinfo.h>
+
 int main(int argv, char** argc)
 {
 	if (argv < 4)
@@ -62,17 +64,26 @@ int main(int argv, char** argc)
 	size_t counter = 0;
 	size_t save_every = 50;
 
-	while (ex.t < ex.t_f)
+	try
 	{
-		ex.loop();
-
-		if (counter++ % save_every == 0)
+		while (ex.t < ex.t_f)
 		{
-			std::cout << "Saving to disk. t = " << ex.t << " minus one timeblock" << std::endl;
-			save_data(hd, "pl.out", "ics.out");
+			ex.loop();
+
+			if (counter++ % save_every == 0)
+			{
+				std::cout << "Saving to disk. t = " << ex.t << " minus one timeblock" << std::endl;
+				save_data(hd, "pl.part.out", "ics.part.out");
+			}
 		}
+		ex.finish();
 	}
-	ex.finish();
+	catch (std::exception e)
+	{
+		void* array[50];
+		size_t size = backtrace(array, 50);
+		backtrace_symbols_fd(array, size, 2);
+	}
 
 	std::cout << "Saving to disk." << std::endl;
 	save_data(hd, "pl.out", "ics.out");

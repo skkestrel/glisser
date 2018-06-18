@@ -3,7 +3,7 @@
 #include "wh.h"
 #include "convert.h"
 
-const size_t MAXKEP = 10;
+const size_t MAXKEP = 3;
 const float64_t TOLKEP = 1E-14;
 
 struct MVSKernel

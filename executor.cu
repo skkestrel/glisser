@@ -96,6 +96,13 @@ void Executor::init()
 	{
 		*discard_output << std::setprecision(17);
 	}
+
+
+	for (size_t i = 0; i < tbsize; i++)
+	{
+		step_planets(hd.planets, t, i, dt);
+	}
+	upload_planet_log();
 }
 
 void Executor::upload_data()
@@ -195,6 +202,21 @@ double Executor::time() const
 
 void Executor::loop()
 {
+	resync();
+	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
+
+	t += dt * tbsize;
+	/*
+	std::swap(hd.planets.r_log, hd.planets.r_log_prev);
+	std::swap(hd.planets.h0_log, hd.planets.h0_log_prev);
+	*/
+
+	// advance planets
+	for (size_t i = 0; i < tbsize; i++)
+	{
+		step_planets(hd.planets, t, i, dt);
+	}
+
 	if (print_counter % print_every == 0)
 	{
 		double e;
@@ -207,15 +229,6 @@ void Executor::loop()
 		output << "Error = " << (e - e_0) / e_0 * 100 << ", " << dd.particle_phase_space().n_alive << " particles remaining" << std::endl;
 	}
 	print_counter++;
-
-	std::swap(hd.planets.r_log, hd.planets.r_log_prev);
-	std::swap(hd.planets.h0_log, hd.planets.h0_log_prev);
-
-	// advance planets
-	for (size_t i = 0; i < tbsize; i++)
-	{
-		step_planets(hd.planets, t, i, dt);
-	}
 
 	if (timing_output)
 	{
@@ -230,13 +243,16 @@ void Executor::loop()
 	upload_planet_log();
 	cudaStreamSynchronize(htd_stream);
 
+	for (size_t i = hd.particles.n_alive; i < hd.particles.n_alive + hd.particles.n_encounter; i++)
+	{
+		// step_particle(..)
+	}
+	// memcy_htd(hd.n_alive, hd.n_encounter)
+	// hd.n_alive = partition(...)
+	// dd.n_alive = hd.n_alive
+
 	cudaStreamSynchronize(main_stream);
-	resync();
-	download_data();
-
-	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
-
-	t += dt * tbsize;
+	// download_data();
 }
 
 std::ofstream anilog("animation.out");
@@ -306,18 +322,30 @@ void Executor::resync()
 		hd.particles.r[index] = r[i];
 		hd.particles.v[index] = v[i];
 		hd.particles.deathflags[index] = deathflags[i];
-		hd.particles.deathtime[index] = t - dt * (tbsize - deathtime_index[i]);
 
-		if (discard_output)
+		std::ostream* output_stream = nullptr;
+
+		if (deathflags[i] & 0x0001)
 		{
-			*discard_output << r[i] << std::endl;
-			*discard_output << v[i] << std::endl;
-			*discard_output << hd.particles.deathtime[index] << " " << deathflags[i] << std::endl;
-			*discard_output << hd.planets.n << std::endl;
+			output_stream = discard_output;
+		}
+		else
+		{
+			output_stream = discard_output;
+			hd.particles.deathtime[index] = t + dt * deathtime_index[i];
+		}
+
+		if (output_stream)
+		{
+			*output_stream << r[i] << std::endl;
+			*output_stream << v[i] << std::endl;
+			*output_stream << hd.particles.deathtime[index] << " " << deathflags[i] << std::endl;
+			*output_stream << hd.planets.n << std::endl;
+
 			for (size_t j = 1; j < hd.planets.n; j++)
 			{
-				*discard_output << hd.planets.m[j] << std::endl;
-				*discard_output << hd.planets.r_log_prev[deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+				*output_stream << hd.planets.m[j] << std::endl;
+				*output_stream << hd.planets.r_log_prev[deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
 			}
 		}
 	}
