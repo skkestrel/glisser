@@ -15,7 +15,9 @@ struct Executor
 	float64_t e_0;
 
 	size_t print_every, print_counter;
-	size_t tbsize;
+	size_t tbsize, ce_factor;
+
+	bool resolve_encounters;
 
 	std::ostream& output;
 	std::ostream* timing_output;
@@ -35,4 +37,5 @@ struct Executor
 	void resync();
 	void animate();
 	void finish();
+	void step_and_upload_planets();
 };

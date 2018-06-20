@@ -30,15 +30,14 @@ void HostParticlePhaseSpace::stable_partition_alive()
 	gather(id, indices);
 }
 
-bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t max_particle, bool readmomenta)
+bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t ce_factor, size_t max_particle, bool readmomenta)
 {
-	hd.tbsize = tbsize;
 	std::ifstream plinfile(plin), icsinfile(icsin);
 
 	size_t npl;
 	plinfile >> npl;
 
-	hd.planets = HostPlanetPhaseSpace(npl, tbsize);
+	hd.planets = HostPlanetPhaseSpace(npl, tbsize, ce_factor);
 
 	for (size_t i = 0; i < npl; i++)
 	{
@@ -90,13 +89,13 @@ void save_data(const HostData& hd, std::string plout, std::string icsout)
 {
 	std::ofstream ploutfile(plout), icsoutfile(icsout);
 
-	ploutfile << hd.planets.n << std::endl;
+	ploutfile << hd.planets_snapshot.n << std::endl;
 	ploutfile << std::setprecision(17);
-	for (size_t i = 0; i < hd.planets.n; i++)
+	for (size_t i = 0; i < hd.planets_snapshot.n; i++)
 	{
-		ploutfile << hd.planets.m[i] << std::endl;
-		ploutfile << hd.planets.r[i].x << " " << hd.planets.r[i].y << " " << hd.planets.r[i].z << std::endl;
-		ploutfile << hd.planets.v[i].x << " " << hd.planets.v[i].y << " " << hd.planets.v[i].z << std::endl;
+		ploutfile << hd.planets_snapshot.m[i] << std::endl;
+		ploutfile << hd.planets_snapshot.r[i].x << " " << hd.planets_snapshot.r[i].y << " " << hd.planets_snapshot.r[i].z << std::endl;
+		ploutfile << hd.planets_snapshot.v[i].x << " " << hd.planets_snapshot.v[i].y << " " << hd.planets_snapshot.v[i].z << std::endl;
 	}
 
 	icsoutfile << hd.particles.n << std::endl;

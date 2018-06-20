@@ -12,7 +12,7 @@ void helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpac
 {
 	p.a[i] = pl.h0_log[timestep_index];
 
-	for (size_t j = 1; j < pl.n; j++)
+	for (size_t j = 1; j < pl.n_alive; j++)
 	{
 		f64_3 dr = p.r[i] - pl.r[j];
 		float64_t rji2 = dr.lensq();
@@ -36,7 +36,7 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 	{
 		p.a[i] = pl.h0_log[timestep_index];
 
-		for (size_t j = 1; j < pl.n; j++)
+		for (size_t j = 1; j < pl.n_alive; j++)
 		{
 			f64_3 dr = p.r[i] - pl.r[j];
 			float64_t rji2 = dr.lensq();
@@ -68,9 +68,9 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 
 void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 {
-	Vf64 inverse_helio_cubed(p.n), inverse_jacobi_cubed(p.n);
+	Vf64 inverse_helio_cubed(p.n_alive), inverse_jacobi_cubed(p.n_alive);
 
-	for (size_t i = 1; i < p.n; i++)
+	for (size_t i = 1; i < p.n_alive; i++)
 	{
 		float64_t r2 = p.r[i].lensq();
 		inverse_helio_cubed[i] = 1. / (std::sqrt(r2) * r2);
@@ -80,14 +80,14 @@ void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	
         // compute common heliocentric acceleration
 	f64_3 a_common(0);
-	for (size_t i = 2; i < p.n; i++)    
+	for (size_t i = 2; i < p.n_alive; i++)    
 	{
 		float64_t mfac = p.m[i] * inverse_helio_cubed[i];
 		a_common -= p.r[i] * mfac;
         }
 
         // Load this into all the arrays
-	for (size_t i = 1; i < p.n; i++)    
+	for (size_t i = 1; i < p.n_alive; i++)    
 	{
 		p.a[i] = a_common;
         }
@@ -95,14 +95,14 @@ void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	p.h0_log[index] = a_common - p.r[1] * p.m[1] * inverse_helio_cubed[1];
 	
 	// Now do indirect acceleration ; note that planet 1 does not receive a contribution 
-	for (size_t i = 2; i < p.n; i++)    
+	for (size_t i = 2; i < p.n_alive; i++)    
 	{
 		p.a[i] += (p.rj[i] * inverse_jacobi_cubed[i] - p.r[i] * inverse_helio_cubed[i]) * p.m[0];
         }
 	
 	/* next term ; again, first planet does not participate */
 	f64_3 a_accum(0);
-	for (size_t i = 2; i < p.n; i++)    
+	for (size_t i = 2; i < p.n_alive; i++)    
 	{
 		float64_t mfac = p.m[i] * p.m[0] * inverse_jacobi_cubed[i] / p.eta[i-1];
 		a_accum += p.rj[i] * mfac;
@@ -110,9 +110,9 @@ void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
         }
 
 	/* Finally, incorporate the direct accelerations */
-	for (size_t i = 1; i < p.n - 1; i++)    
+	for (size_t i = 1; i < p.n_alive - 1; i++)    
 	{
-		for (size_t j = i + 1; j < p.n; j++)    
+		for (size_t j = i + 1; j < p.n_alive; j++)    
 		{
 			f64_3 dr = p.r[j] - p.r[i];
 			float64_t r2 = dr.lensq();
@@ -339,7 +339,7 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
 {
 	(void) t;
 
-	for (size_t i = 1; i < pl.n; i++)
+	for (size_t i = 1; i < pl.n_alive; i++)
 	{
 		pl.v[i] += pl.a[i] * (dt / 2);
 	}
@@ -347,9 +347,9 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
 	// Convert the heliocentric velocities to Jacobi velocities 
 	helio_to_jacobi_v_planets(pl);
 
-	Vf64 mu(pl.n);
-	Vu8 mask(pl.n);
-	for (size_t i = 1; i < pl.n; i++)
+	Vf64 mu(pl.n_alive);
+	Vu8 mask(pl.n_alive);
+	for (size_t i = 1; i < pl.n_alive; i++)
 	{
 		// Each Jacobi Kepler problem has a different central mass
 		mu[i] = pl.m[0] * pl.eta[i] / pl.eta[i - 1];
@@ -357,16 +357,16 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(dt, mask, mu, pl.rj, pl.vj, 1, pl.n - 1);
+	drift(dt, mask, mu, pl.rj, pl.vj, 1, pl.n_alive - 1);
 
 	// convert Jacobi vectors to helio. ones for acceleration calc 
 	jacobi_to_helio_planets(pl);
 
 	// find the accelerations of the heliocentric velocities
 	helio_acc_planets(pl, index);
-	std::copy(pl.r.begin() + 1, pl.r.end(), pl.r_log.begin() + (pl.n - 1) * index);
+	std::copy(pl.r.begin() + 1, pl.r.end(), pl.r_log.begin() + (pl.n_alive - 1) * index);
 
-	for (size_t i = 1; i < pl.n; i++)
+	for (size_t i = 1; i < pl.n_alive; i++)
 	{
 		pl.v[i] += pl.a[i] * (dt / 2);
 	}
@@ -374,12 +374,12 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
 
 void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64_3* l)
 {
-	Vf64_3 r(p.n), v(p.n);
+	Vf64_3 r(p.n_alive), v(p.n_alive);
 	f64_3 bary_r, bary_v;
 
-	find_barycenter(p.r, p.v, p.m, p.n, bary_r, bary_v);
+	find_barycenter(p.r, p.v, p.m, p.n_alive, bary_r, bary_v);
 
-	for (size_t i = 0; i < p.n; i++)
+	for (size_t i = 0; i < p.n_alive; i++)
 	{
 		r[i] = p.r[i] - bary_r;
 		v[i] = p.v[i] - bary_v;
@@ -390,14 +390,14 @@ void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64
 		double ke = 0.0;
 		double pe = 0.0;
 
-		for (size_t i = 0; i < p.n; i++)
+		for (size_t i = 0; i < p.n_alive; i++)
 		{
 			ke += 0.5 * (v[i].x * v[i].x + v[i].y * v[i].y + v[i].z * v[i].z) * p.m[i];
 		}
 
-		for (size_t i = 0; i < p.n - 1; i++)
+		for (size_t i = 0; i < p.n_alive - 1; i++)
 		{
-			for (size_t j = i + 1; j < p.n; j++)
+			for (size_t j = i + 1; j < p.n_alive; j++)
 			{
 				double dx = r[i].x - r[j].x;
 				double dy = r[i].y - r[j].y;
@@ -414,7 +414,7 @@ void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64
 	{
 		*l = f64_3(0);
 
-		for (size_t i = 0; i < p.n; i++)
+		for (size_t i = 0; i < p.n_alive; i++)
 		{
 			*l += r[i].cross(v[i]) * p.m[i];
 		}

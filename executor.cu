@@ -50,7 +50,8 @@ struct DeviceParticleUnflaggedPredicate
 	}
 };
 
-Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), print_every(10), print_counter(0), tbsize(128), output(out), timing_output(nullptr) { }
+Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), print_every(10), print_counter(0), tbsize(128), ce_factor(1),
+	output(out), timing_output(nullptr), resolve_encounters(false) { }
 
 void Executor::init()
 {
@@ -97,11 +98,44 @@ void Executor::init()
 		*discard_output << std::setprecision(17);
 	}
 
-
-	for (size_t i = 0; i < tbsize; i++)
+	step_and_upload_planets();
+	if (!resolve_encounters)
 	{
-		step_planets(hd.planets, t, i, dt);
+		ce_factor = 1;
 	}
+}
+
+void Executor::step_and_upload_planets()
+{
+	if (resolve_encounters)
+	{
+
+		for (size_t i = 0; i < tbsize * ce_factor; i++)
+		{
+			step_planets(hd.planets, t, i, dt / ce_factor);
+			// take the planet positions at the end of every timestep
+
+			if (i % ce_factor == ce_factor - 1)
+			{
+				size_t slow_index = i / ce_factor;
+				auto fast_begin = hd.planets.r_log.begin() + i * (hd.planets.n - 1);
+				std::copy(fast_begin, fast_begin + (hd.planets.n - 1), hd.planets.r_log_slow.begin() + slow_index * (hd.planets.n - 1));
+
+				hd.planets.h0_log_slow[i / ce_factor] = hd.planets.h0_log[i];
+			}
+		}
+	}
+	else
+	{
+		for (size_t i = 0; i < tbsize; i++)
+		{
+			step_planets(hd.planets, t, i, dt);
+		}
+
+		std::copy(hd.planets.h0_log.begin(), hd.planets.h0_log.end(), hd.planets.h0_log_slow.begin());
+		std::copy(hd.planets.r_log.begin(), hd.planets.r_log.end(), hd.planets.r_log_slow.begin());
+	}
+
 	upload_planet_log();
 }
 
@@ -110,8 +144,8 @@ void Executor::upload_data()
 	dd.particles0 = DeviceParticlePhaseSpace(hd.particles.n);
 	dd.particles1 = DeviceParticlePhaseSpace(hd.particles.n);
 
-	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, hd.tbsize);
-	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, hd.tbsize);
+	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, tbsize);
+	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, tbsize);
 
 	dd.planet_data_id = 0;
 	dd.particle_data_id = 0;
@@ -131,12 +165,10 @@ void Executor::upload_data()
 	memcpy_htd(particles.id, hd.particles.id, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 
-	// thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.m.begin(), hd.planets.m.end(), dd.planet_phase_space().m.begin());
 	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 
 	dd.planet_data_id++;
-	// thrust::copy(thrust::cuda::par.on(htd_stream), hd.planets.m.begin(), hd.planets.m.end(), dd.planet_phase_space().m.begin());
 	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 }
@@ -186,9 +218,10 @@ void Executor::upload_planet_log()
 {
 	dd.planet_data_id++;
 	auto& planets = dd.planet_phase_space();
-	memcpy_htd(planets.h0_log, hd.planets.h0_log, htd_stream);
+
+	memcpy_htd(planets.h0_log, hd.planets.h0_log_slow, htd_stream);
 	cudaStreamSynchronize(htd_stream);
-	memcpy_htd(planets.r_log, hd.planets.r_log, htd_stream);
+	memcpy_htd(planets.r_log, hd.planets.r_log_slow, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 }
 
@@ -202,20 +235,12 @@ double Executor::time() const
 
 void Executor::loop()
 {
-	resync();
+	hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
 
 	t += dt * tbsize;
-	/*
-	std::swap(hd.planets.r_log, hd.planets.r_log_prev);
-	std::swap(hd.planets.h0_log, hd.planets.h0_log_prev);
-	*/
-
-	// advance planets
-	for (size_t i = 0; i < tbsize; i++)
-	{
-		step_planets(hd.planets, t, i, dt);
-	}
+	step_and_upload_planets();
+	cudaStreamSynchronize(htd_stream);
 
 	if (print_counter % print_every == 0)
 	{
@@ -240,9 +265,6 @@ void Executor::loop()
 		*timing_output << "lp " << l_.x << " " << l_.y << " " << l_.z << std::endl;
 	}
 
-	upload_planet_log();
-	cudaStreamSynchronize(htd_stream);
-
 	for (size_t i = hd.particles.n_alive; i < hd.particles.n_alive + hd.particles.n_encounter; i++)
 	{
 		// step_particle(..)
@@ -252,7 +274,7 @@ void Executor::loop()
 	// dd.n_alive = hd.n_alive
 
 	cudaStreamSynchronize(main_stream);
-	// download_data();
+	resync();
 }
 
 std::ofstream anilog("animation.out");
@@ -325,7 +347,7 @@ void Executor::resync()
 
 		std::ostream* output_stream = nullptr;
 
-		if (deathflags[i] & 0x0001)
+		if ((deathflags[i] & 0x0001) && resolve_encounters)
 		{
 			output_stream = discard_output;
 		}
@@ -345,7 +367,7 @@ void Executor::resync()
 			for (size_t j = 1; j < hd.planets.n; j++)
 			{
 				*output_stream << hd.planets.m[j] << std::endl;
-				*output_stream << hd.planets.r_log_prev[deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+				*output_stream << hd.planets.r_log_slow[deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
 			}
 		}
 	}
@@ -357,10 +379,7 @@ void Executor::resync()
 void Executor::finish()
 {
 	cudaStreamSynchronize(main_stream);
-
 	resync();
-	cudaStreamSynchronize(par_stream);
-
 	download_data();
 
 	output << "Simulation finished. t = " << t << ". n_particle = " << hd.particles.n_alive << std::endl;

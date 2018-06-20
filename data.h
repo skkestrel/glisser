@@ -13,9 +13,7 @@ struct HostParticlePhaseSpace
 	Vf64_3 a;
 
 	Vu16 deathflags;
-	Vf32 deathtime;
-	Vu32 id;
-
+	Vf32 deathtime; Vu32 id; 
 	inline HostParticlePhaseSpace() { }
 	inline HostParticlePhaseSpace(size_t n) : n(n), n_alive(n), n_encounter(0), r(n), v(n), a(n), deathflags(n), deathtime(n), id(n) { }
 
@@ -31,9 +29,8 @@ struct HostPlanetPhaseSpace
 
 	Vf64_3 r_log;
 	Vf64_3 h0_log;
-
-	Vf64_3 r_log_prev;
-	Vf64_3 h0_log_prev;
+	Vf64_3 r_log_slow;
+	Vf64_3 h0_log_slow;
 
 	f64_3 bary_r, bary_v;
 
@@ -42,24 +39,35 @@ struct HostPlanetPhaseSpace
 	Vu32 id;
 
 	inline HostPlanetPhaseSpace() { }
-	inline HostPlanetPhaseSpace(size_t n, size_t tb_size) :
+	inline HostPlanetPhaseSpace(size_t n, size_t tb_size, size_t ce_factor):
 		n(n), n_alive(n), m(n), eta(n), r(n), v(n), rj(n), vj(n),
 		a(n),
-		r_log((n - 1) * tb_size), h0_log(tb_size),
-		r_log_prev((n - 1) * tb_size), h0_log_prev(tb_size),
+		r_log((n - 1) * tb_size * ce_factor), h0_log(tb_size * ce_factor),
+		r_log_slow((n - 1) * tb_size), h0_log_slow(tb_size),
        		deathflags(n), deathtime(n), id(n) { }
+};
+
+struct HostPlanetSnapshot
+{
+	size_t n, n_alive;
+	Vf64 m;
+	Vf64_3 r, v;
+	Vu32 id;
+
+	inline HostPlanetSnapshot() { }
+	inline HostPlanetSnapshot(const HostPlanetPhaseSpace& o) :
+		n(o.n), n_alive(o.n_alive), m(o.m), r(o.r), v(o.v), id(o.id) { }
 };
 
 struct HostData
 {
-	HostParticlePhaseSpace particles, encounter_particles;
+	HostParticlePhaseSpace particles;
 	HostPlanetPhaseSpace planets;
-
-	size_t tbsize;
+	HostPlanetSnapshot planets_snapshot;
 
 	inline HostData() { }
 };
 
 
-bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t max_particle = 0, bool readmomenta = true);
+bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t ce_factor, size_t max_particle = 0, bool readmomenta = true);
 void save_data(const HostData& hd, std::string plout, std::string icsout);
