@@ -78,6 +78,8 @@ int main(int argv, char** argc)
 
 	std::ofstream timelog(getpath(config.outfolder, "time.out"));
 	std::ofstream disclog(getpath(config.outfolder, "discard.out"));
+	std::ofstream periodic(getpath(config.outfolder, "periodic.out"));
+	std::ofstream periodicb(getpath(config.outfolder, "periodicb.out"), std::ios_base::binary);
 
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
@@ -116,8 +118,6 @@ int main(int argv, char** argc)
 				ex.add_job([&]()
 					{
 						std::cout << "Periodic output" << std::endl;
-						std::ofstream periodic(getpath(config.outfolder, "periodic.out"), std::ios_base::app);
-						std::ofstream periodicb(getpath(config.outfolder, "periodicb.out"), std::ios_base::app | std::ios_base::binary);
 
 						periodic << std::setprecision(7);
 						periodic << ex.t << std::endl;

@@ -16,6 +16,11 @@
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/zip_iterator.h>
+template<typename T>
+void write_binary(std::ostream& o, const T& t)
+{
+	o.write(reinterpret_cast<const char*>(&t), sizeof(t));
+}
 
 const int SIMPL_DEGREE = 4;
 const int TIMEBLOCK_SIZE = 1024;
@@ -257,6 +262,143 @@ struct HostData
 
 	HostData() { }
 };
+
+void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, double* i, double* capom, double* om, double* f)
+{
+	using namespace std;
+
+	double x = r.x, y = r.y, z = r.z;
+	double vx = v.x, vy = v.y, vz = v.z;
+	double pi,prec;
+	double hsq,hx,hy,hz;
+	double rr,xhat,yhat,zhat;
+	double vsq,vdotr,fac;
+	double Px,Py,Pz,modP,nx,ny,ecosw;
+	double energy;
+
+	pi = 2.0*asin(1.0);
+	/* machine precision, user must set this */
+	prec = 1.0e-13;
+
+	/* compute the specific angular momentum */
+	hx = y*vz - z*vy;
+	hy = z*vx - x*vz;
+	hz = x*vy - y*vx;
+	hsq = hx*hx + hy*hy + hz*hz;
+
+	/* As long as we are not on a radial orbit, compute elements */
+	if ( hsq > prec )
+	{
+
+		/* compute the orbital inclination */
+		*i = acos( hz/sqrt(hsq) );
+
+		/* compute the longitude of the ascending node */
+		if( fabs( *i ) < prec) {
+			*capom = 0.0;
+		} 
+		else if( fabs( pi - fabs( *i) ) < prec ) {
+			*capom = 0.0;
+		} 
+		else {
+			*capom = atan2(hx, -hy);
+		}
+
+		/* compute some required quantities */
+		vsq = vx*vx + vy*vy + vz*vz;
+		vdotr =  x*vx + y*vy + z*vz;
+		rr = sqrt(x*x + y*y + z*z);
+		xhat = x/rr;
+		yhat = y/rr;
+		zhat = z/rr;
+		nx = cos( *capom);
+		ny = sin( *capom);
+
+		/* compute the Hamilton vector and thus the eccentricity */
+		fac = vsq * rr - mu;
+		Px = fac * xhat - vdotr * vx;
+		Py = fac * yhat - vdotr * vy;
+		Pz = fac * zhat - vdotr * vz;
+		modP = sqrt( Px*Px + Py*Py + Pz*Pz );
+		*e = modP / mu;
+
+		/* compute the argument of pericenter */
+		if( fabs( *e ) < prec) {
+			*om = 0.0;
+		} 
+		else {
+			if ( (*i < prec) || (pi - *i < prec) ) {
+				*om = atan2(Py,Px);
+			} else {
+				ecosw = (nx*Px + ny*Py)/mu;
+				*om = acos( ecosw/ *e );
+				if ( fabs(Pz) > prec ) {
+					/* resolve sign ambiguity by sign of Pz  */
+					*om *= fabs(Pz)/Pz;
+				}
+			}
+		}
+
+		/* compute the orbital energy , and depending on its sign compute
+		   the semimajor axis (or pericenter) and true anomaly      */
+		energy = vsq/2.0 - mu/rr;
+		if( fabs(energy) < prec) {
+			*esign = 0;		/* parabolic */
+			*a = 0.5 * hsq / mu;	/* actually PERICENTRIC DISTANCE */
+			if ( fabs(vdotr) < prec ) {
+				*f = 0.0;
+			} else {
+				*f = 2.0 * acos(sqrt( *a/rr)) * vdotr/fabs(vdotr);
+			} 
+		} else if (energy > 0.0) {
+			*esign = 1;		/* hyperbolic */
+			*a = -0.5 * mu/energy;  /* will be negative */
+
+			if ( fabs(vdotr) < prec ) {
+				*f = 0.0;
+			} else {
+				fac =  *a * (1.0 - *e * *e)/rr - 1.0;
+				*f =  acos( fac/ *e ) * vdotr/fabs(vdotr);
+			} 
+		} else {
+			*esign = -1;		/* elliptic */
+			*a = -0.5 * mu/energy;
+			if ( fabs( *e ) > prec ) {      
+				if ( fabs(vdotr) < prec ) {
+					if ( rr < *a ) {		/* determine apside */
+						*f = 0.0;
+					} else {
+						*f = pi;
+					}
+				} else {
+					fac =  *a * (1.0 - *e * *e)/rr - 1.0;
+					*f =  acos( fac/ *e ) * vdotr/fabs(vdotr);
+				} 
+			} else {                       /* compute circular cases */
+				fac = (x * nx + y * ny)/rr;
+				*f = acos(fac);
+				if ( fabs(z) > prec ) {
+					/* resolve sign ambiguity by sign of z  */
+					*f *= fabs(z)/z;
+				} else if ( (*i < prec) || (pi - *i < prec) ) {
+					*f = atan2(y,x) * cos( *i);
+				} 
+
+			}
+		}
+
+	} else { 				/* PANIC: radial orbit */
+		*esign = 1;			/* call it hyperbolic */
+		*a = sqrt(x*x + y*y + z*z);
+		*e = 9999.;
+		*i = asin(z/sqrt(x*x + y*y + z*z) );	/* latitude above plane */
+		*capom = atan2(y,x);			/* azimuth */
+		*om = 9999.0;
+		*f = 9999.0;
+	}
+}
+
+
 
 bool load_data(HostData& hd, std::string plin, std::string icsin, size_t max_particle = 0, bool readmomenta = true)
 {
@@ -539,7 +681,10 @@ int main(int argv, char** argc)
 
 	if (load_data(hd, "pl.in", "ics.in", max_particle, false)) return -1;
 
-	convert_to_barycentric(hd);
+	if (hd.r_planet[0].x == 0 && hd.v_planet[0].x == 0)
+	{
+		convert_to_barycentric(hd);
+	}
 
 	double e0 = energy_planet(hd.r_planet, hd.v_planet, hd.m_planet);
 	f64_3 l0 = l_planet(hd.r_planet, hd.v_planet, hd.m_planet);
@@ -570,7 +715,7 @@ int main(int argv, char** argc)
 
 	std::atomic<bool> is_pulling_data(false);
 
-	size_t pull_every = 500;
+	size_t pull_every = 30;
 	size_t pull_counter = 0;
 
 	recover_data(hd, dd, dth_stream);
@@ -578,11 +723,15 @@ int main(int argv, char** argc)
 
 	std::cout << "Saving to disk." << std::endl;
 	save_data(hd, dd, "pl.part.out", "ics.part.out", "info.part.out");
+	
 
 	auto starttime = std::chrono::high_resolution_clock::now();
 
 
 	std::ofstream timelog("time.out");
+	std::ofstream periodic("/data/keavin/sia4/periodic.out");
+	std::ofstream periodicb("/data/keavin/sia4/periodicb.out", std::ios_base::binary);
+
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
@@ -607,12 +756,14 @@ int main(int argv, char** argc)
 			// TODO report on barycenter drift
 		}
 
+		cudaStreamSynchronize(work_stream);
+
 		if (pull_counter >= pull_every && !is_pulling_data)
 		{
 			pull_counter = 0;
 			is_pulling_data = true;
 
-			std::thread t([&is_pulling_data, &hd, &dd, &dth_stream]()
+			std::thread t([&]()
 				{
 					// TODO this can be dangerous. hd is being modified on a different thread here
 
@@ -626,8 +777,68 @@ int main(int argv, char** argc)
 					// ... do something here
 
 					is_pulling_data = false;
+
+					std::cout << "Periodic output" << std::endl;
+					periodic << std::setprecision(7);
+					periodic << hd.t << std::endl;
+					periodic << hd.n_planet - 1 << std::endl;
+
+					write_binary(periodicb, hd.t);
+					write_binary(periodicb, hd.n_planet - 1);
+
+					for (size_t i = 1; i < hd.n_planet; i++)
+					{
+						int esign;
+						double a, e, in, capom, om, f;
+						f64_3 r, v;
+						r.x = hd.r_planet[i].x - hd.r_planet[0].x;
+						r.y = hd.r_planet[i].y - hd.r_planet[0].y;
+						r.z = hd.r_planet[i].z - hd.r_planet[0].z;
+						v.x = hd.v_planet[i].x - hd.v_planet[0].x;
+						v.y = hd.v_planet[i].y - hd.v_planet[0].y;
+						v.z = hd.v_planet[i].z - hd.v_planet[0].z;
+						to_elements(hd.m_planet[i] + hd.m_planet[0], r, v,
+							&esign, &a, &e, &in, &capom, &om, &f);
+
+						int id = static_cast<int>(i);
+						float af = static_cast<float>(a);
+						float ef = static_cast<float>(e);
+						float if_ = static_cast<float>(in);
+
+						write_binary(periodicb, id);
+						write_binary(periodicb, af);
+						write_binary(periodicb, ef);
+						write_binary(periodicb, if_);
+						periodic << id << " " << af << " " << ef << " " << if_ << std::endl;
+					}
+					periodic << dd.n_part_alive << std::endl;
+					write_binary(periodicb, dd.n_part_alive);
+					for (size_t i = 0; i < dd.n_part_alive; i++)
+					{
+						int esign;
+						double a, e, in, capom, om, f;
+						f64_3 r, v;
+						r.x = hd.r_part[i].x - hd.r_planet[0].x;
+						r.y = hd.r_part[i].y - hd.r_planet[0].y;
+						r.z = hd.r_part[i].z - hd.r_planet[0].z;
+						v.x = hd.v_part[i].x - hd.v_planet[0].x;
+						v.y = hd.v_part[i].y - hd.v_planet[0].y;
+						v.z = hd.v_part[i].z - hd.v_planet[0].z;
+						to_elements(hd.m_planet[0], r, v,
+							&esign, &a, &e, &in, &capom, &om, &f);
+
+						int id = static_cast<int>(hd.id[i]);
+						float af = static_cast<float>(a);
+						float ef = static_cast<float>(e);
+						float if_ = static_cast<float>(in);
+						write_binary(periodicb, id);
+						write_binary(periodicb, af);
+						write_binary(periodicb, ef);
+						write_binary(periodicb, if_);
+						periodic << id << " " << af << " " << ef << " " << if_ << std::endl;
+					}
 				});
-			t.detach();
+			t.join();
 		}
 
 		sia4_planet(hd.coefdt, hd.r_planet, hd.v_planet, hd.m_planet, hd.r_planet_log, timelog);
