@@ -3,6 +3,7 @@
 #include <ctime>
 #include <chrono>
 #include <iostream> 
+#include <functional>
 
 struct Executor
 {
@@ -25,6 +26,8 @@ struct Executor
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> starttime;
 
+	std::vector<std::function<void()>> work;
+
 	Executor(HostData& hd, DeviceData& dd, std::ostream& out);
 
 	void init();
@@ -34,6 +37,7 @@ struct Executor
 
 	double time() const;
 	void loop();
+	void add_job(std::function<void()> job);
 	void resync();
 	void animate();
 	void finish();

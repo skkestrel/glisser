@@ -28,45 +28,56 @@ Executor* EXECUTOR;
 
 volatile sig_atomic_t end_loop = 0;
 
+template<typename T>
+void write_binary(std::ostream& o, const T& t)
+{
+	o.write(reinterpret_cast<const char*>(&t), sizeof(t));
+}
+
 void term(int signum)
 {
 	(void) signum;
 	end_loop = 1;
 }
 
+std::string getpath(const std::string& base, const std::string& file)
+{
+	return base + "/" + file;
+}
+
 int main(int argv, char** argc)
 {
-	if (argv < 4)
-	{
-		std::cerr << "Please specify time step and final time " << argc[0] << " <CURTIME> <TIMESTEP> <FINALTIME> [<MAXPARTICLES>]" << std::endl;
-		return -1;
+	std::string configin = "config.in";
+	if (argv >= 2) configin = std::string(argc[1]);
+	std::cout << "Reading from configuration file " << configin << std::endl;
 
-	}
+	std::ifstream configfile(configin);
 
 	signal(SIGTERM, term);
 	signal(SIGINT, term);
+
+	Configuration config;
+	if (read_configuration(configfile, &config)) return -1;
+	write_configuration(std::cout, config);
 
 	HostData hd;
 	DeviceData dd;
 	Executor ex(hd, dd, std::cout);
 	EXECUTOR = &ex;
 
-	ex.t = std::stod(argc[1]);
-	ex.t_0 = ex.t;
-	ex.dt = std::stod(argc[2]);
-	ex.t_f = std::stod(argc[3]);
-	ex.tbsize = 1024;
-	ex.resolve_encounters = false;
-	ex.ce_factor = 1;
-	ex.print_every = 10;
+	ex.t = config.t;
+	ex.t_0 = config.t;
+	ex.dt = config.dt;
+	ex.t_f = config.t_f;
+	ex.tbsize = config.tbsize;
+	ex.resolve_encounters = config.resolve_encounters;
+	ex.ce_factor = config.ce_factor;
+	ex.print_every = config.print_every;
 
-	size_t max_particle = 0;
-	if (argv >= 5) max_particle = static_cast<size_t>(std::stoi(argc[4]));
+	if (load_data(hd, config.plin, config.icsin, config.tbsize, config.ce_factor, config.max_particle, config.readmomenta)) return -1;
 
-	if (load_data(hd, "pl.in", "ics.in", ex.tbsize, ex.ce_factor, max_particle, false)) return -1;
-
-	std::ofstream timelog("time.out");
-	std::ofstream disclog("disc.out");
+	std::ofstream timelog(getpath(config.outfolder, "time.out"));
+	std::ofstream disclog(getpath(config.outfolder, "discard.out"));
 
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
@@ -79,20 +90,80 @@ int main(int argv, char** argc)
 	ex.init();
 
 	size_t counter = 0;
-	size_t save_every = 500;
 
 	try
 	{
 		while (ex.t < ex.t_f)
 		{
 			ex.loop();
+			counter++;
 
-			if (++counter % save_every == 0)
+			if (config.dump_every != 0 && counter % config.dump_every == 0)
 			{
 				ex.download_data();
 
-				std::cout << "Saving to disk. t = " << ex.t << " minus one timeblock" << std::endl;
-				save_data(hd, "pl.part.out", "ics.part.out");
+				ex.add_job([&]()
+					{
+						std::cout << "Saving to disk. t = " << ex.t << " minus one timeblock" << std::endl;
+						save_data(hd, getpath(config.outfolder, "pl.dump.out"), getpath(config.outfolder, "ics.dump.out"));
+					});
+			}
+
+			if (config.periodic_every != 0 && counter % config.periodic_every == 0)
+			{
+				ex.download_data();
+
+				ex.add_job([&]()
+					{
+						std::cout << "Periodic output" << std::endl;
+						std::ofstream periodic(getpath(config.outfolder, "periodic.out"), std::ios_base::app);
+						std::ofstream periodicb(getpath(config.outfolder, "periodicb.out"), std::ios_base::app | std::ios_base::binary);
+
+						periodic << std::setprecision(7);
+						periodic << ex.t << std::endl;
+						periodic << hd.planets.n_alive - 1 << std::endl;
+
+						write_binary(periodicb, ex.t);
+						write_binary(periodicb, hd.planets.n_alive - 1);
+
+						for (size_t i = 1; i < hd.planets.n_alive; i++)
+						{
+							int esign;
+							double a, e, in, capom, om, f;
+							to_elements(hd.planets.m[i] + hd.planets.m[0], hd.planets.r[i], hd.planets.v[i],
+								&esign, &a, &e, &in, &capom, &om, &f);
+
+							int id = static_cast<int>(hd.planets.id[i]);
+							float af = static_cast<float>(a);
+							float ef = static_cast<float>(e);
+							float if_ = static_cast<float>(in);
+
+							write_binary(periodicb, id);
+							write_binary(periodicb, af);
+							write_binary(periodicb, ef);
+							write_binary(periodicb, if_);
+							periodic << id << " " << af << " " << ef << " " << if_ << std::endl;
+						}
+						periodic << hd.particles.n_alive << std::endl;
+						write_binary(periodicb, hd.particles.n_alive);
+						for (size_t i = 0; i < hd.particles.n_alive; i++)
+						{
+							int esign;
+							double a, e, in, capom, om, f;
+							to_elements(hd.planets.m[0], hd.particles.r[i], hd.particles.v[i],
+								&esign, &a, &e, &in, &capom, &om, &f);
+
+							int id = static_cast<int>(hd.particles.id[i]);
+							float af = static_cast<float>(a);
+							float ef = static_cast<float>(e);
+							float if_ = static_cast<float>(in);
+							write_binary(periodicb, id);
+							write_binary(periodicb, af);
+							write_binary(periodicb, ef);
+							write_binary(periodicb, if_);
+							periodic << id << " " << af << " " << ef << " " << if_ << std::endl;
+						}
+					});
 			}
 
 			if (end_loop)
@@ -104,7 +175,7 @@ int main(int argv, char** argc)
 		ex.finish();
 
 		std::cout << "Saving to disk." << std::endl;
-		save_data(hd, "pl.out", "ics.out");
+		save_data(hd, getpath(config.outfolder, "pl.out"), getpath(config.outfolder, "ics.out"));
 	}
 	catch (std::exception e)
 	{
@@ -117,7 +188,7 @@ int main(int argv, char** argc)
 		ex.finish();
 		std::cout << "Saving to disk. t = " << ex.t << std::endl;
 
-		save_data(hd, "pl.dump.out", "ics.dump.out");
+		save_data(hd, getpath(config.outfolder, "pl.crash.out"), getpath(config.outfolder, "ics.crash.out"));
 	}
 
 	t = std::time(nullptr);

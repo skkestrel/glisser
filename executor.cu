@@ -61,9 +61,6 @@ void Executor::init()
 
 	output << std::setprecision(17);
 	output << "e_0 (planets) = " << e_0 << std::endl;
-	output << "t_0 = " << t << std::endl;
-	output << "dt = " << dt << std::endl;
-	output << "t_f = " << t_f << std::endl;
 	output << "n_particle = " << hd.particles.n << std::endl;
 	output << "n_particle_alive = " << hd.particles.n_alive << std::endl;
 	output << "==================================" << std::endl;
@@ -173,6 +170,11 @@ void Executor::upload_data()
 	cudaStreamSynchronize(htd_stream);
 }
 
+void Executor::add_job(std::function<void()> job)
+{
+	work.push_back(job);
+}
+
 void Executor::download_data()
 {
 	auto& particles = dd.particle_phase_space();
@@ -237,6 +239,12 @@ void Executor::loop()
 {
 	hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
+
+	for (auto& i : work)
+	{
+		i();
+	}
+	work.clear();
 
 	t += dt * tbsize;
 	step_and_upload_planets();
@@ -361,9 +369,8 @@ void Executor::resync()
 		{
 			*output_stream << r[i] << std::endl;
 			*output_stream << v[i] << std::endl;
-			*output_stream << hd.particles.deathtime[index] << " " << deathflags[i] << std::endl;
-			*output_stream << hd.planets.n << std::endl;
-
+			*output_stream << hd.particles.deathtime[index] << " " << deathflags[i] << " " << id[i] << std::endl;
+			*output_stream << hd.planets.n - 1 << std::endl;
 			for (size_t j = 1; j < hd.planets.n; j++)
 			{
 				*output_stream << hd.planets.m[j] << std::endl;

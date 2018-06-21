@@ -68,6 +68,18 @@ struct HostData
 	inline HostData() { }
 };
 
+struct Configuration
+{
+	double t, t_0, t_f, dt;
+	size_t tbsize, ce_factor, print_every, dump_every, periodic_every, max_particle;
+	bool resolve_encounters, readmomenta;
+	std::string icsin, plin;
+	std::string outfolder;
+
+	Configuration();
+};
 
 bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t ce_factor, size_t max_particle = 0, bool readmomenta = true);
 void save_data(const HostData& hd, std::string plout, std::string icsout);
+bool read_configuration(std::istream& in, Configuration* out);
+void write_configuration(std::ostream& in, const Configuration& config);

@@ -1,4 +1,5 @@
 #include "convert.h"
+#include <cmath>
 
 void jacobi_to_helio_planets(HostPlanetPhaseSpace& pl)
 {
@@ -150,6 +151,141 @@ void to_helio(HostData& hd)
 	{
 		hd.particles.r[i] -= r;
 		hd.particles.v[i] -= v;
+	}
+}
+
+void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, double* i, double* capom, double* om, double* f)
+{
+	using namespace std;
+
+	double x = r.x, y = r.y, z = r.z;
+	double vx = v.x, vy = v.y, vz = v.z;
+	double pi,prec;
+	double hsq,hx,hy,hz;
+	double rr,xhat,yhat,zhat;
+	double vsq,vdotr,fac;
+	double Px,Py,Pz,modP,nx,ny,ecosw;
+	double energy;
+
+	pi = 2.0*asin(1.0);
+	/* machine precision, user must set this */
+	prec = 1.0e-13;
+
+	/* compute the specific angular momentum */
+	hx = y*vz - z*vy;
+	hy = z*vx - x*vz;
+	hz = x*vy - y*vx;
+	hsq = hx*hx + hy*hy + hz*hz;
+
+	/* As long as we are not on a radial orbit, compute elements */
+	if ( hsq > prec )
+	{
+
+		/* compute the orbital inclination */
+		*i = acos( hz/sqrt(hsq) );
+
+		/* compute the longitude of the ascending node */
+		if( fabs( *i ) < prec) {
+			*capom = 0.0;
+		} 
+		else if( fabs( pi - fabs( *i) ) < prec ) {
+			*capom = 0.0;
+		} 
+		else {
+			*capom = atan2(hx, -hy);
+		}
+
+		/* compute some required quantities */
+		vsq = vx*vx + vy*vy + vz*vz;
+		vdotr =  x*vx + y*vy + z*vz;
+		rr = sqrt(x*x + y*y + z*z);
+		xhat = x/rr;
+		yhat = y/rr;
+		zhat = z/rr;
+		nx = cos( *capom);
+		ny = sin( *capom);
+
+		/* compute the Hamilton vector and thus the eccentricity */
+		fac = vsq * rr - mu;
+		Px = fac * xhat - vdotr * vx;
+		Py = fac * yhat - vdotr * vy;
+		Pz = fac * zhat - vdotr * vz;
+		modP = sqrt( Px*Px + Py*Py + Pz*Pz );
+		*e = modP / mu;
+
+		/* compute the argument of pericenter */
+		if( fabs( *e ) < prec) {
+			*om = 0.0;
+		} 
+		else {
+			if ( (*i < prec) || (pi - *i < prec) ) {
+				*om = atan2(Py,Px);
+			} else {
+				ecosw = (nx*Px + ny*Py)/mu;
+				*om = acos( ecosw/ *e );
+				if ( fabs(Pz) > prec ) {
+					/* resolve sign ambiguity by sign of Pz  */
+					*om *= fabs(Pz)/Pz;
+				}
+			}
+		}
+
+		/* compute the orbital energy , and depending on its sign compute
+		   the semimajor axis (or pericenter) and true anomaly      */
+		energy = vsq/2.0 - mu/rr;
+		if( fabs(energy) < prec) {
+			*esign = 0;		/* parabolic */
+			*a = 0.5 * hsq / mu;	/* actually PERICENTRIC DISTANCE */
+			if ( fabs(vdotr) < prec ) {
+				*f = 0.0;
+			} else {
+				*f = 2.0 * acos(sqrt( *a/rr)) * vdotr/fabs(vdotr);
+			} 
+		} else if (energy > 0.0) {
+			*esign = 1;		/* hyperbolic */
+			*a = -0.5 * mu/energy;  /* will be negative */
+
+			if ( fabs(vdotr) < prec ) {
+				*f = 0.0;
+			} else {
+				fac =  *a * (1.0 - *e * *e)/rr - 1.0;
+				*f =  acos( fac/ *e ) * vdotr/fabs(vdotr);
+			} 
+		} else {
+			*esign = -1;		/* elliptic */
+			*a = -0.5 * mu/energy;
+			if ( fabs( *e ) > prec ) {      
+				if ( fabs(vdotr) < prec ) {
+					if ( rr < *a ) {		/* determine apside */
+						*f = 0.0;
+					} else {
+						*f = pi;
+					}
+				} else {
+					fac =  *a * (1.0 - *e * *e)/rr - 1.0;
+					*f =  acos( fac/ *e ) * vdotr/fabs(vdotr);
+				} 
+			} else {                       /* compute circular cases */
+				fac = (x * nx + y * ny)/rr;
+				*f = acos(fac);
+				if ( fabs(z) > prec ) {
+					/* resolve sign ambiguity by sign of z  */
+					*f *= fabs(z)/z;
+				} else if ( (*i < prec) || (pi - *i < prec) ) {
+					*f = atan2(y,x) * cos( *i);
+				} 
+
+			}
+		}
+
+	} else { 				/* PANIC: radial orbit */
+		*esign = 1;			/* call it hyperbolic */
+		*a = sqrt(x*x + y*y + z*z);
+		*e = 9999.;
+		*i = asin(z/sqrt(x*x + y*y + z*z) );	/* latitude above plane */
+		*capom = atan2(y,x);			/* azimuth */
+		*om = 9999.0;
+		*f = 9999.0;
 	}
 }
 
