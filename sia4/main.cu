@@ -729,7 +729,7 @@ int main(int argv, char** argc)
 
 
 	std::ofstream timelog("time.out");
-	std::ofstream periodic("/data/keavin/sia4/periodic.out");
+	std::ofstream periodic;
 	std::ofstream periodicb("/data/keavin/sia4/periodicb.out", std::ios_base::binary);
 
 	std::time_t t = std::time(nullptr);
@@ -771,14 +771,14 @@ int main(int argv, char** argc)
 					recover_data(hd, dd, dth_stream);
 					cudaStreamSynchronize(dth_stream);
 
-					std::cout << "Saving to disk." << std::endl;
-					save_data(hd, dd, "pl.part.out", "ics.part.out", "info.part.out");
+					// Uncomment to enable dumps
+					// std::cout << "Saving to disk." << std::endl;
+					// save_data(hd, dd, "pl.part.out", "ics.part.out", "info.part.out");
 
 					// ... do something here
 
 					is_pulling_data = false;
 
-					std::cout << "Periodic output" << std::endl;
 					periodic << std::setprecision(7);
 					periodic << hd.t << std::endl;
 					periodic << hd.n_planet - 1 << std::endl;

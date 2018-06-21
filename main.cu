@@ -78,8 +78,10 @@ int main(int argv, char** argc)
 
 	std::ofstream timelog(getpath(config.outfolder, "time.out"));
 	std::ofstream disclog(getpath(config.outfolder, "discard.out"));
-	std::ofstream periodic(getpath(config.outfolder, "periodic.out"));
-	std::ofstream periodicb(getpath(config.outfolder, "periodicb.out"), std::ios_base::binary);
+
+	std::ofstream periodic, periodicb;
+	if (config.enable_ascii_track) periodic = std::ofstream(getpath(config.outfolder, "periodic.out"));
+	if (config.enable_binary_track) periodicb = std::ofstream(getpath(config.outfolder, "periodicb.out"), std::ios_base::binary);
 
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
@@ -106,7 +108,7 @@ int main(int argv, char** argc)
 
 				ex.add_job([&]()
 					{
-						std::cout << "Saving to disk. t = " << ex.t << " minus one timeblock" << std::endl;
+						std::cout << "Saving to disk. t = " << ex.t << std::endl;
 						save_data(hd, getpath(config.outfolder, "pl.dump.out"), getpath(config.outfolder, "ics.dump.out"));
 					});
 			}
@@ -117,8 +119,6 @@ int main(int argv, char** argc)
 
 				ex.add_job([&]()
 					{
-						std::cout << "Periodic output" << std::endl;
-
 						periodic << std::setprecision(7);
 						periodic << ex.t << std::endl;
 						periodic << hd.planets.n_alive - 1 << std::endl;

@@ -234,11 +234,11 @@ alive = final[:, 8] == 0
 plt.title('surviving particle final states')
 plt.scatter(final[alive, 0], final[alive, 1], s=5, c="red", label="Initial states")
 
-if len(alive) < 1000:
+if alive.sum() < 1000:
     for i in range(len(alive)):
         if alive[i]:
             plt.plot([initial[i, 0], final[i, 0]], [initial[i, 1], final[i, 1]], lw=1, c="pink", zorder=-100)
-    plt.scatter(initial[alive, 0], initial[alive, 1], s=5, c="blue", label="Final states")
+plt.scatter(initial[alive, 0], initial[alive, 1], s=5, c="blue", label="Final states")
 
 plt.xlabel('a (AU)')
 plt.legend()

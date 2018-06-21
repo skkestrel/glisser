@@ -72,7 +72,7 @@ struct Configuration
 {
 	double t, t_0, t_f, dt;
 	size_t tbsize, ce_factor, print_every, dump_every, periodic_every, max_particle;
-	bool resolve_encounters, readmomenta;
+	bool resolve_encounters, readmomenta, enable_ascii_track, enable_binary_track;
 	std::string icsin, plin;
 	std::string outfolder;
 

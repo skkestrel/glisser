@@ -46,6 +46,8 @@ Configuration::Configuration()
 	plin = "pl.in";
 	outfolder = "output/";
 	readmomenta = false;
+	enable_ascii_track = 0;
+	enable_binary_track = 0;
 }
 
 
@@ -93,6 +95,10 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->dump_every = std::stoll(second);
 			else if (first == "Resolve-Encounters")
 				out->resolve_encounters = std::stoi(second) != 0;
+			else if (first == "Enable-Ascii-Track")
+				out->enable_ascii_track = std::stoi(second) != 0;
+			else if (first == "Enable-Binary-Track")
+				out->enable_binary_track = std::stoi(second) != 0;
 			else if (first == "Particle-Input")
 				out->icsin = second;
 			else if (first == "Planet-Input")
@@ -136,6 +142,8 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "Encounter-Slowdown-Factor " << out.ce_factor << std::endl;
 	outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 	outstream << "Status-Interval " << out.print_every << std::endl;
+	outstream << "Enable-Ascii-Track " << out.enable_ascii_track << std::endl;
+	outstream << "Enable-Binary-Track " << out.enable_binary_track << std::endl;
 	outstream << "Track-Interval " << out.periodic_every << std::endl;
 	outstream << "Dump-Interval " << out.dump_every << std::endl;
 	outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
