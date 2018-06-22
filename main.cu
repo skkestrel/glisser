@@ -19,9 +19,9 @@
 #include "data.h"
 #include "wh.h"
 #include "convert.h"
+#include "util.h"
 
 #include <execinfo.h>
-
 #include <csignal>
 
 Executor* EXECUTOR;
@@ -40,29 +40,34 @@ void term(int signum)
 	end_loop = 1;
 }
 
-std::string getpath(const std::string& base, const std::string& file)
-{
-	return base + "/" + file;
-}
-
 int main(int argv, char** argc)
 {
-	std::string configin = "config.in";
-	if (argv >= 2) configin = std::string(argc[1]);
-	std::cout << "Reading from configuration file " << configin << std::endl;
-
-	std::ifstream configfile(configin);
-
 	signal(SIGTERM, term);
 	signal(SIGINT, term);
 
+	std::string configin = "config.in";
+	if (argv >= 2) configin = std::string(argc[1]);
+	
+	std::cout << "Reading from configuration file " << configin << std::endl;
+
+	
+	std::ifstream configfile(configin);
+
 	Configuration config;
 	if (read_configuration(configfile, &config)) return -1;
-	write_configuration(std::cout, config);
+	
+
+	{
+		std::ofstream configin(joinpath(config.outfolder, "config.in"));
+		write_configuration(configin, config);
+	}
+
+	std::ofstream coutlog(joinpath(config.outfolder, "stdout"));
+	teestream tout(std::cout, coutlog);
 
 	HostData hd;
 	DeviceData dd;
-	Executor ex(hd, dd, std::cout);
+	Executor ex(hd, dd, tout);
 	EXECUTOR = &ex;
 
 	ex.t = config.t;
@@ -74,14 +79,14 @@ int main(int argv, char** argc)
 	ex.ce_factor = config.ce_factor;
 	ex.print_every = config.print_every;
 
-	if (load_data(hd, config.plin, config.icsin, config.tbsize, config.ce_factor, config.max_particle, config.readmomenta)) return -1;
+	if (load_data(hd, config)) return -1;
 
-	std::ofstream timelog(getpath(config.outfolder, "time.out"));
-	std::ofstream disclog(getpath(config.outfolder, "discard.out"));
+	std::ofstream timelog(joinpath(config.outfolder, "time.out"));
+	std::ofstream disclog(joinpath(config.outfolder, "discard.out"));
 
-	std::ofstream periodic, periodicb;
-	if (config.enable_ascii_track) periodic = std::ofstream(getpath(config.outfolder, "periodic.out"));
-	if (config.enable_binary_track) periodicb = std::ofstream(getpath(config.outfolder, "periodicb.out"), std::ios_base::binary);
+	std::ofstream track, trackb;
+	if (config.enable_ascii_track) track = std::ofstream(joinpath(config.outfolder, "track.out"));
+	if (config.enable_binary_track) trackb = std::ofstream(joinpath(config.outfolder, "trackb.out"), std::ios_base::binary);
 
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
@@ -94,6 +99,7 @@ int main(int argv, char** argc)
 	ex.init();
 
 	size_t counter = 0;
+	size_t dump_num = 0;
 
 	try
 	{
@@ -108,23 +114,23 @@ int main(int argv, char** argc)
 
 				ex.add_job([&]()
 					{
-						std::cout << "Saving to disk. t = " << ex.t << std::endl;
-						save_data(hd, getpath(config.outfolder, "pl.dump.out"), getpath(config.outfolder, "ics.dump.out"));
+						tout << "Dumping to disk. t = " << ex.t << std::endl;
+						save_data(hd, config, true, dump_num++);
 					});
 			}
 
-			if (config.periodic_every != 0 && counter % config.periodic_every == 0)
+			if (config.track_every != 0 && counter % config.track_every == 0)
 			{
 				ex.download_data();
 
 				ex.add_job([&]()
 					{
-						periodic << std::setprecision(7);
-						periodic << ex.t << std::endl;
-						periodic << hd.planets.n_alive - 1 << std::endl;
+						track << std::setprecision(7);
+						track << ex.t << std::endl;
+						track << hd.planets.n_alive - 1 << std::endl;
 
-						write_binary(periodicb, ex.t);
-						write_binary(periodicb, hd.planets.n_alive - 1);
+						write_binary(trackb, ex.t);
+						write_binary(trackb, hd.planets.n_alive - 1);
 
 						for (size_t i = 1; i < hd.planets.n_alive; i++)
 						{
@@ -138,14 +144,14 @@ int main(int argv, char** argc)
 							float ef = static_cast<float>(e);
 							float if_ = static_cast<float>(in);
 
-							write_binary(periodicb, id);
-							write_binary(periodicb, af);
-							write_binary(periodicb, ef);
-							write_binary(periodicb, if_);
-							periodic << id << " " << af << " " << ef << " " << if_ << std::endl;
+							write_binary(trackb, id);
+							write_binary(trackb, af);
+							write_binary(trackb, ef);
+							write_binary(trackb, if_);
+							track << id << " " << af << " " << ef << " " << if_ << std::endl;
 						}
-						periodic << hd.particles.n_alive << std::endl;
-						write_binary(periodicb, hd.particles.n_alive);
+						track << hd.particles.n_alive << std::endl;
+						write_binary(trackb, hd.particles.n_alive);
 						for (size_t i = 0; i < hd.particles.n_alive; i++)
 						{
 							int esign;
@@ -157,38 +163,49 @@ int main(int argv, char** argc)
 							float af = static_cast<float>(a);
 							float ef = static_cast<float>(e);
 							float if_ = static_cast<float>(in);
-							write_binary(periodicb, id);
-							write_binary(periodicb, af);
-							write_binary(periodicb, ef);
-							write_binary(periodicb, if_);
-							periodic << id << " " << af << " " << ef << " " << if_ << std::endl;
+							write_binary(trackb, id);
+							write_binary(trackb, af);
+							write_binary(trackb, ef);
+							write_binary(trackb, if_);
+							track << id << " " << af << " " << ef << " " << if_ << std::endl;
 						}
 					});
 			}
 
 			if (end_loop)
 			{
-				std::cout << "Caught signal." << std::endl;
+				tout << "Caught signal." << std::endl;
 				throw std::exception();
 			}
 		}
 		ex.finish();
 
-		std::cout << "Saving to disk." << std::endl;
-		save_data(hd, getpath(config.outfolder, "pl.out"), getpath(config.outfolder, "ics.out"));
+		tout << "Saving to disk." << std::endl;
+
+		save_data(hd, config);
+		config.t_f = ex.t_f - ex.t_0 + ex.t;
+		config.t_0 = ex.t;
+		std::ofstream configout(joinpath(config.outfolder, "config.out"));
+		write_configuration(configout, config);
 	}
-	catch (std::exception e)
+	catch (const std::exception& e)
 	{
 		void* array[50];
 		size_t size = backtrace(array, 50);
 		backtrace_symbols_fd(array, size, 2);
 
-		std::cout << "Recovering data." << std::endl;
+		tout << "Exception caught: " << std::endl;
+		tout << e.what() << std::endl;
+		tout << "Recovering data." << std::endl;
 
 		ex.finish();
-		std::cout << "Saving to disk. t = " << ex.t << std::endl;
+		tout << "Saving to disk. t = " << ex.t << std::endl;
 
-		save_data(hd, getpath(config.outfolder, "pl.crash.out"), getpath(config.outfolder, "ics.crash.out"));
+		save_data(hd, config);
+		config.t_f = ex.t_f - ex.t_0 + ex.t;
+		config.t_0 = ex.t;
+		std::ofstream configout(joinpath(config.outfolder, "config.out"));
+		write_configuration(configout, config);
 	}
 
 	t = std::time(nullptr);

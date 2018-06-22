@@ -2,13 +2,24 @@
 #include "data.h"
 #include <ctime>
 #include <chrono>
-#include <iostream> 
 #include <functional>
+#include <ostream>
+
+struct ExecutorData
+{
+	std::vector<f64_3> r, v;
+	std::vector<uint32_t> id, deathtime_index;
+	std::vector<uint16_t> deathflags;
+
+	ExecutorData();
+	ExecutorData(size_t size);
+};
 
 struct Executor
 {
 	HostData& hd;
 	DeviceData& dd;
+	ExecutorData ed;
 
 	cudaStream_t main_stream, dth_stream, htd_stream, par_stream;
 
@@ -37,9 +48,8 @@ struct Executor
 
 	double time() const;
 	void loop();
-	void add_job(std::function<void()> job);
+	void add_job(const std::function<void()>& job);
 	void resync();
-	void animate();
 	void finish();
 	void step_and_upload_planets();
 };

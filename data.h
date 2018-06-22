@@ -71,15 +71,17 @@ struct HostData
 struct Configuration
 {
 	double t, t_0, t_f, dt;
-	size_t tbsize, ce_factor, print_every, dump_every, periodic_every, max_particle;
-	bool resolve_encounters, readmomenta, enable_ascii_track, enable_binary_track;
-	std::string icsin, plin;
+	size_t tbsize, ce_factor, print_every, dump_every, track_every, max_particle;
+	bool resolve_encounters, readmomenta, enable_ascii_track, enable_binary_track, readhybrid, writehybrid;
+
+	std::string icsin, plin, hybridin;
 	std::string outfolder;
 
 	Configuration();
 };
 
-bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t ce_factor, size_t max_particle = 0, bool readmomenta = true);
-void save_data(const HostData& hd, std::string plout, std::string icsout);
+bool load_data(HostData& hd, const Configuration& config);
+void save_data(const HostData& hd, const Configuration& config, bool dump=false, size_t dumpnum=0);
 bool read_configuration(std::istream& in, Configuration* out);
 void write_configuration(std::ostream& in, const Configuration& config);
+std::string joinpath(const std::string& base, const std::string& file);

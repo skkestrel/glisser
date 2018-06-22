@@ -1,5 +1,6 @@
 #include "data.h"
 
+#include <iostream>
 #include <fstream>
 #include <iomanip>
 #include <limits>
@@ -38,12 +39,12 @@ Configuration::Configuration()
 	tbsize = 1024;
 	ce_factor = 8;
 	print_every = 10;
-	periodic_every = 0;
+	track_every = 0;
 	dump_every = 1000;
 	max_particle = 0;
 	resolve_encounters = false;
-	icsin = "ics.in";
-	plin = "pl.in";
+	icsin = "";
+	plin = "";
 	outfolder = "output/";
 	readmomenta = false;
 	enable_ascii_track = 0;
@@ -90,7 +91,7 @@ bool read_configuration(std::istream& in, Configuration* out)
 			else if (first == "Status-Interval")
 				out->print_every = std::stoll(second);
 			else if (first == "Track-Interval")
-				out->periodic_every = std::stoll(second);
+				out->track_every = std::stoll(second);
 			else if (first == "Dump-Interval")
 				out->dump_every = std::stoll(second);
 			else if (first == "Resolve-Encounters")
@@ -99,6 +100,12 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->enable_ascii_track = std::stoi(second) != 0;
 			else if (first == "Enable-Binary-Track")
 				out->enable_binary_track = std::stoi(second) != 0;
+			else if (first == "Use-Hybrid-Output")
+				out->writehybrid = std::stoi(second) != 0;
+			else if (first == "Use-Hybrid-Input")
+				out->readhybrid = std::stoi(second) != 0;
+			else if (first == "Hybrid-Input")
+				out->hybridin = second;
 			else if (first == "Particle-Input")
 				out->icsin = second;
 			else if (first == "Planet-Input")
@@ -129,6 +136,17 @@ bool read_configuration(std::istream& in, Configuration* out)
 		out->outfolder = "./";
 	}
 
+	if (out->readhybrid && out->hybridin == "")
+	{
+		std::cerr << "Use-Hybrid-Input was selected but no hybrid input file was specified" << std::endl;
+		return true;
+	}
+	if (!out->readhybrid && (out->plin == "" || out->icsin == ""))
+	{
+		std::cerr << "Use-Hybrid-Input was not selected but no input files was specified" << std::endl;
+		return true;
+	}
+
 	return false;
 }
 
@@ -144,23 +162,31 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "Status-Interval " << out.print_every << std::endl;
 	outstream << "Enable-Ascii-Track " << out.enable_ascii_track << std::endl;
 	outstream << "Enable-Binary-Track " << out.enable_binary_track << std::endl;
-	outstream << "Track-Interval " << out.periodic_every << std::endl;
+	outstream << "Track-Interval " << out.track_every << std::endl;
 	outstream << "Dump-Interval " << out.dump_every << std::endl;
 	outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
+	outstream << "Use-Hybrid-Output " << out.writehybrid << std::endl;
+	outstream << "Use-Hybrid-Input " << out.readhybrid << std::endl;
+	outstream << "Hybrid-Input " << out.hybridin << std::endl;
 	outstream << "Particle-Input " << out.icsin << std::endl;
 	outstream << "Planet-Input " << out.plin << std::endl;
 	outstream << "Output-Folder " << out.outfolder << std::endl;
 	outstream << "Read-Momenta " << out.readmomenta << std::endl;
 }
 
-bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize, size_t ce_factor, size_t max_particle, bool readmomenta)
+std::string joinpath(const std::string& base, const std::string& file)
 {
-	std::ifstream plinfile(plin), icsinfile(icsin);
+	return base + "/" + file;
+}
+
+bool load_data(HostData& hd, const Configuration& config)
+{
+	std::ifstream plinfile(config.plin), icsinfile(config.icsin);
 
 	size_t npl;
 	plinfile >> npl;
 
-	hd.planets = HostPlanetPhaseSpace(npl, tbsize, ce_factor);
+	hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.ce_factor);
 
 	for (size_t i = 0; i < npl; i++)
 	{
@@ -168,7 +194,7 @@ bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize,
 		plinfile >> hd.planets.r[i].x >> hd.planets.r[i].y >> hd.planets.r[i].z;
 		plinfile >> hd.planets.v[i].x >> hd.planets.v[i].y >> hd.planets.v[i].z;
 
-		if (readmomenta)
+		if (config.readmomenta)
 		{
 			hd.planets.v[i].x /= hd.planets.m[i];
 			hd.planets.v[i].y /= hd.planets.m[i];
@@ -180,7 +206,7 @@ bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize,
 
 	size_t npart;
 	icsinfile >> npart;
-	if (max_particle > 0) npart = std::min(npart, max_particle);
+	if (config.max_particle > 0) npart = std::min(npart, config.max_particle);
 
 	hd.particles = HostParticlePhaseSpace(npart);
 
@@ -210,9 +236,9 @@ bool load_data(HostData& hd, std::string plin, std::string icsin, size_t tbsize,
 	return false;
 }
 
-void save_data(const HostData& hd, std::string plout, std::string icsout)
+void save_data(const HostData& hd, const Configuration& config, bool dump, size_t dumpnum)
 {
-	std::ofstream ploutfile(plout), icsoutfile(icsout);
+	std::ofstream ploutfile(joinpath(config.outfolder, "pl.out")), icsoutfile(joinpath(config.outfolder, "ics.out"));
 
 	ploutfile << hd.planets_snapshot.n << std::endl;
 	ploutfile << std::setprecision(17);

@@ -9,6 +9,14 @@
 #include "convert.h"
 #include "wh.h"
 
+ExecutorData::ExecutorData() { }
+ExecutorData::ExecutorData(size_t n)
+{
+	r = v = std::vector<f64_3>(n);
+	id = deathtime_index = std::vector<uint32_t>(n);
+	deathflags = std::vector<uint16_t>(n);
+}
+
 template<typename T>
 cudaError_t memcpy_dth(std::vector<T>& dest, const thrust::device_vector<T>& src, cudaStream_t& stream, size_t destbegin = 0, size_t srcbegin = 0, size_t len = static_cast<uint32_t>(-1))
 {
@@ -59,7 +67,7 @@ void Executor::init()
 
 	calculate_planet_metrics(hd.planets, &e_0, nullptr);
 
-	output << std::setprecision(17);
+	output << std::setprecision(7);
 	output << "e_0 (planets) = " << e_0 << std::endl;
 	output << "n_particle = " << hd.particles.n << std::endl;
 	output << "n_particle_alive = " << hd.particles.n_alive << std::endl;
@@ -170,9 +178,9 @@ void Executor::upload_data()
 	cudaStreamSynchronize(htd_stream);
 }
 
-void Executor::add_job(std::function<void()> job)
+void Executor::add_job(const std::function<void()>& job)
 {
-	work.push_back(job);
+	work.push_back(std::move(job));
 }
 
 void Executor::download_data()
@@ -237,7 +245,6 @@ double Executor::time() const
 
 void Executor::loop()
 {
-	hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
 
 	for (auto& i : work)
@@ -245,6 +252,8 @@ void Executor::loop()
 		i();
 	}
 	work.clear();
+
+	hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 
 	t += dt * tbsize;
 	step_and_upload_planets();
@@ -285,35 +294,6 @@ void Executor::loop()
 	resync();
 }
 
-std::ofstream anilog("animation.out");
-void Executor::animate()
-{
-	Vf64_3 r(hd.planets.n); Vf64_3 v(hd.planets.n);
-	Vf64_3 rp(hd.particles.n);
-	Vf64_3 vp(hd.particles.n);
-
-	f64_3 bary_r, bary_v;
-
-	find_barycenter(hd.planets.r, hd.planets.v, hd.planets.m, hd.planets.n, bary_r, bary_v);
-
-	for (size_t i = 0; i < hd.planets.n; i++)
-	{
-		r[i] = hd.planets.r[i] - bary_r;
-		v[i] = hd.planets.v[i] - bary_v;
-	}
-	for (size_t i = 0; i < hd.particles.n; i++)
-	{
-		rp[i] = hd.particles.r[i] - bary_r;
-		vp[i] = hd.particles.v[i] - bary_v;
-	}
-
-	for (size_t j = 0; j < hd.planets.n; j++)
-	{
-		anilog << std::setprecision(17) << r[j].x << " " << r[j].y << " " << r[j].z << std::endl << std::flush;
-		anilog << std::setprecision(17) << v[j].x << " " << v[j].y << " " << v[j].z << std::endl << std::flush;
-	}
-}
-
 void Executor::resync()
 {
 	auto& particles = dd.particle_phase_space();
@@ -325,61 +305,62 @@ void Executor::resync()
 
 	size_t diff = prev_alive - particles.n_alive;
 
-	std::vector<f64_3> r(diff), v(diff);
-	std::vector<uint32_t> id(diff), deathtime_index(diff);
-	std::vector<uint16_t> deathflags(diff);
+	ed = ExecutorData(diff);
 
-	memcpy_dth(r, particles.r, dth_stream, 0, particles.n_alive, diff);
+	memcpy_dth(ed.r, particles.r, dth_stream, 0, particles.n_alive, diff);
 	cudaStreamSynchronize(dth_stream);
-	memcpy_dth(v, particles.v, dth_stream, 0, particles.n_alive, diff);
+	memcpy_dth(ed.v, particles.v, dth_stream, 0, particles.n_alive, diff);
 	cudaStreamSynchronize(dth_stream);
-	memcpy_dth(id, particles.id, dth_stream, 0, particles.n_alive, diff);
+	memcpy_dth(ed.id, particles.id, dth_stream, 0, particles.n_alive, diff);
 	cudaStreamSynchronize(dth_stream);
-	memcpy_dth(deathtime_index, particles.deathtime_index, dth_stream, 0, particles.n_alive, diff);
+	memcpy_dth(ed.deathtime_index, particles.deathtime_index, dth_stream, 0, particles.n_alive, diff);
 	cudaStreamSynchronize(dth_stream);
-	memcpy_dth(deathflags, particles.deathflags, dth_stream, 0, particles.n_alive, diff);
+	memcpy_dth(ed.deathflags, particles.deathflags, dth_stream, 0, particles.n_alive, diff);
 	cudaStreamSynchronize(dth_stream);
 
-	std::unordered_map<size_t, size_t> indices;
-	for (size_t i = 0; i < prev_alive; i++)
-	{
-		indices[hd.particles.id[i]] = i;
-	}
-
-	for (size_t i = 0; i < diff; i++)
-	{
-		size_t index = indices[id[i]];
-		hd.particles.r[index] = r[i];
-		hd.particles.v[index] = v[i];
-		hd.particles.deathflags[index] = deathflags[i];
-
-		std::ostream* output_stream = nullptr;
-
-		if ((deathflags[i] & 0x0001) && resolve_encounters)
+	add_job([prev_alive, diff, this]()
 		{
-			output_stream = discard_output;
-		}
-		else
-		{
-			output_stream = discard_output;
-			hd.particles.deathtime[index] = t + dt * deathtime_index[i];
-		}
-
-		if (output_stream)
-		{
-			*output_stream << r[i] << std::endl;
-			*output_stream << v[i] << std::endl;
-			*output_stream << hd.particles.deathtime[index] << " " << deathflags[i] << " " << id[i] << std::endl;
-			*output_stream << hd.planets.n - 1 << std::endl;
-			for (size_t j = 1; j < hd.planets.n; j++)
+			std::unordered_map<size_t, size_t> indices;
+			for (size_t i = 0; i < prev_alive; i++)
 			{
-				*output_stream << hd.planets.m[j] << std::endl;
-				*output_stream << hd.planets.r_log_slow[deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+				indices[hd.particles.id[i]] = i;
 			}
-		}
-	}
 
-	hd.particles.stable_partition_alive();
+			for (size_t i = 0; i < diff; i++)
+			{
+				size_t index = indices[ed.id[i]];
+				hd.particles.r[index] = ed.r[i];
+				hd.particles.v[index] = ed.v[i];
+				hd.particles.deathflags[index] = ed.deathflags[i];
+
+				std::ostream* output_stream = nullptr;
+
+				if ((ed.deathflags[i] & 0x0001) && resolve_encounters)
+				{
+					output_stream = discard_output;
+				}
+				else
+				{
+					output_stream = discard_output;
+					hd.particles.deathtime[index] = t + dt * ed.deathtime_index[i];
+				}
+
+				if (output_stream)
+				{
+					*output_stream << ed.r[i] << std::endl;
+					*output_stream << ed.v[i] << std::endl;
+					*output_stream << hd.particles.deathtime[index] << " " << ed.deathflags[i] << " " << ed.id[i] << std::endl;
+					*output_stream << hd.planets.n - 1 << std::endl;
+					for (size_t j = 1; j < hd.planets.n; j++)
+					{
+						*output_stream << hd.planets.m[j] << std::endl;
+						*output_stream << hd.planets.r_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+					}
+				}
+			}
+
+			hd.particles.stable_partition_alive();
+		});
 }
 
 

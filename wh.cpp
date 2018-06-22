@@ -1,9 +1,10 @@
 #include "wh.h"
 #include "convert.h"
 
-#include <iostream>
 #include <iomanip>
 #include <cmath>
+#include <sstream>
+#include <stdexcept>
 
 const size_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-14;
@@ -171,8 +172,9 @@ void drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v)
 	if (energy >= 0)
 	{
 		// TODO
-		std::cerr << "unbound orbit of particle, energy = " << energy << std::endl;
-		throw std::exception();
+		std::ostringstream ss;
+		ss << "unbound orbit of particle, energy = " << energy << std::endl;
+		throw std::runtime_error(ss.str());
 	}
 	else
 	{
@@ -233,15 +235,16 @@ void drift(float64_t t, Vu8& mask, Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start,
 		if (mask[i]) continue;
 		if (energy[i] >= 0)
 		{
-			std::cerr << "unbound orbit of planet " << i << " energy = " << energy[i] << std::endl;
+			std::ostringstream ss;
+			ss << "unbound orbit of planet " << i << " energy = " << energy[i] << std::endl;
 
 			for (size_t j = start; j < start + n; j++)
 			{
-				std::cerr << "p " << r[j].x << " " << r[j].y << " " << r[j].z << std::endl;
-				std::cerr << "v " << v[j].x << " " << v[j].y << " " << v[j].z << std::endl;
+				ss << "p " << r[j].x << " " << r[j].y << " " << r[j].z << std::endl;
+				ss << "v " << v[j].x << " " << v[j].y << " " << v[j].z << std::endl;
 			}
 			
-			throw std::exception();
+			throw std::runtime_error(ss.str());
 		}
 		else
 		{
