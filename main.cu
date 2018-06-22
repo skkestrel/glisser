@@ -11,6 +11,7 @@
 #include <fstream>
 #include <string>
 #include <ctime>
+#include <sys/stat.h>
 #include <thread>
 #include <iomanip>
 
@@ -28,12 +29,6 @@ Executor* EXECUTOR;
 
 volatile sig_atomic_t end_loop = 0;
 
-template<typename T>
-void write_binary(std::ostream& o, const T& t)
-{
-	o.write(reinterpret_cast<const char*>(&t), sizeof(t));
-}
-
 void term(int signum)
 {
 	(void) signum;
@@ -49,7 +44,6 @@ int main(int argv, char** argc)
 	if (argv >= 2) configin = std::string(argc[1]);
 	
 	std::cout << "Reading from configuration file " << configin << std::endl;
-
 	
 	std::ifstream configfile(configin);
 
@@ -61,6 +55,9 @@ int main(int argv, char** argc)
 		std::ofstream configin(joinpath(config.outfolder, "config.in"));
 		write_configuration(configin, config);
 	}
+
+	mkdir(config.outfolder.c_str(), ACCESSPERMS);
+	mkdir(joinpath(config.outfolder, "dumps").c_str(), ACCESSPERMS);
 
 	std::ofstream coutlog(joinpath(config.outfolder, "stdout"));
 	teestream tout(std::cout, coutlog);
@@ -139,7 +136,7 @@ int main(int argv, char** argc)
 							to_elements(hd.planets.m[i] + hd.planets.m[0], hd.planets.r[i], hd.planets.v[i],
 								&esign, &a, &e, &in, &capom, &om, &f);
 
-							int id = static_cast<int>(hd.planets.id[i]);
+							int id = static_cast<uint32_t>(hd.planets.id[i]);
 							float af = static_cast<float>(a);
 							float ef = static_cast<float>(e);
 							float if_ = static_cast<float>(in);
@@ -151,7 +148,7 @@ int main(int argv, char** argc)
 							track << id << " " << af << " " << ef << " " << if_ << std::endl;
 						}
 						track << hd.particles.n_alive << std::endl;
-						write_binary(trackb, hd.particles.n_alive);
+						write_binary(trackb, static_cast<uint32_t>(hd.particles.n_alive));
 						for (size_t i = 0; i < hd.particles.n_alive; i++)
 						{
 							int esign;
@@ -159,7 +156,7 @@ int main(int argv, char** argc)
 							to_elements(hd.planets.m[0], hd.particles.r[i], hd.particles.v[i],
 								&esign, &a, &e, &in, &capom, &om, &f);
 
-							int id = static_cast<int>(hd.particles.id[i]);
+							int id = static_cast<uint32_t>(hd.particles.id[i]);
 							float af = static_cast<float>(a);
 							float ef = static_cast<float>(e);
 							float if_ = static_cast<float>(in);

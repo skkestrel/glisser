@@ -34,8 +34,6 @@ struct HostPlanetPhaseSpace
 
 	f64_3 bary_r, bary_v;
 
-	Vu16 deathflags;
-	Vf32 deathtime;
 	Vu32 id;
 
 	inline HostPlanetPhaseSpace() { }
@@ -44,7 +42,7 @@ struct HostPlanetPhaseSpace
 		a(n),
 		r_log((n - 1) * tb_size * ce_factor), h0_log(tb_size * ce_factor),
 		r_log_slow((n - 1) * tb_size), h0_log_slow(tb_size),
-       		deathflags(n), deathtime(n), id(n) { }
+       		id(n) { }
 };
 
 struct HostPlanetSnapshot
@@ -72,13 +70,18 @@ struct Configuration
 {
 	double t, t_0, t_f, dt;
 	size_t tbsize, ce_factor, print_every, dump_every, track_every, max_particle;
-	bool resolve_encounters, readmomenta, enable_ascii_track, enable_binary_track, readhybrid, writehybrid;
+	bool resolve_encounters, readmomenta, enable_ascii_track, enable_binary_track, readhybrid, writehybrid, dumpbinary, writehybridbinary, readhybridbinary;
 
 	std::string icsin, plin, hybridin;
 	std::string outfolder;
 
 	Configuration();
 };
+
+template<typename T>
+void write_binary(std::ostream& o, const T& t);
+template<typename T>
+void read_binary(std::istream& i, T& t);
 
 bool load_data(HostData& hd, const Configuration& config);
 void save_data(const HostData& hd, const Configuration& config, bool dump=false, size_t dumpnum=0);
