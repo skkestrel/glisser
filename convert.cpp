@@ -288,4 +288,3 @@ void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, 
 		*f = 9999.0;
 	}
 }
-

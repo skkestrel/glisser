@@ -9,165 +9,32 @@
 #include <numeric>
 
 template<typename T>
-T reverse_2byte(T in)
+void gather(std::vector<T>& values, const std::vector<size_t>& indices, size_t begin, size_t length)
 {
-	static_assert(sizeof(T) == 2, "");
-	T ret;
-	char *inb = reinterpret_cast<char*>(&in);
-	char *retb = reinterpret_cast<char*>(&ret);
-
-	// swap the bytes into a temporary buffer
-	retb[0] = inb[1];
-	retb[1] = inb[0];
-
-	return ret;
-}
-
-template<typename T>
-T reverse_4byte(T in)
-{
-	static_assert(sizeof(T) == 4, "");
-	T ret;
-	char *inb = reinterpret_cast<char*>(&in);
-	char *retb = reinterpret_cast<char*>(&ret);
-
-	// swap the bytes into a temporary buffer
-	retb[0] = inb[3];
-	retb[1] = inb[2];
-	retb[2] = inb[1];
-	retb[3] = inb[0];
-
-	return ret;
-}
-
-template<typename T>
-T reverse_8byte(T in)
-{
-	static_assert(sizeof(T) == 8, "");
-	T ret;
-	char *inb = reinterpret_cast<char*>(&in);
-	char *retb = reinterpret_cast<char*>(&ret);
-
-	// swap the bytes into a temporary buffer
-	retb[0] = inb[7];
-	retb[1] = inb[6];
-	retb[2] = inb[5];
-	retb[3] = inb[4];
-	retb[4] = inb[3];
-	retb[5] = inb[2];
-	retb[6] = inb[1];
-	retb[7] = inb[0];
-
-	return ret;
-}
-
-template<typename T>
-T reverse_bytes(T in) { (void) in; return T::unimplemented; }
-
-template<>
-int16_t reverse_bytes<int16_t>(int16_t in) { return reverse_2byte(in); }
-template<>
-uint16_t reverse_bytes<uint16_t>(uint16_t in) { return reverse_2byte(in); }
-template<>
-int32_t reverse_bytes<int32_t>(int32_t in) { return reverse_4byte(in); }
-template<>
-uint32_t reverse_bytes<uint32_t>(uint32_t in) { return reverse_4byte(in); }
-template<>
-int64_t reverse_bytes<int64_t>(int64_t in) { return reverse_8byte(in); }
-template<>
-uint64_t reverse_bytes<uint64_t>(uint64_t in) { return reverse_8byte(in); }
-template<>
-double reverse_bytes<double>(double in) { return reverse_8byte(in); }
-template<>
-float reverse_bytes<float>(float in) { return reverse_4byte(in); }
-
-bool is_int_little_endian()
-{
-	uint32_t i = 0x01;
-	return reinterpret_cast<uint8_t*>(&i)[0] == 0x01;
-}
-
-bool is_float_little_endian()
-{
-	float i = 2;
-	return reinterpret_cast<uint8_t*>(&i)[0] == 0x40;
-}
-
-bool is_double_little_endian()
-{
-	double i = 2;
-	return reinterpret_cast<uint8_t*>(&i)[0] == 0x40;
-}
-
-template<typename T>
-bool is_little_endian() { return T::unimplemented; }
-
-template<>
-bool is_little_endian<int16_t>() { return is_int_little_endian(); }
-template<>
-bool is_little_endian<uint16_t>() { return is_int_little_endian(); }
-template<>
-bool is_little_endian<int32_t>() { return is_int_little_endian(); }
-template<>
-bool is_little_endian<uint32_t>() { return is_int_little_endian(); }
-template<>
-bool is_little_endian<float>() { return is_float_little_endian(); }
-template<>
-bool is_little_endian<int64_t>() { return is_int_little_endian(); }
-template<>
-bool is_little_endian<uint64_t>() { return is_int_little_endian(); }
-template<>
-bool is_little_endian<double>() { return is_double_little_endian(); }
-
-template<typename T>
-T to_little_endian(T in)
-{
-	if (is_little_endian<T>())
+	std::vector<T> copy(values.begin() + begin, values.begin() + begin + length);
+	for (size_t i = begin; i < begin + length; i++)
 	{
-		return in;
-	}
-	else
-	{
-		return reverse_bytes(in);
+		values[i] = copy[indices[i - begin]];
 	}
 }
 
-template<typename T>
-void write_binary(std::ostream& o, const T& t)
+void HostParticlePhaseSpace::stable_partition_alive(size_t begin, size_t length)
 {
-	T c = to_little_endian(t);
-	o.write(reinterpret_cast<const char*>(&c), sizeof(c));
-}
-
-template<typename T>
-void read_binary(std::istream& i, T& t)
-{
-	i.read(reinterpret_cast<char*>(&t), sizeof(T));
-	t = to_little_endian(t);
-}
-
-template<typename T>
-void gather(std::vector<T>& values, const std::vector<size_t>& indices)
-{
-	std::vector<T> copy(values.begin(), values.end());
-	for (size_t i = 0; i < values.size(); i++)
+	if (length == static_cast<size_t>(-1))
 	{
-		values[i] = copy[indices[i]];
+		length = n - begin;
 	}
-}
 
-void HostParticlePhaseSpace::stable_partition_alive()
-{
-	std::vector<size_t> indices(n);
+	std::vector<size_t> indices(length);
 	std::iota(indices.begin(), indices.end(), 0);
-	n_alive = std::stable_partition(indices.begin(), indices.end(), [this](size_t index)
-			{ return deathflags[index] == 0; }) - indices.begin();
+	n_alive = std::stable_partition(indices.begin(), indices.end(), [begin, this](size_t index)
+			{ return deathflags[index + begin] == 0; }) - indices.begin() + begin;
 
-	gather(r, indices);
-	gather(v, indices);
-	gather(deathtime, indices);
-	gather(deathflags, indices);
-	gather(id, indices);
+	gather(r, indices, begin, length);
+	gather(v, indices, begin, length);
+	gather(deathtime, indices, begin, length);
+	gather(deathflags, indices, begin, length);
+	gather(id, indices, begin, length);
 }
 
 Configuration::Configuration()
@@ -185,8 +52,8 @@ Configuration::Configuration()
 	icsin = "";
 	plin = "";
 	hybridin = "";
-	readhybrid = "";
-	writehybrid = "";
+	readhybrid = 0;
+	writehybrid = 0;
 	dumpbinary = 1;
 	writehybridbinary = 0;
 	readhybridbinary = 0;
@@ -253,6 +120,8 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->readhybrid = std::stoi(second) != 0;
 			else if (first == "Use-Hybrid-Binary-Output")
 				out->writehybridbinary = std::stoi(second) != 0;
+			else if (first == "Use-Hybrid-Binary-Input")
+				out->readhybridbinary = std::stoi(second) != 0;
 			else if (first == "Hybrid-Input")
 				out->hybridin = second;
 			else if (first == "Particle-Input")
@@ -417,9 +286,7 @@ bool load_data_hybrid(HostData& hd, const Configuration& config)
 
 		if (config.readmomenta)
 		{
-			hd.planets.v[i].x /= hd.planets.m[i];
-			hd.planets.v[i].y /= hd.planets.m[i];
-			hd.planets.v[i].z /= hd.planets.m[i];
+			hd.planets.v[i] /= hd.planets.m[i];
 		}
 
 		hd.planets.id[i] = i;
@@ -455,8 +322,10 @@ bool load_data_hybrid(HostData& hd, const Configuration& config)
 bool load_data_hybrid_binary(HostData& hd, const Configuration& config)
 {
 	std::ifstream in(config.hybridin, std::ios_base::binary);
-	read_binary(in, hd.planets.n_alive);
-	for (size_t i = 0; i < hd.planets.n_alive; i++)
+	read_binary(in, hd.planets.n);
+	hd.planets = HostPlanetPhaseSpace(hd.planets.n, config.tbsize, config.ce_factor);
+
+	for (size_t i = 0; i < hd.planets.n; i++)
 	{
 		read_binary(in, hd.planets.id[i]);
 		read_binary(in, hd.planets.m[i]);
@@ -466,9 +335,18 @@ bool load_data_hybrid_binary(HostData& hd, const Configuration& config)
 		read_binary(in, hd.planets.v[i].x);
 		read_binary(in, hd.planets.v[i].y);
 		read_binary(in, hd.planets.v[i].z);
+
+		if (config.readmomenta)
+		{
+			hd.planets.v[i] /= hd.planets.m[i];
+		}
 	}
 
-	read_binary(in, hd.particles.n_alive);
+	read_binary(in, hd.particles.n);
+
+	if (config.max_particle > 0) hd.particles.n = std::min(hd.particles.n, config.max_particle);
+	hd.particles = HostParticlePhaseSpace(hd.particles.n);
+
 	for (size_t i = 0; i < hd.particles.n; i++)
 	{
 		read_binary(in, hd.particles.id[i]);
@@ -524,7 +402,7 @@ void save_data_hybrid_binary(const HostData& hd, std::ostream& out, const Config
 		write_binary(out, hd.planets.v[i].z);
 	}
 
-	write_binary(out, hd.particles.n_alive);
+	write_binary(out, hd.particles.n);
 	for (size_t i = 0; i < hd.particles.n; i++)
 	{
 		write_binary(out, hd.particles.id[i]);
@@ -595,7 +473,7 @@ void save_data(const HostData& hd, const Configuration& config, bool dump, size_
 
 		if (dump)
 		{
-			ss << "state." << dumpnum << ".out";
+			ss << "dump/state." << dumpnum << ".out";
 		}
 		else
 		{

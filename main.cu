@@ -7,6 +7,7 @@
 
 *************************************************************/
 
+#include <sstream>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -24,8 +25,6 @@
 
 #include <execinfo.h>
 #include <csignal>
-
-Executor* EXECUTOR;
 
 volatile sig_atomic_t end_loop = 0;
 
@@ -62,10 +61,13 @@ int main(int argv, char** argc)
 	std::ofstream coutlog(joinpath(config.outfolder, "stdout"));
 	teestream tout(std::cout, coutlog);
 
+	tout << "Host uses little-endian floats? " << (is_float_little_endian() ? "yes" : "no") << std::endl;
+	tout << "Host uses little-endian doubles? " << (is_double_little_endian() ? "yes" : "no") << std::endl;
+	tout << "Host uses little-endian ints? " << (is_int_little_endian() ? "yes" : "no") << std::endl;
+
 	HostData hd;
 	DeviceData dd;
 	Executor ex(hd, dd, tout);
-	EXECUTOR = &ex;
 
 	ex.t = config.t;
 	ex.t_0 = config.t;
@@ -98,6 +100,7 @@ int main(int argv, char** argc)
 	size_t counter = 0;
 	size_t dump_num = 0;
 
+	bool crashed = false;
 	try
 	{
 		while (ex.t < ex.t_f)
@@ -112,7 +115,15 @@ int main(int argv, char** argc)
 				ex.add_job([&]()
 					{
 						tout << "Dumping to disk. t = " << ex.t << std::endl;
+						std::ostringstream ss;
+						ss << "dump/config." << dump_num << ".out" << std::endl;
+
 						save_data(hd, config, true, dump_num++);
+
+						config.t_f = ex.t_f - ex.t_0 + ex.t;
+						config.t_0 = ex.t;
+						std::ofstream configout(joinpath(config.outfolder, ss.str()));
+						write_configuration(configout, config);
 					});
 			}
 
@@ -175,15 +186,6 @@ int main(int argv, char** argc)
 				throw std::exception();
 			}
 		}
-		ex.finish();
-
-		tout << "Saving to disk." << std::endl;
-
-		save_data(hd, config);
-		config.t_f = ex.t_f - ex.t_0 + ex.t;
-		config.t_0 = ex.t;
-		std::ofstream configout(joinpath(config.outfolder, "config.out"));
-		write_configuration(configout, config);
 	}
 	catch (const std::exception& e)
 	{
@@ -194,20 +196,20 @@ int main(int argv, char** argc)
 		tout << "Exception caught: " << std::endl;
 		tout << e.what() << std::endl;
 		tout << "Recovering data." << std::endl;
-
-		ex.finish();
-		tout << "Saving to disk. t = " << ex.t << std::endl;
-
-		save_data(hd, config);
-		config.t_f = ex.t_f - ex.t_0 + ex.t;
-		config.t_0 = ex.t;
-		std::ofstream configout(joinpath(config.outfolder, "config.out"));
-		write_configuration(configout, config);
+		crashed = true;
 	}
+
+	ex.finish();
+	tout << "Saving to disk. t = " << ex.t << std::endl;
+	save_data(hd, config);
+	config.t_f = ex.t_f - ex.t_0 + ex.t;
+	config.t_0 = ex.t;
+	std::ofstream configout(joinpath(config.outfolder, "config.out"));
+	write_configuration(configout, config);
 
 	t = std::time(nullptr);
 	tm = *std::localtime(&t);
 	timelog << "end " << std::put_time(&tm, "%c %Z") << std::endl;
 
-	return 0;
+	return crashed ? -1 : 0;
 }

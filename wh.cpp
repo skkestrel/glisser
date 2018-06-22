@@ -368,6 +368,7 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
 	// find the accelerations of the heliocentric velocities
 	helio_acc_planets(pl, index);
 	std::copy(pl.r.begin() + 1, pl.r.end(), pl.r_log.begin() + (pl.n_alive - 1) * index);
+	std::copy(pl.v.begin() + 1, pl.v.end(), pl.v_log.begin() + (pl.n_alive - 1) * index);
 
 	for (size_t i = 1; i < pl.n_alive; i++)
 	{
