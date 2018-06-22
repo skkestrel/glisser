@@ -58,24 +58,19 @@ struct DeviceParticleUnflaggedPredicate
 	}
 };
 
-Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), print_every(10), print_counter(0), tbsize(128), ce_factor(1),
-	output(out), timing_output(nullptr), resolve_encounters(false) { }
+Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), tbsize(128), ce_factor(1),
+	output(out), resolve_encounters(false) { }
 
 void Executor::init()
 {
 	to_helio(hd);
-
-	calculate_planet_metrics(hd.planets, &e_0, nullptr);
+	initialize(hd.planets, hd.particles, wh_alloc);
+	calculate_planet_metrics(hd.planets, wh_alloc, &e_0, nullptr);
 
 	output << std::setprecision(7);
 	output << "e_0 (planets) = " << e_0 << std::endl;
 	output << "n_particle = " << hd.particles.n << std::endl;
 	output << "n_particle_alive = " << hd.particles.n_alive << std::endl;
-	output << "==================================" << std::endl;
-	output << "Running for half a time step.     " << std::endl;
-
-	initialize(hd.planets, hd.particles);
-
 	output << "==================================" << std::endl;
 	output << "Sending initial conditions to GPU." << std::endl;
 
@@ -94,13 +89,9 @@ void Executor::init()
 
 	output << "       Starting simulation.       " << std::endl << std::endl;
 
-	if (timing_output)
+	if (encounter_output)
 	{
-		*timing_output << std::setprecision(17);
-	}
-	if (discard_output)
-	{
-		*discard_output << std::setprecision(17);
+		*encounter_output << std::setprecision(17);
 	}
 
 	step_and_upload_planets();
@@ -117,7 +108,7 @@ void Executor::step_and_upload_planets()
 
 		for (size_t i = 0; i < tbsize * ce_factor; i++)
 		{
-			step_planets(hd.planets, t, i, dt / ce_factor);
+			step_planets(hd.planets, wh_alloc, t, i, dt / ce_factor);
 			// take the planet positions at the end of every timestep
 
 			if (i % ce_factor == ce_factor - 1)
@@ -138,7 +129,7 @@ void Executor::step_and_upload_planets()
 	{
 		for (size_t i = 0; i < tbsize; i++)
 		{
-			step_planets(hd.planets, t, i, dt);
+			step_planets(hd.planets, wh_alloc, t, i, dt);
 		}
 
 		std::copy(hd.planets.h0_log.begin(), hd.planets.h0_log.end(), hd.planets.h0_log_slow.begin());
@@ -146,7 +137,15 @@ void Executor::step_and_upload_planets()
 		std::copy(hd.planets.v_log.begin(), hd.planets.v_log.end(), hd.planets.v_log_slow.begin());
 	}
 
-	upload_planet_log();
+	// We only upload the planet log if any particles are going to use the planet log on the GPU
+	// Cases where the planet log is not used by the particles:
+	// - There are no particles alive on the GPU, AND there are no particles in close encounters on the CPU
+	// since the particles that survive close encounters can make it to the GPU at the end of this timestep
+	// and thus the next planet chunk will be required
+	if (dd.particle_phase_space().n_alive == 0 && hd.particles.n_encounter == 0)
+	{
+		upload_planet_log();
+	}
 }
 
 void Executor::upload_data()
@@ -205,6 +204,8 @@ void Executor::download_data()
 	memcpy_dth(hd.particles.deathflags, particles.deathflags, dth_stream);
 	cudaStreamSynchronize(dth_stream);
 
+	// This should NEVER happen. I think this is a recoverable 
+	// error, by swapping particle indices on the host, but that sounds annoying...
 	if (prev_ids != hd.particles.id)
 	{
 		output << "WARNING! ID MISMATCH! WARNING!" << std::endl;
@@ -212,21 +213,6 @@ void Executor::download_data()
 	}
 
 	hd.particles.n_alive = dd.particle_phase_space().n_alive;
-
-	/*
-	// zip will crash the program
-
-	auto iterator = thrust::make_zip_iterator(thrust::make_tuple(
-				ps.r.begin(),
-				ps.v.begin(),
-				ps.deathflags.begin(), ps.deathtime.begin(), ps.id.begin()));
-	thrust::copy(thrust::cuda::par.on(stream),
-			iterator,
-			iterator + n,
-			thrust::make_zip_iterator(thrust::make_tuple(
-					hd.particles.r.begin(), hd.particles.v.begin(),
-					hd.particles.deathflags.begin(), hd.deathtime.begin(), hd.id.begin())));
-	 */
 }
 
 void Executor::upload_planet_log()
@@ -252,14 +238,18 @@ void Executor::loop()
 {
 	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
 
+	// The queued work should begin RIGHT after the CUDA call
 	for (auto& i : work)
 	{
 		i();
 	}
 	work.clear();
 
+	// The snapshot contains the planet states at the end of the previous timestep - 
+	// consider removing this? We can use hd.planets.*_log_old[-1] to replicate this functionality
 	hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 
+	// The OLD logs are required by the close encounter handler
 	std::swap(hd.planets.r_log, hd.planets.r_log_old);
 	std::swap(hd.planets.v_log, hd.planets.v_log_old);
 	std::swap(hd.planets.r_log_slow, hd.planets.r_log_slow_old);
@@ -271,29 +261,6 @@ void Executor::loop()
 	t += dt * tbsize;
 	step_and_upload_planets();
 	cudaStreamSynchronize(htd_stream);
-
-	if (print_counter % print_every == 0)
-	{
-		double e;
-		calculate_planet_metrics(hd.planets, &e, nullptr);
-
-		double elapsed = time();
-		double total = elapsed * (t_f - t_0) / (t - t_0);
-
-		output << "t=" << t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, " << total << "m total " << total - elapsed << "m remain)" << std::endl;
-		output << "Error = " << (e - e_0) / e_0 * 100 << ", " << dd.particle_phase_space().n_alive << " particles remaining, " << hd.particles.n_encounter << " in encounter" << std::endl;
-	}
-	print_counter++;
-
-	if (timing_output)
-	{
-		double e_;
-		f64_3 l_;
-		calculate_planet_metrics(hd.planets, &e_, &l_);
-	
-		*timing_output << "ep " << e_ << std::endl;
-		*timing_output << "lp " << l_.x << " " << l_.y << " " << l_.z << std::endl;
-	}
 
 	for (size_t i = hd.particles.n_alive; i < hd.particles.n_alive + hd.particles.n_encounter; i++)
 	{
@@ -309,6 +276,13 @@ void Executor::loop()
 
 void Executor::resync()
 {
+	// There's nothing to resync if all the particles on the device are dead!
+	// Although dd.particles.n_alive can be out of sync with dd.particles.deathflags before
+	// resync() is called, this is safe:
+	// - The MVS kernel does not revive particles, so resync() will never INCREASE n_alive
+	// - dd.particles.n_alive is adjusted by the close encounter handler just BEFORE this call
+	if (dd.particle_phase_space().n_alive == 0) return;
+
 	auto& particles = dd.particle_phase_space();
 	size_t prev_alive = particles.n_alive;
 
@@ -361,21 +335,21 @@ void Executor::resync()
 		{
 			for (size_t i = 0; i < diff; i++)
 			{
-				*discard_output << ed.r[i] << std::endl;
-				*discard_output << ed.v[i] << std::endl;
-				*discard_output << ed.id[i] << " " << ed.deathflags[i] << " " << t - dt * (tbsize - ed.deathtime_index[i]) << std::endl;
-				*discard_output << hd.planets.n_alive << std::endl;
+				*encounter_output << ed.r[i] << std::endl;
+				*encounter_output << ed.v[i] << std::endl;
+				*encounter_output << ed.id[i] << " " << ed.deathflags[i] << " " << t - dt * (tbsize - ed.deathtime_index[i]) << std::endl;
+				*encounter_output << hd.planets.n_alive << std::endl;
 
-				*discard_output << hd.planets.m[0] << std::endl;
-				*discard_output << f64_3(0) << std::endl;
-				*discard_output << f64_3(0) << std::endl;
-				*discard_output << hd.planets.id[0] << std::endl;
+				*encounter_output << hd.planets.m[0] << std::endl;
+				*encounter_output << f64_3(0) << std::endl;
+				*encounter_output << f64_3(0) << std::endl;
+				*encounter_output << hd.planets.id[0] << std::endl;
 				for (size_t j = 1; j < hd.planets.n_alive; j++)
 				{
-					*discard_output << hd.planets.m[j] << std::endl;
-					*discard_output << hd.planets.r_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-					*discard_output << hd.planets.v_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-					*discard_output << hd.planets.id[i] << std::endl;
+					*encounter_output << hd.planets.m[j] << std::endl;
+					*encounter_output << hd.planets.r_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+					*encounter_output << hd.planets.v_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+					*encounter_output << hd.planets.id[i] << std::endl;
 				}
 			}
 		});

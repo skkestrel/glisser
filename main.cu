@@ -76,23 +76,26 @@ int main(int argv, char** argc)
 	ex.tbsize = config.tbsize;
 	ex.resolve_encounters = config.resolve_encounters;
 	ex.ce_factor = config.ce_factor;
-	ex.print_every = config.print_every;
 
 	if (load_data(hd, config)) return -1;
 
-	std::ofstream timelog(joinpath(config.outfolder, "time.out"));
-	std::ofstream disclog(joinpath(config.outfolder, "discard.out"));
-
-	std::ofstream track, trackb;
-	if (config.enable_ascii_track) track = std::ofstream(joinpath(config.outfolder, "track.out"));
-	if (config.enable_binary_track) trackb = std::ofstream(joinpath(config.outfolder, "trackb.out"), std::ios_base::binary);
+	std::ofstream trackout;
+	if (config.trackbinary)
+	{
+		trackout = std::ofstream(joinpath(config.outfolder, "track.out"), std::ios_base::binary);
+	}
+	else
+	{
+		trackout = std::ofstream(joinpath(config.outfolder, "track.out"));
+	}
 
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
 
-	ex.timing_output = &timelog;
-	ex.discard_output = &disclog;
+	std::ofstream encounterlog(joinpath(config.outfolder, "encounter.out"));
+	ex.encounter_output = &encounterlog;
 
+	std::ofstream timelog(joinpath(config.outfolder, "time.out"));
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
 
 	ex.init();
@@ -108,77 +111,117 @@ int main(int argv, char** argc)
 			ex.loop();
 			counter++;
 
-			if (config.dump_every != 0 && counter % config.dump_every == 0)
+			ex.add_job([&timelog, &tout, &ex, &config, counter]()
+				{
+					double e_;
+					f64_3 l_;
+					calculate_planet_metrics(ex.hd.planets, ex.wh_alloc, &e_, &l_);
+
+					double elapsed = ex.time();
+					double total = elapsed * (ex.t_f - ex.t_0) / (ex.t - ex.t_0);
+
+					timelog << "time " << elapsed << " " << ex.hd.particles.n_alive << " " << ex.hd.particles.n_encounter << std::endl;
+					timelog << "ep " << e_ << std::endl;
+					timelog << "lp " << l_ << std::endl;
+
+					if (counter % config.print_every == 0)
+					{
+						tout << "t=" << ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
+							<< total << "m total " << total - elapsed << "m remain)" << std::endl;
+						tout << "Error = " << (e_ - ex.e_0) / ex.e_0 * 100 << ", " <<
+							ex.dd.particle_phase_space().n_alive << " particles remaining, " << ex.hd.particles.n_encounter << " in encounter" << std::endl;
+					}
+				});
+			
+			bool dump = config.dump_every != 0 && counter % config.dump_every == 0;
+			bool track = config.track_every != 0 && counter % config.track_every == 0;
+
+			if (dump || track)
 			{
 				ex.download_data();
 
-				ex.add_job([&]()
-					{
-						tout << "Dumping to disk. t = " << ex.t << std::endl;
-						std::ostringstream ss;
-						ss << "dump/config." << dump_num << ".out" << std::endl;
+				if (dump)
+				{
+					ex.add_job([&tout, &ex, &config, &dump_num]()
+						{
+							tout << "Dumping to disk. t = " << ex.t << std::endl;
+							std::ostringstream ss;
+							ss << "dump/config." << dump_num << ".out" << std::endl;
 
-						save_data(hd, config, true, dump_num++);
+							save_data(ex.hd, config, true, dump_num++);
 
-						config.t_f = ex.t_f - ex.t_0 + ex.t;
-						config.t_0 = ex.t;
-						std::ofstream configout(joinpath(config.outfolder, ss.str()));
-						write_configuration(configout, config);
-					});
+							config.t_f = ex.t_f - ex.t_0 + ex.t;
+							config.t_0 = ex.t;
+							std::ofstream configout(joinpath(config.outfolder, ss.str()));
+							write_configuration(configout, config);
+						});
+				}
+
+				if (track)
+				{
+					ex.add_job([&trackout, &ex, &config]()
+						{
+							if (config.trackbinary)
+							{
+								write_binary(trackout, ex.t);
+								write_binary(trackout, ex.hd.planets.n_alive - 1);
+
+								for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
+								{
+									int esign;
+									double a, e, in, capom, om, f;
+									to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
+										&esign, &a, &e, &in, &capom, &om, &f);
+
+									write_binary(trackout, static_cast<uint32_t>(ex.hd.planets.id[i]));
+									write_binary(trackout, static_cast<float>(a));
+									write_binary(trackout, static_cast<float>(e));
+									write_binary(trackout, static_cast<float>(in));
+								}
+
+								write_binary(trackout, ex.hd.particles.n_alive);
+								for (size_t i = 0; i < ex.hd.particles.n_alive; i++)
+								{
+									int esign;
+									double a, e, in, capom, om, f;
+									to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
+										&esign, &a, &e, &in, &capom, &om, &f);
+
+									write_binary(trackout, static_cast<uint32_t>(ex.hd.particles.id[i]));
+									write_binary(trackout, static_cast<float>(a));
+									write_binary(trackout, static_cast<float>(e));
+									write_binary(trackout, static_cast<float>(in));
+								}
+							}
+							else
+							{
+								trackout << std::setprecision(7);
+								trackout << ex.t << std::endl;
+								trackout << ex.hd.planets.n_alive - 1 << std::endl;
+								for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
+								{
+									int esign;
+									double a, e, in, capom, om, f;
+									to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
+										&esign, &a, &e, &in, &capom, &om, &f);
+									trackout << ex.hd.planets.id[i] << " " << a << " " << e << " " << in << std::endl;
+								}
+
+								trackout << ex.hd.particles.n_alive << std::endl;
+								for (size_t i = 0; i < ex.hd.particles.n_alive; i++)
+								{
+									int esign;
+									double a, e, in, capom, om, f;
+									to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
+										&esign, &a, &e, &in, &capom, &om, &f);
+									trackout << ex.hd.particles.id[i] << " " << a << " " << e << " " << in << std::endl;
+								}
+							}
+
+						});
+				}
 			}
 
-			if (config.track_every != 0 && counter % config.track_every == 0)
-			{
-				ex.download_data();
-
-				ex.add_job([&]()
-					{
-						track << std::setprecision(7);
-						track << ex.t << std::endl;
-						track << hd.planets.n_alive - 1 << std::endl;
-
-						write_binary(trackb, ex.t);
-						write_binary(trackb, hd.planets.n_alive - 1);
-
-						for (size_t i = 1; i < hd.planets.n_alive; i++)
-						{
-							int esign;
-							double a, e, in, capom, om, f;
-							to_elements(hd.planets.m[i] + hd.planets.m[0], hd.planets.r[i], hd.planets.v[i],
-								&esign, &a, &e, &in, &capom, &om, &f);
-
-							int id = static_cast<uint32_t>(hd.planets.id[i]);
-							float af = static_cast<float>(a);
-							float ef = static_cast<float>(e);
-							float if_ = static_cast<float>(in);
-
-							write_binary(trackb, id);
-							write_binary(trackb, af);
-							write_binary(trackb, ef);
-							write_binary(trackb, if_);
-							track << id << " " << af << " " << ef << " " << if_ << std::endl;
-						}
-						track << hd.particles.n_alive << std::endl;
-						write_binary(trackb, static_cast<uint32_t>(hd.particles.n_alive));
-						for (size_t i = 0; i < hd.particles.n_alive; i++)
-						{
-							int esign;
-							double a, e, in, capom, om, f;
-							to_elements(hd.planets.m[0], hd.particles.r[i], hd.particles.v[i],
-								&esign, &a, &e, &in, &capom, &om, &f);
-
-							int id = static_cast<uint32_t>(hd.particles.id[i]);
-							float af = static_cast<float>(a);
-							float ef = static_cast<float>(e);
-							float if_ = static_cast<float>(in);
-							write_binary(trackb, id);
-							write_binary(trackb, af);
-							write_binary(trackb, ef);
-							write_binary(trackb, if_);
-							track << id << " " << af << " " << ef << " " << if_ << std::endl;
-						}
-					});
-			}
 
 			if (end_loop)
 			{
@@ -200,7 +243,7 @@ int main(int argv, char** argc)
 	}
 
 	ex.finish();
-	tout << "Saving to disk. t = " << ex.t << std::endl;
+	tout << "Saving to disk." << ex.t << std::endl;
 	save_data(hd, config);
 	config.t_f = ex.t_f - ex.t_0 + ex.t;
 	config.t_0 = ex.t;

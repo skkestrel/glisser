@@ -715,7 +715,7 @@ int main(int argv, char** argc)
 
 	std::atomic<bool> is_pulling_data(false);
 
-	size_t pull_every = 2;
+	size_t pull_every = 60;
 	size_t pull_counter = 0;
 
 	recover_data(hd, dd, dth_stream);

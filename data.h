@@ -78,7 +78,7 @@ struct Configuration
 {
 	double t, t_0, t_f, dt;
 	size_t tbsize, ce_factor, print_every, dump_every, track_every, max_particle;
-	bool resolve_encounters, readmomenta, enable_ascii_track, enable_binary_track, readhybrid, writehybrid, dumpbinary, writehybridbinary, readhybridbinary;
+	bool resolve_encounters, readmomenta, trackbinary, readhybrid, writehybrid, dumpbinary, writehybridbinary, readhybridbinary;
 
 	std::string icsin, plin, hybridin;
 	std::string outfolder;

@@ -1,5 +1,6 @@
 #include "data.cuh"
 #include "data.h"
+#include "wh.h"
 #include <ctime>
 #include <chrono>
 #include <functional>
@@ -19,6 +20,8 @@ struct Executor
 {
 	HostData& hd;
 	DeviceData& dd;
+	WHIntermediate wh_alloc;
+
 	ExecutorData ed;
 
 	cudaStream_t main_stream, dth_stream, htd_stream, par_stream;
@@ -26,14 +29,12 @@ struct Executor
 	float64_t t_0, t, dt, t_f;
 	float64_t e_0;
 
-	size_t print_every, print_counter;
 	size_t tbsize, ce_factor;
 
 	bool resolve_encounters;
 
 	std::ostream& output;
-	std::ostream* timing_output;
-	std::ostream* discard_output;
+	std::ostream* encounter_output;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> starttime;
 

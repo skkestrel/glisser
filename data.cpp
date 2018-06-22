@@ -47,7 +47,7 @@ Configuration::Configuration()
 	print_every = 10;
 	track_every = 0;
 	dump_every = 1000;
-	max_particle = 0;
+	max_particle = static_cast<size_t>(-1);
 	resolve_encounters = false;
 	icsin = "";
 	plin = "";
@@ -55,12 +55,11 @@ Configuration::Configuration()
 	readhybrid = 0;
 	writehybrid = 0;
 	dumpbinary = 1;
+	trackbinary = 0;
 	writehybridbinary = 0;
 	readhybridbinary = 0;
 	outfolder = "output/";
 	readmomenta = false;
-	enable_ascii_track = 0;
-	enable_binary_track = 0;
 }
 
 
@@ -70,9 +69,9 @@ bool read_configuration(std::istream& in, Configuration* out)
 	std::string line;
 	while (std::getline(in, line))
 	{
+		linenum++;
 		if (line.length() == 0)
 		{
-			linenum++;
 			continue;
 		}
 
@@ -96,7 +95,7 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->t_f = std::stod(second);
 			else if (first == "Time-Block-Size")
 				out->tbsize = std::stoll(second);
-			else if (first == "Encounter-Slowdown-Factor")
+			else if (first == "Encounter-Time-Factor")
 				out->ce_factor = std::stoll(second);
 			else if (first == "Limit-Particle-Count")
 				out->max_particle = std::stoll(second);
@@ -106,31 +105,29 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->track_every = std::stoll(second);
 			else if (first == "Dump-Interval")
 				out->dump_every = std::stoll(second);
-			else if (first == "Dump-Binary")
-				out->dumpbinary = std::stoll(second);
+			else if (first == "Write-Binary-Dump")
+				out->dumpbinary = std::stoi(second) != 0;
+			else if (first == "Write-Binary-Track")
+				out->trackbinary = std::stoi(second) != 0;
 			else if (first == "Resolve-Encounters")
 				out->resolve_encounters = std::stoi(second) != 0;
-			else if (first == "Enable-Ascii-Track")
-				out->enable_ascii_track = std::stoi(second) != 0;
-			else if (first == "Enable-Binary-Track")
-				out->enable_binary_track = std::stoi(second) != 0;
-			else if (first == "Use-Hybrid-Output")
+			else if (first == "Write-Hybrid-Output")
 				out->writehybrid = std::stoi(second) != 0;
-			else if (first == "Use-Hybrid-Input")
+			else if (first == "Read-Hybrid-Input")
 				out->readhybrid = std::stoi(second) != 0;
-			else if (first == "Use-Hybrid-Binary-Output")
+			else if (first == "Write-Hybrid-Binary-Output")
 				out->writehybridbinary = std::stoi(second) != 0;
-			else if (first == "Use-Hybrid-Binary-Input")
+			else if (first == "Read-Hybrid-Binary-Input")
 				out->readhybridbinary = std::stoi(second) != 0;
-			else if (first == "Hybrid-Input")
+			else if (first == "Hybrid-Input-File")
 				out->hybridin = second;
-			else if (first == "Particle-Input")
+			else if (first == "Particle-Input-File")
 				out->icsin = second;
-			else if (first == "Planet-Input")
+			else if (first == "Planet-Input-File")
 				out->plin = second;
 			else if (first == "Output-Folder")
 				out->outfolder = second;
-			else if (first == "Read-Momenta")
+			else if (first == "Read-Input-Momenta")
 				out->readmomenta = std::stoi(second) != 0;
 			else
 				throw std::invalid_argument("bad");
@@ -140,28 +137,43 @@ bool read_configuration(std::istream& in, Configuration* out)
 			std::cerr << "Unrecognized line " << linenum << std::endl;
 			return true;
 		}
-
-		linenum++;
 	}
 
-	if (!out->resolve_encounters)
+	if (!out->resolve_encounters && out->ce_factor != 1)
 	{
+		std::cerr << "Warning: Resolve-Encounters was not selected but Encounter-Time-Factor is not 1" << std::endl;
 		out->ce_factor = 1;
 	}
-
 	if (out->outfolder.empty())
 	{
+		std::cerr << "Warning: Output-Folder was not specified, defaulting to ./" << std::endl;
 		out->outfolder = "./";
+	}
+	if (out->dump_every == 0 && out->dumpbinary)
+	{
+		std::cerr << "Warning: Dumping is disabled but Write-Binary-Dump was specified" << std::endl;
+	}
+	if (out->track_every == 0 && out->trackbinary)
+	{
+		std::cerr << "Warning: Tracking is disabled but Write-Binary-Track was specified" << std::endl;
+	}
+	if (!out->readhybrid && out->readhybridbinary)
+	{
+		std::cerr << "Warning: Read-Hybrid-Input was not selected but Read-Hybrid-Binary-Input was specified" << std::endl;
+	}
+	if (!out->writehybrid && out->writehybridbinary)
+	{
+		std::cerr << "Warning: Write-Hybrid-Input was not selected but Write-Hybrid-Binary-Input was specified" << std::endl;
 	}
 
 	if (out->readhybrid && out->hybridin == "")
 	{
-		std::cerr << "Use-Hybrid-Input was selected but no hybrid input file was specified" << std::endl;
+		std::cerr << "Error: Read-Hybrid-Input was selected but no hybrid input file was specified" << std::endl;
 		return true;
 	}
 	if (!out->readhybrid && (out->plin == "" || out->icsin == ""))
 	{
-		std::cerr << "Use-Hybrid-Input was not selected but no input files was specified" << std::endl;
+		std::cerr << "Error: Read-Hybrid-Input was not selected but no input files was specified" << std::endl;
 		return true;
 	}
 
@@ -175,24 +187,23 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "Time-Step " << out.dt << std::endl;
 	outstream << "Final-Time " << out.t_f << std::endl;
 	outstream << "Time-Block-Size " << out.tbsize << std::endl;
-	outstream << "Encounter-Slowdown-Factor " << out.ce_factor << std::endl;
+	outstream << "Encounter-Time-Factor " << out.ce_factor << std::endl;
 	outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 	outstream << "Status-Interval " << out.print_every << std::endl;
-	outstream << "Enable-Ascii-Track " << out.enable_ascii_track << std::endl;
-	outstream << "Enable-Binary-Track " << out.enable_binary_track << std::endl;
 	outstream << "Track-Interval " << out.track_every << std::endl;
-	outstream << "Dump-Binary " << out.dumpbinary << std::endl;
 	outstream << "Dump-Interval " << out.dump_every << std::endl;
+	outstream << "Write-Binary-Track " << out.trackbinary << std::endl;
+	outstream << "Write-Binary-Dump" << out.dumpbinary << std::endl;
 	outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
-	outstream << "Use-Hybrid-Output " << out.writehybrid << std::endl;
-	outstream << "Use-Hybrid-Binary-Output " << out.writehybridbinary << std::endl;
-	outstream << "Use-Hybrid-Input " << out.readhybrid << std::endl;
-	outstream << "Use-Hybrid-Binary-Input " << out.readhybridbinary << std::endl;
-	outstream << "Hybrid-Input " << out.hybridin << std::endl;
-	outstream << "Particle-Input " << out.icsin << std::endl;
-	outstream << "Planet-Input " << out.plin << std::endl;
+	outstream << "Write-Hybrid-Output " << out.writehybrid << std::endl;
+	outstream << "Write-Hybrid-Binary-Output " << out.writehybridbinary << std::endl;
+	outstream << "Read-Hybrid-Input " << out.readhybrid << std::endl;
+	outstream << "Read-Hybrid-Binary-Input " << out.readhybridbinary << std::endl;
+	outstream << "Hybrid-Input-File " << out.hybridin << std::endl;
+	outstream << "Particle-Input-File " << out.icsin << std::endl;
+	outstream << "Planet-Input-File " << out.plin << std::endl;
 	outstream << "Output-Folder " << out.outfolder << std::endl;
-	outstream << "Read-Momenta " << out.readmomenta << std::endl;
+	outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
 }
 
 std::string joinpath(const std::string& base, const std::string& file)
@@ -227,7 +238,7 @@ bool load_data_nohybrid(HostData& hd, const Configuration& config)
 
 	size_t npart;
 	icsinfile >> npart;
-	if (config.max_particle > 0) npart = std::min(npart, config.max_particle);
+	npart = std::min(npart, config.max_particle);
 
 	hd.particles = HostParticlePhaseSpace(npart);
 
@@ -294,7 +305,7 @@ bool load_data_hybrid(HostData& hd, const Configuration& config)
 
 	size_t npart;
 	in >> npart;
-	if (config.max_particle > 0) npart = std::min(npart, config.max_particle);
+	npart = std::min(npart, config.max_particle);
 
 	hd.particles = HostParticlePhaseSpace(npart);
 
@@ -344,7 +355,7 @@ bool load_data_hybrid_binary(HostData& hd, const Configuration& config)
 
 	read_binary(in, hd.particles.n);
 
-	if (config.max_particle > 0) hd.particles.n = std::min(hd.particles.n, config.max_particle);
+	hd.particles.n = std::min(hd.particles.n, config.max_particle);
 	hd.particles = HostParticlePhaseSpace(hd.particles.n);
 
 	for (size_t i = 0; i < hd.particles.n; i++)

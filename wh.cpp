@@ -67,23 +67,21 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 	}
 }
 
-void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
+void helio_acc_planets(HostPlanetPhaseSpace& p, WHIntermediate& alloc, size_t index)
 {
-	Vf64 inverse_helio_cubed(p.n_alive), inverse_jacobi_cubed(p.n_alive);
-
 	for (size_t i = 1; i < p.n_alive; i++)
 	{
 		float64_t r2 = p.r[i].lensq();
-		inverse_helio_cubed[i] = 1. / (std::sqrt(r2) * r2);
+		alloc.inverse_helio_cubed[i] = 1. / (std::sqrt(r2) * r2);
 		r2 = p.rj[i].lensq();
-		inverse_jacobi_cubed[i] = 1. / (std::sqrt(r2) * r2);
+		alloc.inverse_jacobi_cubed[i] = 1. / (std::sqrt(r2) * r2);
         }
 	
         // compute common heliocentric acceleration
 	f64_3 a_common(0);
 	for (size_t i = 2; i < p.n_alive; i++)    
 	{
-		float64_t mfac = p.m[i] * inverse_helio_cubed[i];
+		float64_t mfac = p.m[i] * alloc.inverse_helio_cubed[i];
 		a_common -= p.r[i] * mfac;
         }
 
@@ -93,19 +91,19 @@ void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 		p.a[i] = a_common;
         }
 
-	p.h0_log[index] = a_common - p.r[1] * p.m[1] * inverse_helio_cubed[1];
+	p.h0_log[index] = a_common - p.r[1] * p.m[1] * alloc.inverse_helio_cubed[1];
 	
 	// Now do indirect acceleration ; note that planet 1 does not receive a contribution 
 	for (size_t i = 2; i < p.n_alive; i++)    
 	{
-		p.a[i] += (p.rj[i] * inverse_jacobi_cubed[i] - p.r[i] * inverse_helio_cubed[i]) * p.m[0];
+		p.a[i] += (p.rj[i] * alloc.inverse_jacobi_cubed[i] - p.r[i] * alloc.inverse_helio_cubed[i]) * p.m[0];
         }
 	
 	/* next term ; again, first planet does not participate */
 	f64_3 a_accum(0);
 	for (size_t i = 2; i < p.n_alive; i++)    
 	{
-		float64_t mfac = p.m[i] * p.m[0] * inverse_jacobi_cubed[i] / p.eta[i-1];
+		float64_t mfac = p.m[i] * p.m[0] * alloc.inverse_jacobi_cubed[i] / p.eta[i-1];
 		a_accum += p.rj[i] * mfac;
 		p.a[i] += a_accum;
         }
@@ -210,33 +208,28 @@ void drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v)
 	}
 }
 
-void drift(float64_t t, Vu8& mask, Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start, size_t n)
+void drift(float64_t t, WHIntermediate& alloc, const Vu8& mask, const Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start, size_t n)
 {
-	Vf64 dist(n);
-	Vf64 vsq(n);
-	Vf64 vdotr(n);
 	for (size_t i = start; i < start + n; i++)
 	{
-		dist[i] = std::sqrt(r[i].lensq());
-		vsq[i] = v[i].lensq();
-		vdotr[i] = v[i].x * r[i].x + v[i].y * r[i].y + v[i].z * r[i].z;
+		alloc.dist[i] = std::sqrt(r[i].lensq());
+		alloc.energy[i] = v[i].lensq();
+		alloc.vdotr[i] = v[i].x * r[i].x + v[i].y * r[i].y + v[i].z * r[i].z;
 	}
 
-	Vf64 energy = std::move(vsq);
-	// vsq dies!
 	for (size_t i = start; i < start + n; i++)
 	{
-		energy[i] *= 0.5;
-		energy[i] -= mu[i] / dist[i];
+		alloc.energy[i] *= 0.5;
+		alloc.energy[i] -= mu[i] / alloc.dist[i];
 	}
 
 	for (size_t i = start; i < start + n; i++)
 	{
 		if (mask[i]) continue;
-		if (energy[i] >= 0)
+		if (alloc.energy[i] >= 0)
 		{
 			std::ostringstream ss;
-			ss << "unbound orbit of planet " << i << " energy = " << energy[i] << std::endl;
+			ss << "unbound orbit of planet " << i << " energy = " << alloc.energy[i] << std::endl;
 
 			for (size_t j = start; j < start + n; j++)
 			{
@@ -252,10 +245,10 @@ void drift(float64_t t, Vu8& mask, Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start,
 			f64_3 v0 = v[i];
 
 			// maybe parallelize this
-			float64_t a = -0.5 * mu[i] / energy[i];
+			float64_t a = -0.5 * mu[i] / alloc.energy[i];
 			float64_t n_ = std::sqrt(mu[i] / (a * a * a));
-			float64_t ecosEo = 1.0 - dist[i] / a;
-			float64_t esinEo = vdotr[i] / (n_ * a * a);
+			float64_t ecosEo = 1.0 - alloc.dist[i] / a;
+			float64_t esinEo = alloc.vdotr[i] / (n_ * a * a);
 			float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
 
 			// subtract off an integer multiple of complete orbits
@@ -270,9 +263,9 @@ void drift(float64_t t, Vu8& mask, Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start,
 			kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
 
 			float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
-			float64_t f = 1.0 + a * (cosdE - 1.0) / dist[i];
+			float64_t f = 1.0 + a * (cosdE - 1.0) / alloc.dist[i];
 			float64_t g = dt + (sindE - dE) / n_;
-			float64_t fdot = -n_ * sindE * a / (dist[i] * fp);
+			float64_t fdot = -n_ * sindE * a / (alloc.dist[i] * fp);
 			float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
 
 			r[i] = r0 * f + v0 * g;
@@ -281,41 +274,40 @@ void drift(float64_t t, Vu8& mask, Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start,
 	}
 }
 
-void initialize(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
+void initialize(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, WHIntermediate& alloc)
 {
 	(void) pa;
 
+	alloc = WHIntermediate(pl.n + pa.n);
 	helio_to_jacobi_r_planets(pl);
 	helio_to_jacobi_v_planets(pl);
 
-	helio_acc_planets(pl, 0);
+	helio_acc_planets(pl, alloc, 0);
 	helio_acc_particles(pl, pa, 0, pa.n_alive, 0, 0);
 }
 
-void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index, float64_t dt)
+void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, WHIntermediate& alloc, size_t begin, size_t length, float64_t t, size_t timestep_index, float64_t dt)
 {
-	Vu8 mask(length);
 	for (size_t i = begin; i < begin + length; i++)
 	{
-		mask[i] = !((pa.deathflags[i] & 0x0001) || (pa.deathflags[i] == 0));
-		if (!mask[i]) pa.v[i] += pa.a[i] * (dt / 2);
+		alloc.mask[i] = !((pa.deathflags[i] & 0x0001) || (pa.deathflags[i] == 0));
+		if (!alloc.mask[i]) pa.v[i] += pa.a[i] * (dt / 2);
 	}
 
-	Vf64 mu(length);
 	for (size_t i = begin; i < begin + length; i++)
 	{
-		mu[i] = pl.m[0];
+		alloc.mu[i] = pl.m[0];
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(dt, mask, mu, pa.r, pa.v, begin, length);
+	drift(dt, alloc, alloc.mask, alloc.mu, pa.r, pa.v, begin, length);
 
 	// find the accelerations of the heliocentric velocities
 	helio_acc_particles(pl, pa, begin, length, t, timestep_index);
 
 	for (size_t i = begin; i < begin + length; i++)
 	{
-		if (!mask[i]) pa.v[i] += pa.a[i] * (dt / 2);
+		if (!alloc.mask[i]) pa.v[i] += pa.a[i] * (dt / 2);
 	}
 }
 
@@ -338,7 +330,7 @@ void step_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, s
 	pa.v[i] += pa.a[i] * (dt / 2);
 }
 
-void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t dt)
+void step_planets(HostPlanetPhaseSpace& pl, WHIntermediate& alloc, float64_t t, size_t index, float64_t dt)
 {
 	(void) t;
 
@@ -350,23 +342,21 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
 	// Convert the heliocentric velocities to Jacobi velocities 
 	helio_to_jacobi_v_planets(pl);
 
-	Vf64 mu(pl.n_alive);
-	Vu8 mask(pl.n_alive);
 	for (size_t i = 1; i < pl.n_alive; i++)
 	{
 		// Each Jacobi Kepler problem has a different central mass
-		mu[i] = pl.m[0] * pl.eta[i] / pl.eta[i - 1];
-		mask[i] = 0;
+		alloc.mu[i] = pl.m[0] * pl.eta[i] / pl.eta[i - 1];
+		alloc.mask[i] = 0;
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(dt, mask, mu, pl.rj, pl.vj, 1, pl.n_alive - 1);
+	drift(dt, alloc, alloc.mask, alloc.mu, pl.rj, pl.vj, 1, pl.n_alive - 1);
 
 	// convert Jacobi vectors to helio. ones for acceleration calc 
 	jacobi_to_helio_planets(pl);
 
 	// find the accelerations of the heliocentric velocities
-	helio_acc_planets(pl, index);
+	helio_acc_planets(pl, alloc, index);
 	std::copy(pl.r.begin() + 1, pl.r.end(), pl.r_log.begin() + (pl.n_alive - 1) * index);
 	std::copy(pl.v.begin() + 1, pl.v.end(), pl.v_log.begin() + (pl.n_alive - 1) * index);
 
@@ -376,12 +366,14 @@ void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t
 	}
 }
 
-void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64_3* l)
+void calculate_planet_metrics(const HostPlanetPhaseSpace& p, WHIntermediate& alloc, double* energy, f64_3* l)
 {
-	Vf64_3 r(p.n_alive), v(p.n_alive);
 	f64_3 bary_r, bary_v;
 
 	find_barycenter(p.r, p.v, p.m, p.n_alive, bary_r, bary_v);
+
+	Vf64_3& r = alloc.r;
+	Vf64_3& v = alloc.v;
 
 	for (size_t i = 0; i < p.n_alive; i++)
 	{

@@ -153,5 +153,8 @@ struct MVSKernel
 
 void step_particles_cuda(cudaStream_t& stream, const DevicePlanetPhaseSpace& pl, DeviceParticlePhaseSpace& pa, size_t tbsize, float64_t dt)
 {
-	thrust::for_each(thrust::cuda::par.on(stream), pa.mvs_begin(), pa.mvs_begin() + pa.n_alive, MVSKernel(pl, tbsize, dt));
+	if (pa.n_alive > 0)
+	{
+		thrust::for_each(thrust::cuda::par.on(stream), pa.mvs_begin(), pa.mvs_begin() + pa.n_alive, MVSKernel(pl, tbsize, dt));
+	}
 }
