@@ -77,7 +77,7 @@ struct HostData
 struct Configuration
 {
 	double t, t_0, t_f, dt;
-	size_t tbsize, ce_factor, print_every, dump_every, track_every, max_particle;
+	size_t tbsize, ce_factor, print_every, dump_every, track_every, energy_every, max_particle;
 	bool resolve_encounters, readmomenta, trackbinary, readhybrid, writehybrid, dumpbinary, writehybridbinary, readhybridbinary;
 
 	std::string icsin, plin, hybridin;

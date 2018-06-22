@@ -400,7 +400,7 @@ void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, 
 
 
 
-bool load_data(HostData& hd, std::string plin, std::string icsin, size_t max_particle = 0, bool readmomenta = true)
+bool load_data(HostData& hd, std::string plin, std::string icsin, size_t max_particle, bool readmomenta)
 {
 	std::ifstream plinfile(plin), icsinfile(icsin);
 
@@ -428,7 +428,7 @@ bool load_data(HostData& hd, std::string plin, std::string icsin, size_t max_par
 	}
 
 	icsinfile >> hd.n_part;
-	if (max_particle > 0) hd.n_part = std::min(hd.n_part, max_particle);
+	hd.n_part = std::min(hd.n_part, max_particle);
 
 	hd.r_part = Hvf64_3(hd.n_part);
 	hd.v_part = Hvf64_3(hd.n_part);
@@ -676,7 +676,7 @@ int main(int argv, char** argc)
 	hd.dt = std::stod(argc[2]);
 	hd.t_f = std::stod(argc[3]);
 
-	size_t max_particle = 0;
+	size_t max_particle = static_cast<size_t>(-1);
 	if (argv >= 5) max_particle = static_cast<size_t>(std::stoi(argc[4]));
 
 	if (load_data(hd, "pl.in", "ics.in", max_particle, false)) return -1;
@@ -701,7 +701,7 @@ int main(int argv, char** argc)
 	transfer_data(hd, dd);
 	std::cout << "       Starting simulation.       " << std::endl << std::endl;
 
-	size_t print_every = 10;
+	size_t print_every = 1000;
 	size_t print_counter = 0;
 
 	size_t prune_every = 10;
@@ -715,7 +715,7 @@ int main(int argv, char** argc)
 
 	std::atomic<bool> is_pulling_data(false);
 
-	size_t pull_every = 60;
+	size_t pull_every = 8;
 	size_t pull_counter = 0;
 
 	recover_data(hd, dd, dth_stream);
@@ -768,7 +768,10 @@ int main(int argv, char** argc)
 					// TODO this can be dangerous. hd is being modified on a different thread here
 
 					// TODO what if n_part_alive changes?  during pulling?
-					recover_data(hd, dd, dth_stream);
+					if (hd.n_part > 0)
+					{
+						recover_data(hd, dd, dth_stream);
+					}
 					cudaStreamSynchronize(dth_stream);
 
 					// Uncomment to enable dumps
@@ -846,10 +849,13 @@ int main(int argv, char** argc)
 		// Switching between two planet log buffers allows the overhead of copying planet locations to the GPU be removed.
 		Dvf64_3& r_log_buffer = dd.log_buffer_id % 2 ? dd.r_planet_log0 : dd.r_planet_log1;
 
-		thrust::copy(thrust::cuda::par.on(htd_stream), hd.r_planet_log.begin(), hd.r_planet_log.end(), r_log_buffer.begin());
+		if (hd.n_part > 0)
+		{
+			thrust::copy(thrust::cuda::par.on(htd_stream), hd.r_planet_log.begin(), hd.r_planet_log.end(), r_log_buffer.begin());
+		}
 		dd.log_buffer_id++;
 
-		if (prune_counter % prune_every == 0)
+		if (hd.n_part > 0 && (prune_counter % prune_every == 0))
 		{
 			cudaStreamSynchronize(dth_stream);
 			prune(work_stream, dth_stream, hd, dd);
@@ -866,10 +872,13 @@ int main(int argv, char** argc)
 		auto iterator = thrust::make_zip_iterator(thrust::make_tuple(ps.r.begin(), ps.v.begin(),
 					ps.flags.begin(), ps.deathtime.begin(), ps.id.begin()));
 
-		thrust::for_each(thrust::cuda::par.on(work_stream),
-				iterator,
-				iterator + n,
-				SIA4Kernel(dd.coefdt.data().get(), hd.t, r_log_buffer.data().get(), dd.m_planet.data().get(), hd.n_planet));
+		if (hd.n_part > 0)
+		{
+			thrust::for_each(thrust::cuda::par.on(work_stream),
+					iterator,
+					iterator + n,
+					SIA4Kernel(dd.coefdt.data().get(), hd.t, r_log_buffer.data().get(), dd.m_planet.data().get(), hd.n_planet));
+		}
 
 		print_counter++;
 		prune_counter++;
@@ -956,11 +965,11 @@ void sia4_planet(const Hvf64& coefdt, Hvf64_3& r, Hvf64_3& v, Hvf64& m, Hvf64_3&
 		}
 
 
-		double e_ = energy_planet(r, v, m);
-		f64_3 l_ = l_planet(r, v, m);
-		timelog << "ep " << e_ << std::endl;
-		timelog << "lp " << l_.x << " " << l_.y << " " << l_.z << std::endl;
 	}
+	double e_ = energy_planet(r, v, m);
+	f64_3 l_ = l_planet(r, v, m);
+	timelog << "ep " << e_ << std::endl;
+	timelog << "lp " << l_.x << " " << l_.y << " " << l_.z << std::endl;
 }
 
 void newton3d_planet(Hvf64_3& a, const Hvf64_3& r, const Hvf64& m)

@@ -331,28 +331,31 @@ void Executor::resync()
 	hd.particles.stable_partition_alive();
 	hd.particles.n_encounter = hd.particles.n_alive - particles.n_alive;
 
-	add_job([diff, this]()
-		{
-			for (size_t i = 0; i < diff; i++)
+	if (encounter_output)
+	{
+		add_job([diff, this]()
 			{
-				*encounter_output << ed.r[i] << std::endl;
-				*encounter_output << ed.v[i] << std::endl;
-				*encounter_output << ed.id[i] << " " << ed.deathflags[i] << " " << t - dt * (tbsize - ed.deathtime_index[i]) << std::endl;
-				*encounter_output << hd.planets.n_alive << std::endl;
-
-				*encounter_output << hd.planets.m[0] << std::endl;
-				*encounter_output << f64_3(0) << std::endl;
-				*encounter_output << f64_3(0) << std::endl;
-				*encounter_output << hd.planets.id[0] << std::endl;
-				for (size_t j = 1; j < hd.planets.n_alive; j++)
+				for (size_t i = 0; i < diff; i++)
 				{
-					*encounter_output << hd.planets.m[j] << std::endl;
-					*encounter_output << hd.planets.r_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-					*encounter_output << hd.planets.v_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-					*encounter_output << hd.planets.id[i] << std::endl;
+					*encounter_output << ed.r[i] << std::endl;
+					*encounter_output << ed.v[i] << std::endl;
+					*encounter_output << ed.id[i] << " " << ed.deathflags[i] << " " << t - dt * (tbsize - ed.deathtime_index[i]) << std::endl;
+					*encounter_output << hd.planets.n_alive << std::endl;
+
+					*encounter_output << hd.planets.m[0] << std::endl;
+					*encounter_output << f64_3(0) << std::endl;
+					*encounter_output << f64_3(0) << std::endl;
+					*encounter_output << hd.planets.id[0] << std::endl;
+					for (size_t j = 1; j < hd.planets.n_alive; j++)
+					{
+						*encounter_output << hd.planets.m[j] << std::endl;
+						*encounter_output << hd.planets.r_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+						*encounter_output << hd.planets.v_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+						*encounter_output << hd.planets.id[i] << std::endl;
+					}
 				}
-			}
-		});
+			});
+	}
 }
 
 

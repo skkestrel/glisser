@@ -12,19 +12,19 @@
 #include <fstream>
 #include <string>
 #include <ctime>
-#include <sys/stat.h>
 #include <thread>
 #include <iomanip>
 
-#include "types.cuh"
-#include "executor.cuh"
+#include <execinfo.h>
+#include <sys/stat.h>
+#include <csignal>
+
+#include "executor_facade.h"
 #include "data.h"
 #include "wh.h"
 #include "convert.h"
 #include "util.h"
 
-#include <execinfo.h>
-#include <csignal>
 
 volatile sig_atomic_t end_loop = 0;
 
@@ -56,7 +56,7 @@ int main(int argv, char** argc)
 	}
 
 	mkdir(config.outfolder.c_str(), ACCESSPERMS);
-	mkdir(joinpath(config.outfolder, "dumps").c_str(), ACCESSPERMS);
+	mkdir(joinpath(config.outfolder, "dump").c_str(), ACCESSPERMS);
 
 	std::ofstream coutlog(joinpath(config.outfolder, "stdout"));
 	teestream tout(std::cout, coutlog);
@@ -66,16 +66,15 @@ int main(int argv, char** argc)
 	tout << "Host uses little-endian ints? " << (is_int_little_endian() ? "yes" : "no") << std::endl;
 
 	HostData hd;
-	DeviceData dd;
-	Executor ex(hd, dd, tout);
+	ExecutorFacade ex(hd, tout);
 
-	ex.t = config.t;
-	ex.t_0 = config.t;
-	ex.dt = config.dt;
-	ex.t_f = config.t_f;
-	ex.tbsize = config.tbsize;
-	ex.resolve_encounters = config.resolve_encounters;
-	ex.ce_factor = config.ce_factor;
+	*ex.t = config.t;
+	*ex.t_0 = config.t;
+	*ex.dt = config.dt;
+	*ex.t_f = config.t_f;
+	*ex.tbsize = config.tbsize;
+	*ex.resolve_encounters = config.resolve_encounters;
+	*ex.ce_factor = config.ce_factor;
 
 	if (load_data(hd, config)) return -1;
 
@@ -93,7 +92,7 @@ int main(int argv, char** argc)
 	std::tm tm = *std::localtime(&t);
 
 	std::ofstream encounterlog(joinpath(config.outfolder, "encounter.out"));
-	ex.encounter_output = &encounterlog;
+	*ex.encounter_output = &encounterlog;
 
 	std::ofstream timelog(joinpath(config.outfolder, "time.out"));
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
@@ -106,30 +105,38 @@ int main(int argv, char** argc)
 	bool crashed = false;
 	try
 	{
-		while (ex.t < ex.t_f)
+		while (*ex.t < *ex.t_f)
 		{
 			ex.loop();
 			counter++;
 
 			ex.add_job([&timelog, &tout, &ex, &config, counter]()
 				{
+					bool output_energy = config.energy_every != 0 && (counter % config.energy_every == 0);
+					bool log_out = config.print_every != 0 && (counter % config.print_every == 0);
+
+
+					if (!log_out && !output_energy) return;
+
 					double e_;
 					f64_3 l_;
-					calculate_planet_metrics(ex.hd.planets, ex.wh_alloc, &e_, &l_);
-
+					calculate_planet_metrics(ex.hd.planets, *ex.wh_alloc, &e_, &l_);
 					double elapsed = ex.time();
-					double total = elapsed * (ex.t_f - ex.t_0) / (ex.t - ex.t_0);
+					double total = elapsed * (*ex.t_f - *ex.t_0) / (*ex.t - *ex.t_0);
 
-					timelog << "time " << elapsed << " " << ex.hd.particles.n_alive << " " << ex.hd.particles.n_encounter << std::endl;
-					timelog << "ep " << e_ << std::endl;
-					timelog << "lp " << l_ << std::endl;
-
-					if (counter % config.print_every == 0)
+					if (output_energy)
 					{
-						tout << "t=" << ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
+						timelog << "time " << elapsed << " " << ex.hd.particles.n_alive << " " << ex.hd.particles.n_encounter << std::endl;
+						timelog << "ep " << e_ << std::endl;
+						timelog << "lp " << l_ << std::endl;
+					}
+
+					if (log_out)
+					{
+						tout << "t=" << *ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
 							<< total << "m total " << total - elapsed << "m remain)" << std::endl;
-						tout << "Error = " << (e_ - ex.e_0) / ex.e_0 * 100 << ", " <<
-							ex.dd.particle_phase_space().n_alive << " particles remaining, " << ex.hd.particles.n_encounter << " in encounter" << std::endl;
+						tout << "Error = " << (e_ - *ex.e_0) / *ex.e_0 * 100 << ", " <<
+							ex.hd.particles.n_alive << " particles remaining, " << ex.hd.particles.n_encounter << " in encounter" << std::endl;
 					}
 				});
 			
@@ -144,14 +151,14 @@ int main(int argv, char** argc)
 				{
 					ex.add_job([&tout, &ex, &config, &dump_num]()
 						{
-							tout << "Dumping to disk. t = " << ex.t << std::endl;
+							tout << "Dumping to disk. t = " << *ex.t << std::endl;
 							std::ostringstream ss;
-							ss << "dump/config." << dump_num << ".out" << std::endl;
+							ss << "dump/config." << dump_num << ".out";
 
 							save_data(ex.hd, config, true, dump_num++);
 
-							config.t_f = ex.t_f - ex.t_0 + ex.t;
-							config.t_0 = ex.t;
+							config.t_f = *ex.t_f - *ex.t_0 + *ex.t;
+							config.t_0 = *ex.t;
 							std::ofstream configout(joinpath(config.outfolder, ss.str()));
 							write_configuration(configout, config);
 						});
@@ -163,7 +170,7 @@ int main(int argv, char** argc)
 						{
 							if (config.trackbinary)
 							{
-								write_binary(trackout, ex.t);
+								write_binary(trackout, *ex.t);
 								write_binary(trackout, ex.hd.planets.n_alive - 1);
 
 								for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
@@ -196,7 +203,7 @@ int main(int argv, char** argc)
 							else
 							{
 								trackout << std::setprecision(7);
-								trackout << ex.t << std::endl;
+								trackout << *ex.t << std::endl;
 								trackout << ex.hd.planets.n_alive - 1 << std::endl;
 								for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
 								{
@@ -243,10 +250,10 @@ int main(int argv, char** argc)
 	}
 
 	ex.finish();
-	tout << "Saving to disk." << ex.t << std::endl;
+	tout << "Saving to disk." << std::endl;
 	save_data(hd, config);
-	config.t_f = ex.t_f - ex.t_0 + ex.t;
-	config.t_0 = ex.t;
+	config.t_f = *ex.t_f - *ex.t_0 + *ex.t;
+	config.t_0 = *ex.t;
 	std::ofstream configout(joinpath(config.outfolder, "config.out"));
 	write_configuration(configout, config);
 

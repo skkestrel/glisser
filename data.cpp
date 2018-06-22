@@ -45,6 +45,7 @@ Configuration::Configuration()
 	tbsize = 1024;
 	ce_factor = 8;
 	print_every = 10;
+	energy_every = 1;
 	track_every = 0;
 	dump_every = 1000;
 	max_particle = static_cast<size_t>(-1);
@@ -99,8 +100,10 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->ce_factor = std::stoll(second);
 			else if (first == "Limit-Particle-Count")
 				out->max_particle = std::stoll(second);
-			else if (first == "Status-Interval")
+			else if (first == "Log-Interval")
 				out->print_every = std::stoll(second);
+			else if (first == "Status-Interval")
+				out->energy_every = std::stoll(second);
 			else if (first == "Track-Interval")
 				out->track_every = std::stoll(second);
 			else if (first == "Dump-Interval")
@@ -189,11 +192,12 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "Time-Block-Size " << out.tbsize << std::endl;
 	outstream << "Encounter-Time-Factor " << out.ce_factor << std::endl;
 	outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
-	outstream << "Status-Interval " << out.print_every << std::endl;
+	outstream << "Log-Interval " << out.print_every << std::endl;
+	outstream << "Status-Interval " << out.energy_every << std::endl;
 	outstream << "Track-Interval " << out.track_every << std::endl;
 	outstream << "Dump-Interval " << out.dump_every << std::endl;
 	outstream << "Write-Binary-Track " << out.trackbinary << std::endl;
-	outstream << "Write-Binary-Dump" << out.dumpbinary << std::endl;
+	outstream << "Write-Binary-Dump " << out.dumpbinary << std::endl;
 	outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
 	outstream << "Write-Hybrid-Output " << out.writehybrid << std::endl;
 	outstream << "Write-Hybrid-Binary-Output " << out.writehybridbinary << std::endl;
@@ -491,7 +495,7 @@ void save_data(const HostData& hd, const Configuration& config, bool dump, size_
 			ss << "state.out";
 		}
 
-		if ((dump && config.dumpbinary) || (!dump && config.writehybridbinary))
+		if ((dump && config.dumpbinary) || (config.writehybrid && config.writehybridbinary))
 		{
 			std::ofstream out(joinpath(config.outfolder, ss.str()), std::ios_base::binary);
 			save_data_hybrid_binary(hd, out, config);
