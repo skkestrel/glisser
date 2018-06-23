@@ -508,7 +508,9 @@ void save_data(const HostData& hd, const Configuration& config, bool dump, size_
 			save_data_hybrid(hd, config, out);
 		}
 	}
-
-	std::ofstream ploutfile(joinpath(config.outfolder, "pl.out")), icsoutfile(joinpath(config.outfolder, "ics.out"));
-	save_data_nohybrid(hd, config, ploutfile, icsoutfile);
+	else
+	{
+		std::ofstream ploutfile(joinpath(config.outfolder, "pl.out")), icsoutfile(joinpath(config.outfolder, "ics.out"));
+		save_data_nohybrid(hd, config, ploutfile, icsoutfile);
+	}
 }

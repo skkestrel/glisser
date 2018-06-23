@@ -287,15 +287,6 @@ void Executor::resync()
 	auto& particles = dd.particle_phase_space();
 	size_t prev_alive = particles.n_alive;
 
-	using Clock = std::chrono::steady_clock;
-	using Clock = std::chrono::steady_clock;
-	using std::chrono::time_point;
-	using std::chrono::duration_cast;
-	using std::chrono::milliseconds;
-	using namespace std::literals::chrono_literals;
-	using std::this_thread::sleep_for;
-
-	time_point<Clock> start = Clock::now()
 	particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(par_stream), particles.begin(), particles.begin() + particles.n_alive, DeviceParticleUnflaggedPredicate())
 		- particles.begin();
 	cudaStreamSynchronize(par_stream);
