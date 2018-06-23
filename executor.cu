@@ -142,7 +142,8 @@ void Executor::step_and_upload_planets()
 	// - There are no particles alive on the GPU, AND there are no particles in close encounters on the CPU
 	// since the particles that survive close encounters can make it to the GPU at the end of this timestep
 	// and thus the next planet chunk will be required
-	if (dd.particle_phase_space().n_alive == 0 && hd.particles.n_encounter == 0)
+
+	if (dd.particle_phase_space().n_alive > 0 || hd.particles.n_encounter > 0)
 	{
 		upload_planet_log();
 	}
@@ -286,6 +287,15 @@ void Executor::resync()
 	auto& particles = dd.particle_phase_space();
 	size_t prev_alive = particles.n_alive;
 
+	using Clock = std::chrono::steady_clock;
+	using Clock = std::chrono::steady_clock;
+	using std::chrono::time_point;
+	using std::chrono::duration_cast;
+	using std::chrono::milliseconds;
+	using namespace std::literals::chrono_literals;
+	using std::this_thread::sleep_for;
+
+	time_point<Clock> start = Clock::now()
 	particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(par_stream), particles.begin(), particles.begin() + particles.n_alive, DeviceParticleUnflaggedPredicate())
 		- particles.begin();
 	cudaStreamSynchronize(par_stream);

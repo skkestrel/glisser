@@ -21,7 +21,6 @@ ExecutorFacade::ExecutorFacade(HostData& hd, std::ostream& out) : hd(hd), output
 ExecutorFacade::~ExecutorFacade()
 {
 	delete impl;
-	delete dd;
 }
 
 void ExecutorFacade::init()

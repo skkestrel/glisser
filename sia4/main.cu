@@ -701,7 +701,7 @@ int main(int argv, char** argc)
 	transfer_data(hd, dd);
 	std::cout << "       Starting simulation.       " << std::endl << std::endl;
 
-	size_t print_every = 1000;
+	size_t print_every = 10;
 	size_t print_counter = 0;
 
 	size_t prune_every = 10;

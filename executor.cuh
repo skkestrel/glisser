@@ -40,6 +40,7 @@ struct Executor
 
 	std::vector<std::function<void()>> work;
 
+	Executor(const Executor&) = delete;
 	Executor(HostData& hd, DeviceData& dd, std::ostream& out);
 
 	void init();

@@ -23,7 +23,6 @@ struct ExecutorFacade
 	Executor* impl;
 	DeviceData* dd;
 
-
 	ExecutorFacade(HostData& hd, std::ostream& out);
 	~ExecutorFacade();
 

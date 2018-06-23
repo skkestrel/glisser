@@ -13,6 +13,8 @@ struct DeviceParticlePhaseSpace
 	size_t n_alive;
 	size_t n_encounter;
 
+	DeviceParticlePhaseSpace(const DeviceParticlePhaseSpace&) = delete;
+
 	inline DeviceParticlePhaseSpace() { }
 	inline DeviceParticlePhaseSpace(size_t n) : r(n), v(n), a(n), deathflags(n), deathtime_index(n), id(n), n_total(n), n_alive(n) { }
 
@@ -44,6 +46,8 @@ struct DevicePlanetPhaseSpace
 	size_t n_total;
 	size_t n_alive;
 
+	DevicePlanetPhaseSpace(const DevicePlanetPhaseSpace&) = delete;
+
 	inline DevicePlanetPhaseSpace() { }
 	inline DevicePlanetPhaseSpace(size_t n, size_t tbsize) : m(n), r_log(n * tbsize), h0_log(tbsize),
 		n_total(n), n_alive(n) { }
@@ -57,6 +61,7 @@ struct DeviceData
 
 	size_t particle_data_id, planet_data_id;
 
+	DeviceData(const DeviceData&) = delete;
 	inline DeviceData() { }
 	inline DeviceParticlePhaseSpace& particle_phase_space() { return particle_data_id % 2 ? particles1 : particles0; }
 	inline DevicePlanetPhaseSpace& planet_phase_space() { return planet_data_id % 2 ? planets1 : planets0; }

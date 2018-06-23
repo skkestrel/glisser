@@ -25,7 +25,6 @@
 #include "convert.h"
 #include "util.h"
 
-
 volatile sig_atomic_t end_loop = 0;
 
 void term(int signum)

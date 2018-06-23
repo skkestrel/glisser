@@ -56,6 +56,7 @@ struct HostPlanetPhaseSpace
 struct HostPlanetSnapshot
 {
 	size_t n, n_alive;
+
 	Vf64 m;
 	Vf64_3 r, v;
 	Vu32 id;
@@ -80,7 +81,7 @@ struct Configuration
 	size_t tbsize, ce_factor, print_every, dump_every, track_every, energy_every, max_particle;
 	bool resolve_encounters, readmomenta, trackbinary, readhybrid, writehybrid, dumpbinary, writehybridbinary, readhybridbinary;
 
-	std::string icsin, plin, hybridin;
+	std::string icsin, plin, hybridin, hybridout;
 	std::string outfolder;
 
 	Configuration();
@@ -225,8 +226,18 @@ inline void read_binary(std::istream& i, T& t)
 	t = to_little_endian(t);
 }
 
+bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::istream& in);
+bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& in);
+bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream& plin, std::istream& icsin);
+
 bool load_data(HostData& hd, const Configuration& config);
+
+void save_data_hybrid_binary(const HostData& hd, const Configuration& config, std::ostream& out);
+void save_data_hybrid(const HostData& hd, const Configuration& config, std::ostream& out);
+void save_data_nohybrid(const HostData& hd, const Configuration& config, std::ostream& plout, std::ostream& icsout);
+
 void save_data(const HostData& hd, const Configuration& config, bool dump=false, size_t dumpnum=0);
+
 bool read_configuration(std::istream& in, Configuration* out);
 void write_configuration(std::ostream& in, const Configuration& config);
 std::string joinpath(const std::string& base, const std::string& file);
