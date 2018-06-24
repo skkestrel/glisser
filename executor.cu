@@ -53,7 +53,7 @@ struct DeviceParticleUnflaggedPredicate
 	__host__ __device__
 	bool operator()(const Tuple& args)
 	{
-		uint8_t flag = thrust::get<3>(args);
+		uint16_t flag = thrust::get<3>(args);
 		return flag == 0;
 	}
 };
@@ -108,7 +108,7 @@ void Executor::step_and_upload_planets()
 
 		for (size_t i = 0; i < tbsize * ce_factor; i++)
 		{
-			step_planets(hd.planets, wh_alloc, t, i, dt / ce_factor);
+			step_planets(hd.planets, wh_alloc, t, i, dt / static_cast<double>(ce_factor));
 			// take the planet positions at the end of every timestep
 
 			if (i % ce_factor == ce_factor - 1)
@@ -259,7 +259,7 @@ void Executor::loop()
 	std::swap(hd.planets.h0_log, hd.planets.h0_log_old);
 	std::swap(hd.planets.h0_log_slow, hd.planets.h0_log_slow_old);
 
-	t += dt * tbsize;
+	t += dt * static_cast<double>(tbsize);
 	step_and_upload_planets();
 	cudaStreamSynchronize(htd_stream);
 
@@ -325,7 +325,7 @@ void Executor::resync()
 		}
 		else
 		{
-			hd.particles.deathtime[index] = t - dt * (tbsize - ed.deathtime_index[i]);
+			hd.particles.deathtime[index] = static_cast<float>(t - dt * static_cast<double>(tbsize - ed.deathtime_index[i]));
 		}
 	}
 
@@ -340,7 +340,7 @@ void Executor::resync()
 				{
 					*encounter_output << ed.r[i] << std::endl;
 					*encounter_output << ed.v[i] << std::endl;
-					*encounter_output << ed.id[i] << " " << ed.deathflags[i] << " " << t - dt * (tbsize - ed.deathtime_index[i]) << std::endl;
+					*encounter_output << ed.id[i] << " " << ed.deathflags[i] << " " << t - dt * static_cast<double>(tbsize - ed.deathtime_index[i]) << std::endl;
 					*encounter_output << hd.planets.n_alive << std::endl;
 
 					*encounter_output << hd.planets.m[0] << std::endl;

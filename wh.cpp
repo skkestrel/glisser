@@ -26,7 +26,7 @@ void helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpac
 	float64_t rji2 = p.r[i].lensq();
 	if (rji2 > 200 * 200)
 	{
-		p.deathtime[i] = time;
+		p.deathtime[i] = static_cast<float>(time);
 		p.deathflags[i] = p.deathflags[i] | 0x0002;
 	}
 }
@@ -48,20 +48,20 @@ void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace&
 
 			if (rji2 < 0.5 * 0.5)
 			{
-				p.deathtime[i] = time;
-				p.deathflags[i] = p.deathflags[i] | (j << 8) | 0x0001;
+				p.deathtime[i] = static_cast<float>(time);
+				p.deathflags[i] = static_cast<uint16_t>(p.deathflags[i] | (j << 8) | 0x0001);
 			}
 		}
 
 		float64_t rji2 = p.r[i].lensq();
 		if (rji2 < 0.5 * 0.5)
 		{
-			p.deathtime[i] = time;
+			p.deathtime[i] = static_cast<float>(time);
 			p.deathflags[i] = p.deathflags[i] | 0x0001;
 		}
 		if (rji2 > 200 * 200)
 		{
-			p.deathtime[i] = time;
+			p.deathtime[i] = static_cast<float>(time);
 			p.deathflags[i] = p.deathflags[i] | 0x0002;
 		}
 	}
@@ -184,7 +184,7 @@ void drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v)
 		float64_t n_ = std::sqrt(mu / (a * a * a));
 		float64_t ecosEo = 1.0 - dist / a;
 		float64_t esinEo = vdotr / (n_ * a * a);
-		float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
+		// float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
 
 		// subtract off an integer multiple of complete orbits
 		float64_t dM = t * n_ - M_2PI * (int) (t * n_ / M_2PI);
@@ -249,7 +249,7 @@ void drift(float64_t t, WHIntermediate& alloc, const Vu8& mask, const Vf64& mu, 
 			float64_t n_ = std::sqrt(mu[i] / (a * a * a));
 			float64_t ecosEo = 1.0 - alloc.dist[i] / a;
 			float64_t esinEo = alloc.vdotr[i] / (n_ * a * a);
-			float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
+			// float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
 
 			// subtract off an integer multiple of complete orbits
 			float64_t dM = t * n_ - M_2PI * (int) (t * n_ / M_2PI);

@@ -22,7 +22,7 @@ struct MVSKernel
 	{ }
 
 	__host__ __device__
-	void kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE, uint32_t& flags) const
+	void kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE, uint16_t& flags) const
 	{
 		double f, fp, delta;
 
@@ -40,18 +40,18 @@ struct MVSKernel
 			*cosdE = cos(*dE);
 		}
 
-		flags = flags | ((fabs(delta) > TOLKEP) << 3);
+		flags = static_cast<uint16_t>(flags | ((fabs(delta) > TOLKEP) << 3));
 	}
 
 	__host__ __device__
-	void drift(f64_3& r, f64_3& v, uint32_t& flags) const
+	void drift(f64_3& r, f64_3& v, uint16_t& flags) const
 	{
 		float64_t dist = sqrt(r.lensq());
 		float64_t vdotr = v.x * r.x + v.y * r.y + v.z * r.z;
 
 		float64_t energy = v.lensq() * 0.5 - mu / dist;
 
-		flags = flags | ((energy >= 0) << 2);
+		flags = static_cast<uint16_t>(flags | ((energy >= 0) << 2));
 
 		float64_t a = -0.5 * mu / energy;
 		float64_t n_ = sqrt(mu / (a * a * a));
@@ -89,7 +89,7 @@ struct MVSKernel
 		f64_3 v = thrust::get<1>(args);
 		f64_3 a = thrust::get<2>(args);
 		uint32_t deathtime_index = 0;
-		uint32_t flags = thrust::get<3>(args);
+		uint16_t flags = thrust::get<3>(args);
 
 		size_t tbsize = this->tbsize;
 		const f64_3* h0_log = this->planet_h0_log;
@@ -97,7 +97,7 @@ struct MVSKernel
 		const float64_t* m = this->planet_m;
 		float64_t dt = this->dt;
 
-		for (size_t step = 0; step < tbsize; step++)
+		for (uint32_t step = 0; step < static_cast<uint32_t>(tbsize); step++)
 		{
 			if (flags == 0)
 			{
@@ -109,7 +109,7 @@ struct MVSKernel
 				a = h0_log[step];
 
 				// planet 0 is not counted
-				for (size_t i = 1; i < planet_n; i++)
+				for (uint32_t i = 1; i < static_cast<uint32_t>(planet_n); i++)
 				{
 					f64_3 dr = r - r_log[step * (planet_n - 1) + i - 1];
 
@@ -117,7 +117,7 @@ struct MVSKernel
 
 					if (rad < 0.5 * 0.5)
 					{
-						flags = flags | (i << 8) | 0x0001;
+						flags = static_cast<uint16_t>(flags | (i << 8) | 0x0001);
 					}
 
 					float64_t inv3 = 1. / (rad * sqrt(rad));

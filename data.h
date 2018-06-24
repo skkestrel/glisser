@@ -17,7 +17,7 @@ struct HostParticlePhaseSpace
 	Vu16 deathflags;
 	Vf32 deathtime; Vu32 id; 
 	inline HostParticlePhaseSpace() { }
-	inline HostParticlePhaseSpace(size_t n) : n(n), n_alive(n), n_encounter(0), r(n), v(n), a(n), deathflags(n), deathtime(n), id(n) { }
+	inline HostParticlePhaseSpace(size_t siz) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), a(siz), deathflags(siz), deathtime(siz), id(siz) { }
 
 	void stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
 };
@@ -41,9 +41,9 @@ struct HostPlanetPhaseSpace
 	Vu32 id;
 
 	inline HostPlanetPhaseSpace() { }
-	inline HostPlanetPhaseSpace(size_t n, size_t tb_size, size_t ce_factor):
-		n(n), n_alive(n), m(n), eta(n), r(n), v(n), rj(n), vj(n),
-		a(n), id(n)
+	inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor):
+		n(siz), n_alive(siz), m(siz), eta(siz), r(siz), v(siz), rj(siz), vj(siz),
+		a(siz), id(siz)
 	{
 		r_log = v_log = r_log_old = v_log_old = Vf64_3((n - 1) * tb_size * ce_factor);
 		r_log_slow = v_log_slow = r_log_slow_old = v_log_slow_old = Vf64_3((n - 1) * tb_size);

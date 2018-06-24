@@ -34,7 +34,7 @@ struct v_3
 	__host__ __device__
 	explicit inline v_3(T t) : x(t), y(t), z(t) { }
 	__host__ __device__
-	inline v_3(T x, T y, T z) : x(x), y(y), z(z) { }
+	inline v_3(T _x, T _y, T _z) : x(_x), y(_y), z(_z) { }
 
 	__host__ __device__
 	inline v_3 cross(const v_3<T>& b) const

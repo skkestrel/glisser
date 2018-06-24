@@ -50,8 +50,8 @@ int main(int argv, char** argc)
 	
 
 	{
-		std::ofstream configin(joinpath(config.outfolder, "config.in"));
-		write_configuration(configin, config);
+		std::ofstream configstream(joinpath(config.outfolder, "config.in"));
+		write_configuration(configstream, config);
 	}
 
 	mkdir(config.outfolder.c_str(), ACCESSPERMS);
@@ -240,7 +240,7 @@ int main(int argv, char** argc)
 	{
 		void* array[50];
 		size_t size = backtrace(array, 50);
-		backtrace_symbols_fd(array, size, 2);
+		backtrace_symbols_fd(array, static_cast<int>(size), 2);
 
 		tout << "Exception caught: " << std::endl;
 		tout << e.what() << std::endl;

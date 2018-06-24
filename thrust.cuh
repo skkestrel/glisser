@@ -2,6 +2,7 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wconversion"
 
 #include <thrust/system/cuda/execution_policy.h>
 #include <thrust/for_each.h>

@@ -94,19 +94,19 @@ bool read_configuration(std::istream& in, Configuration* out)
 			else if (first == "Final-Time")
 				out->t_f = std::stod(second);
 			else if (first == "Time-Block-Size")
-				out->tbsize = std::stoll(second);
+				out->tbsize = std::stoul(second);
 			else if (first == "Encounter-Time-Factor")
-				out->ce_factor = std::stoll(second);
+				out->ce_factor = std::stoull(second);
 			else if (first == "Limit-Particle-Count")
-				out->max_particle = std::stoll(second);
+				out->max_particle = std::stoull(second);
 			else if (first == "Log-Interval")
-				out->print_every = std::stoll(second);
+				out->print_every = std::stoull(second);
 			else if (first == "Status-Interval")
-				out->energy_every = std::stoll(second);
+				out->energy_every = std::stoull(second);
 			else if (first == "Track-Interval")
-				out->track_every = std::stoll(second);
+				out->track_every = std::stoull(second);
 			else if (first == "Dump-Interval")
-				out->dump_every = std::stoll(second);
+				out->dump_every = std::stoull(second);
 			else if (first == "Write-Binary-Dump")
 				out->dumpbinary = std::stoi(second) != 0;
 			else if (first == "Write-Binary-Track")
@@ -242,7 +242,7 @@ bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream&
 			hd.planets.v[i].z /= hd.planets.m[i];
 		}
 
-		hd.planets.id[i] = i;
+		hd.planets.id[i] = static_cast<uint32_t>(i);
 	}
 
 	size_t npart;
@@ -262,12 +262,12 @@ bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream&
 		{
 			icsin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 			hd.particles.deathtime[i] = 0;
-			hd.particles.id[i] = i;
+			hd.particles.id[i] = static_cast<uint32_t>(i);
 			hd.particles.deathflags[i] = 0;
 		}
 		else
 		{
-			hd.particles.deathtime[i] = std::stod(s);
+			hd.particles.deathtime[i] = std::stof(s);
 			icsin >> hd.particles.deathflags[i] >> hd.particles.id[i];
 		}
 	}
@@ -307,7 +307,7 @@ bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& i
 			hd.planets.v[i] /= hd.planets.m[i];
 		}
 
-		hd.planets.id[i] = i;
+		hd.planets.id[i] = static_cast<uint32_t>(i);
 	}
 
 	size_t npart;
