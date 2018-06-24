@@ -277,16 +277,19 @@ bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream&
 
 bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& in)
 {
+	std::string s;
+
+	std::getline(in, s);
+	std::istringstream ss(s);
 	size_t npl;
-	in >> npl;
+	ss >> npl;
 
 	hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.ce_factor);
 
 	for (size_t i = 0; i < npl; i++)
 	{
-		std::string s;
 		std::getline(in, s);
-		std::istringstream ss(s);
+		ss = std::istringstream(s);
 		ss >> hd.planets.m[i];
 
 		std::getline(in, s);
@@ -310,8 +313,10 @@ bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& i
 		hd.planets.id[i] = static_cast<uint32_t>(i);
 	}
 
+	std::getline(in, s);
+	ss = std::istringstream(s);
 	size_t npart;
-	in >> npart;
+	ss >> npart;
 	npart = std::min(npart, config.max_particle);
 
 	hd.particles = HostParticlePhaseSpace(npart);
@@ -397,6 +402,7 @@ bool load_data(HostData& hd, const Configuration& config)
 		}
 		else
 		{
+			
 			std::ifstream in(config.hybridin);
 			ret = load_data_hybrid(hd, config, in);
 		}

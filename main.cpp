@@ -15,6 +15,7 @@
 #include <thread>
 #include <iomanip>
 
+#include <dirent.h>
 #include <execinfo.h>
 #include <sys/stat.h>
 #include <csignal>
@@ -31,6 +32,20 @@ void term(int signum)
 {
 	(void) signum;
 	end_loop = 1;
+}
+
+bool is_dir_empty(std::string dirname)
+{
+	int n = 0;
+	struct dirent *d;
+	DIR *dir = opendir(dirname.c_str());
+	if (!dir) return 1;
+	while ((d = readdir(dir)))
+	{
+		if (++n > 2) break;
+	}
+	closedir(dir);
+	return n <= 2;
 }
 
 int main(int argv, char** argc)
@@ -55,7 +70,15 @@ int main(int argv, char** argc)
 	}
 
 	mkdir(config.outfolder.c_str(), ACCESSPERMS);
+
+	if (!is_dir_empty(config.outfolder))
+	{
+		std::cout << "Output folder is not empty!" << std::endl;
+		return -1;
+	}
+
 	mkdir(joinpath(config.outfolder, "dump").c_str(), ACCESSPERMS);
+
 
 	std::ofstream coutlog(joinpath(config.outfolder, "stdout"));
 	teestream tout(std::cout, coutlog);
