@@ -54,14 +54,15 @@ Configuration::Configuration()
 	plin = "";
 	hybridin = "";
 	hybridout = "state.out";
-	readhybrid = 0;
-	writehybrid = 0;
+	readsplit = 0;
+	writesplit = 0;
 	dumpbinary = 1;
-	trackbinary = 0;
-	writehybridbinary = 0;
-	readhybridbinary = 0;
+	trackbinary = 1;
+	writebinary = 0;
+	readbinary = 0;
 	outfolder = "output/";
 	readmomenta = false;
+	writemomenta = false;
 }
 
 
@@ -113,17 +114,17 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->trackbinary = std::stoi(second) != 0;
 			else if (first == "Resolve-Encounters")
 				out->resolve_encounters = std::stoi(second) != 0;
-			else if (first == "Write-Hybrid-Output")
-				out->writehybrid = std::stoi(second) != 0;
-			else if (first == "Read-Hybrid-Input")
-				out->readhybrid = std::stoi(second) != 0;
-			else if (first == "Write-Hybrid-Binary-Output")
-				out->writehybridbinary = std::stoi(second) != 0;
-			else if (first == "Read-Hybrid-Binary-Input")
-				out->readhybridbinary = std::stoi(second) != 0;
-			else if (first == "Hybrid-Input-File")
+			else if (first == "Write-Split-Output")
+				out->writesplit = std::stoi(second) != 0;
+			else if (first == "Read-Split-Input")
+				out->readsplit = std::stoi(second) != 0;
+			else if (first == "Write-Binary-Output")
+				out->writebinary = std::stoi(second) != 0;
+			else if (first == "Read-Binary-Input")
+				out->readbinary = std::stoi(second) != 0;
+			else if (first == "Input-File")
 				out->hybridin = second;
-			else if (first == "Hybrid-Output-File")
+			else if (first == "Output-File")
 				out->hybridout = second;
 			else if (first == "Particle-Input-File")
 				out->icsin = second;
@@ -133,6 +134,8 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->outfolder = second;
 			else if (first == "Read-Input-Momenta")
 				out->readmomenta = std::stoi(second) != 0;
+			else if (first == "Write-Output-Momenta")
+				out->writemomenta = std::stoi(second) != 0;
 			else
 				throw std::invalid_argument("bad");
 		}
@@ -161,28 +164,28 @@ bool read_configuration(std::istream& in, Configuration* out)
 	{
 		std::cerr << "Warning: Tracking is disabled but Write-Binary-Track was specified" << std::endl;
 	}
-	if (!out->readhybrid && out->readhybridbinary)
+	if (out->readsplit && out->readbinary)
 	{
-		std::cerr << "Warning: Read-Hybrid-Input was not selected but Read-Hybrid-Binary-Input was specified" << std::endl;
+		std::cerr << "Warning: Read-Split-Input was selected but Read-Binary-Input was also specified. Ignoring Read-Binary-Input" << std::endl;
 	}
-	if (!out->writehybrid && out->writehybridbinary)
+	if (out->writesplit && out->writebinary)
 	{
-		std::cerr << "Warning: Write-Hybrid-Input was not selected but Write-Hybrid-Binary-Input was specified" << std::endl;
+		std::cerr << "Warning: Write-Split-Input was selected but Write-Binary-Input was also specified. Ignoring Write-Binary-Input" << std::endl;
 	}
 
-	if (out->writehybrid && out->hybridout == "")
+	if (!out->writesplit && out->hybridout == "")
 	{
-		std::cerr << "Error: Write-Hybrid-Input was selected but Hybrid-Output-File was not specified" << std::endl;
+		std::cerr << "Error: Output-File was not specified" << std::endl;
 		return true;
 	}
-	if (out->readhybrid && out->hybridin == "")
+	if (!out->writesplit && out->hybridin == "")
 	{
-		std::cerr << "Error: Read-Hybrid-Input was selected but Hybrid-Output-File was not specified" << std::endl;
+		std::cerr << "Error: Input-File was not specified" << std::endl;
 		return true;
 	}
-	if (!out->readhybrid && (out->plin == "" || out->icsin == ""))
+	if (out->readsplit && (out->plin == "" || out->icsin == ""))
 	{
-		std::cerr << "Error: Read-Hybrid-Input was not selected but Particle-Input-File or Planet-Input-File were not specified" << std::endl;
+		std::cerr << "Error: Read-Split-Input was selected but Particle-Input-File or Planet-Input-File were not specified" << std::endl;
 		return true;
 	}
 
@@ -205,16 +208,17 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "Write-Binary-Track " << out.trackbinary << std::endl;
 	outstream << "Write-Binary-Dump " << out.dumpbinary << std::endl;
 	outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
-	outstream << "Write-Hybrid-Output " << out.writehybrid << std::endl;
-	outstream << "Write-Hybrid-Binary-Output " << out.writehybridbinary << std::endl;
-	outstream << "Read-Hybrid-Input " << out.readhybrid << std::endl;
-	outstream << "Read-Hybrid-Binary-Input " << out.readhybridbinary << std::endl;
-	outstream << "Hybrid-Input-File " << out.hybridin << std::endl;
-	outstream << "Hybrid-Output-File " << out.hybridout << std::endl;
+	outstream << "Write-Split-Output " << out.writesplit << std::endl;
+	outstream << "Write-Binary-Output " << out.writebinary << std::endl;
+	outstream << "Read-Split-Input " << out.readsplit << std::endl;
+	outstream << "Read-Binary-Input " << out.readbinary << std::endl;
+	outstream << "Input-File " << out.hybridin << std::endl;
+	outstream << "Output-File " << out.hybridout << std::endl;
 	outstream << "Particle-Input-File " << out.icsin << std::endl;
 	outstream << "Planet-Input-File " << out.plin << std::endl;
 	outstream << "Output-Folder " << out.outfolder << std::endl;
 	outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
+	outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
 }
 
 std::string joinpath(const std::string& base, const std::string& file)
@@ -388,14 +392,14 @@ bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::ist
 bool load_data(HostData& hd, const Configuration& config)
 {
 	bool ret;
-	if (!config.readhybrid)
+	if (config.readsplit)
 	{
 		std::ifstream plinfile(config.plin), icsinfile(config.icsin);
 		ret = load_data_nohybrid(hd, config, plinfile, icsinfile);
 	}
 	else
 	{
-		if (config.readhybridbinary)
+		if (config.readbinary)
 		{
 			std::ifstream in(config.hybridin, std::ios_base::binary);
 			ret = load_data_hybrid_binary(hd, config, in);
@@ -418,14 +422,17 @@ void save_data_hybrid_binary(const HostData& hd, const Configuration& config, st
 	write_binary(out, hd.planets.n_alive);
 	for (size_t i = 0; i < hd.planets.n_alive; i++)
 	{
-		write_binary(out, hd.planets.id[i]);
-		write_binary(out, hd.planets.m[i]);
-		write_binary(out, hd.planets.r[i].x);
-		write_binary(out, hd.planets.r[i].y);
-		write_binary(out, hd.planets.r[i].z);
-		write_binary(out, hd.planets.v[i].x);
-		write_binary(out, hd.planets.v[i].y);
-		write_binary(out, hd.planets.v[i].z);
+		double m = hd.planets_snapshot.m[i];
+		write_binary(out, hd.planets_snapshot.id[i]);
+		write_binary(out, m);
+
+		if (!config.writemomenta) m = 1;
+		write_binary(out, hd.planets_snapshot.r[i].x);
+		write_binary(out, hd.planets_snapshot.r[i].y);
+		write_binary(out, hd.planets_snapshot.r[i].z);
+		write_binary(out, hd.planets_snapshot.v[i].x * m);
+		write_binary(out, hd.planets_snapshot.v[i].y * m);
+		write_binary(out, hd.planets_snapshot.v[i].z * m);
 	}
 
 	write_binary(out, hd.particles.n);
@@ -450,9 +457,11 @@ void save_data_hybrid(const HostData& hd, const Configuration& config, std::ostr
 	out << std::setprecision(17);
 	for (size_t i = 0; i < hd.planets_snapshot.n_alive; i++)
 	{
-		out << hd.planets_snapshot.m[i] << std::endl;
+		double m = hd.planets_snapshot.m[i];
+		out << m << std::endl;
+		if (!config.writemomenta) m = 1;
 		out << hd.planets_snapshot.r[i].x << " " << hd.planets_snapshot.r[i].y << " " << hd.planets_snapshot.r[i].z << std::endl;
-		out << hd.planets_snapshot.v[i].x << " " << hd.planets_snapshot.v[i].y << " " << hd.planets_snapshot.v[i].z << std::endl;
+		out << hd.planets_snapshot.v[i].x * m << " " << hd.planets_snapshot.v[i].y * m << " " << hd.planets_snapshot.v[i].z * m << std::endl;
 		out << hd.planets_snapshot.id[i] << std::endl;
 	}
 
@@ -473,9 +482,12 @@ void save_data_nohybrid(const HostData& hd, const Configuration& config, std::os
 	plout << std::setprecision(17);
 	for (size_t i = 0; i < hd.planets_snapshot.n_alive; i++)
 	{
-		plout << hd.planets_snapshot.m[i] << std::endl;
+		double m = hd.planets_snapshot.m[i];
+		plout << m << std::endl;
+
+		if (!config.writemomenta) m = 1;
 		plout << hd.planets_snapshot.r[i].x << " " << hd.planets_snapshot.r[i].y << " " << hd.planets_snapshot.r[i].z << std::endl;
-		plout << hd.planets_snapshot.v[i].x << " " << hd.planets_snapshot.v[i].y << " " << hd.planets_snapshot.v[i].z << std::endl;
+		plout << hd.planets_snapshot.v[i].x * m << " " << hd.planets_snapshot.v[i].y * m << " " << hd.planets_snapshot.v[i].z * m << std::endl;
 	}
 
 	icsout << hd.particles.n << std::endl;
@@ -488,29 +500,20 @@ void save_data_nohybrid(const HostData& hd, const Configuration& config, std::os
 	}
 }
 
-void save_data(const HostData& hd, const Configuration& config, bool dump, size_t dumpnum)
+void save_data(const HostData& hd, const Configuration& config, const std::string& outfile, bool dump)
 {
-	if (dump || config.writehybrid)
+	if (dump || !config.writesplit)
 	{
 		std::ostringstream ss;
 
-		if (dump)
+		if ((dump && config.dumpbinary) || (!config.writesplit && config.writebinary))
 		{
-			ss << "dump/state." << dumpnum << ".out";
-		}
-		else
-		{
-			ss << "state.out";
-		}
-
-		if ((dump && config.dumpbinary) || (config.writehybrid && config.writehybridbinary))
-		{
-			std::ofstream out(joinpath(config.outfolder, ss.str()), std::ios_base::binary);
+			std::ofstream out(outfile, std::ios_base::binary);
 			save_data_hybrid_binary(hd, config, out);
 		}
 		else
 		{
-			std::ofstream out(joinpath(config.outfolder, ss.str()));
+			std::ofstream out(outfile);
 			save_data_hybrid(hd, config, out);
 		}
 	}

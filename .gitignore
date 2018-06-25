@@ -3,3 +3,4 @@
 *.in
 !data/*.out
 !data/*.in
+bin

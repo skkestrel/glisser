@@ -15,16 +15,15 @@
 #include <thread>
 #include <iomanip>
 
-#include <dirent.h>
 #include <execinfo.h>
 #include <sys/stat.h>
 #include <csignal>
 
-#include "executor_facade.h"
-#include "data.h"
-#include "wh.h"
-#include "convert.h"
-#include "util.h"
+#include "../executor_facade.h"
+#include "../data.h"
+#include "../wh.h"
+#include "../convert.h"
+#include "../util.h"
 
 volatile sig_atomic_t end_loop = 0;
 
@@ -32,20 +31,6 @@ void term(int signum)
 {
 	(void) signum;
 	end_loop = 1;
-}
-
-bool is_dir_empty(std::string dirname)
-{
-	int n = 0;
-	struct dirent *d;
-	DIR *dir = opendir(dirname.c_str());
-	if (!dir) return 1;
-	while ((d = readdir(dir)))
-	{
-		if (++n > 2) break;
-	}
-	closedir(dir);
-	return n <= 2;
 }
 
 int main(int argv, char** argc)
@@ -90,8 +75,8 @@ int main(int argv, char** argc)
 	HostData hd;
 	ExecutorFacade ex(hd, tout);
 
-	*ex.t = config.t;
-	*ex.t_0 = config.t;
+	*ex.t = config.t_0;
+	*ex.t_0 = config.t_0;
 	*ex.dt = config.dt;
 	*ex.t_f = config.t_f;
 	*ex.tbsize = config.tbsize;
@@ -177,12 +162,14 @@ int main(int argv, char** argc)
 							std::ostringstream ss;
 							ss << "dump/config." << dump_num << ".out";
 
-							save_data(ex.hd, config, true, dump_num++);
-
 							config.t_f = *ex.t_f - *ex.t_0 + *ex.t;
 							config.t_0 = *ex.t;
 							std::ofstream configout(joinpath(config.outfolder, ss.str()));
 							write_configuration(configout, config);
+
+							ss = std::ostringstream();
+							ss << "dump/state." << dump_num << ".out";
+							save_data(ex.hd, config, joinpath(config.outfolder, ss.str()), true);
 						});
 				}
 
@@ -273,7 +260,7 @@ int main(int argv, char** argc)
 
 	ex.finish();
 	tout << "Saving to disk." << std::endl;
-	save_data(hd, config);
+	save_data(hd, config, joinpath(config.outfolder, "state.out"));
 	config.t_f = *ex.t_f - *ex.t_0 + *ex.t;
 	config.t_0 = *ex.t;
 	std::ofstream configout(joinpath(config.outfolder, "config.out"));

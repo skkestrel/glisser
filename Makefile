@@ -1,3 +1,4 @@
+.PHONY: all convert
 WFLAGS = -Wcast-align \
 -Wcast-qual -Wconversion \
 -Wdisabled-optimization \
@@ -18,4 +19,9 @@ WFLAGS = -Wcast-align \
 -Wwrite-strings
 
 default:
-		nvcc *.cpp *.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra -Wconversion ${WFLAGS}" -O3
+	mkdir -p bin
+	nvcc targets/main.cpp *.cpp *.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra ${WFLAGS}" -O3 -o bin/sr
+
+convert:
+	mkdir -p bin
+	g++ targets/convert.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -O3 -o bin/convert

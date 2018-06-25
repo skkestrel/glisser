@@ -1,4 +1,26 @@
 #include <streambuf>
+#include <dirent.h>
+#include <unistd.h>
+
+inline bool does_file_exist(const std::string& filename)
+{
+	return access(filename.c_str(), F_OK) != -1;
+}
+
+
+inline bool is_dir_empty(const std::string& dirname)
+{
+	int n = 0;
+	struct dirent *d;
+	DIR *dir = opendir(dirname.c_str());
+	if (!dir) return 1;
+	while ((d = readdir(dir)))
+	{
+		if (++n > 2) break;
+	}
+	closedir(dir);
+	return n <= 2;
+}
 
 class teebuf : public std::streambuf
 {
