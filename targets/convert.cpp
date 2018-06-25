@@ -17,14 +17,39 @@ int main(int argv, char** argc)
 	HostData hd;
 
 	bool ishelio;
+	bool binary = false;
+	bool momentum = false;
 
 	for (size_t i = 1; i < argv; i++)
 	{
 		std::string arg(argc[i - 1]);
 
+		if (arg == "momentum")
+		{
+			momentum = true;
+		}
+
+		if (arg == "velocity")
+		{
+			momentum = false;
+		}
+
+		if (arg == "binary")
+		{
+			binary = true;
+		}
+
+		if (arg == "ascii")
+		{
+			binary = false;
+		}
+
 		if (arg == "read")
 		{
 			config.hybridin = std::string(argc[i]);
+			config.readbinary = binary;
+			config.readmomenta = momentum;
+
 			load_data(hd, config);
 			hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 
@@ -37,19 +62,15 @@ int main(int argv, char** argc)
 			i++;
 		}
 
-		if (arg == "write")
-		{
-			config.hybridout = std::string(argc[i]);
-			save_data(hd, config, config.hybridout);
-
-			i++;
-		}
-
 		if (arg == "read-split")
 		{
 			config.plin = std::string(argc[i]);
 			config.icsin = std::string(argc[i + 1]);
+
+			config.readmomenta = momentum;
+			config.readbinary = false;
 			config.readsplit = true;
+
 			load_data(hd, config);
 			hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 
@@ -60,6 +81,17 @@ int main(int argv, char** argc)
 			}
 
 			i += 2;
+		}
+
+		if (arg == "write")
+		{
+			config.hybridout = std::string(argc[i]);
+			config.writebinary = binary;
+			config.writemomenta = momentum;
+
+			save_data(hd, config, config.hybridout);
+
+			i++;
 		}
 
 		if (arg == "to-bary")
