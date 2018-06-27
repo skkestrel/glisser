@@ -20,7 +20,7 @@ WFLAGS = -Wcast-align \
 
 default:
 	mkdir -p bin
-	nvcc targets/main.cpp *.cpp *.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra ${WFLAGS}" -o bin/sr -O3
+	nvcc targets/main.cpp *.cpp *.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra ${WFLAGS}" -o bin/sr -O0
 
 convert:
 	mkdir -p bin

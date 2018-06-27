@@ -55,14 +55,17 @@ int main(int argv, char** argc)
 	
 	std::ifstream configfile(configin);
 
-	Configuration config;
-	if (read_configuration(configfile, &config)) return -1;
+	Configuration config_mut;
+	if (read_configuration(configfile, &config_mut)) return -1;
 	
+	const Configuration& config = config_mut;
 
 	{
 		std::ofstream configstream(joinpath(config.outfolder, "config.in"));
 		write_configuration(configstream, config);
 	}
+
+	Configuration out_config = config.output_config();
 
 	mkdir(config.outfolder.c_str(), ACCESSPERMS);
 
@@ -74,7 +77,6 @@ int main(int argv, char** argc)
 
 	mkdir(joinpath(config.outfolder, "dump").c_str(), ACCESSPERMS);
 
-
 	std::ofstream coutlog(joinpath(config.outfolder, "stdout"));
 	teestream tout(std::cout, coutlog);
 
@@ -83,16 +85,9 @@ int main(int argv, char** argc)
 	tout << "Host uses little-endian ints? " << (is_int_little_endian() ? "yes" : "no") << std::endl;
 
 	HostData hd;
-	ExecutorFacade ex(hd, tout);
+	ExecutorFacade ex(hd, config, tout);
 
 	*ex.t = config.t_0;
-	*ex.t_0 = config.t_0;
-	*ex.dt = config.dt;
-	*ex.t_f = config.t_f;
-	*ex.tbsize = config.tbsize;
-	*ex.resolve_encounters = config.resolve_encounters;
-	*ex.ce_n1 = config.ce_n1;
-	*ex.ce_n2 = config.ce_n2;
 
 	if (load_data(hd, config)) return -1;
 
@@ -123,7 +118,7 @@ int main(int argv, char** argc)
 	bool crashed = false;
 	try
 	{
-		while (*ex.t < *ex.t_f)
+		while (*ex.t < config.t_f)
 		{
 			ex.loop();
 			counter++;
@@ -140,7 +135,7 @@ int main(int argv, char** argc)
 					f64_3 l_;
 					calculate_planet_metrics(ex.hd.planets, &e_, &l_);
 					double elapsed = ex.time();
-					double total = elapsed * (*ex.t_f - *ex.t_0) / (*ex.t - *ex.t_0);
+					double total = elapsed * (config.t_f - config.t_0) / (*ex.t - config.t_0);
 
 					if (output_energy)
 					{
@@ -167,16 +162,16 @@ int main(int argv, char** argc)
 
 				if (dump)
 				{
-					ex.add_job([&tout, &ex, &config, &dump_num]()
+					out_config.t_f = config.t_f - config.t_0 + *ex.t;
+					out_config.t_0 = *ex.t;
+					ex.add_job([&tout, &ex, &out_config, &config, &dump_num]()
 						{
 							tout << "Dumping to disk. t = " << *ex.t << std::endl;
 							std::ostringstream ss;
 							ss << "dump/config." << dump_num << ".out";
 
-							config.t_f = *ex.t_f - *ex.t_0 + *ex.t;
-							config.t_0 = *ex.t;
 							std::ofstream configout(joinpath(config.outfolder, ss.str()));
-							write_configuration(configout, config);
+							write_configuration(configout, out_config);
 
 							ss = std::ostringstream();
 							ss << "dump/state." << dump_num << ".out";
@@ -272,10 +267,10 @@ int main(int argv, char** argc)
 	ex.finish();
 	tout << "Saving to disk." << std::endl;
 	save_data(hd, config, joinpath(config.outfolder, "state.out"));
-	config.t_f = *ex.t_f - *ex.t_0 + *ex.t;
-	config.t_0 = *ex.t;
+	out_config.t_f = config.t_f - config.t_0 + *ex.t;
+	out_config.t_0 = *ex.t;
 	std::ofstream configout(joinpath(config.outfolder, "config.out"));
-	write_configuration(configout, config);
+	write_configuration(configout, out_config);
 
 	t = std::time(nullptr);
 	tm = *std::localtime(&t);

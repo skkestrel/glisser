@@ -9,18 +9,32 @@
 #include <algorithm>
 #include <numeric>
 
+size_t stable_partition_alive_indices(const std::vector<uint16_t>& flags, size_t begin, size_t length, std::unique_ptr<std::vector<size_t>>* indices)
+{
+	auto new_indices = std::make_unique<std::vector<size_t>>(length);
+	std::iota(new_indices->begin(), new_indices->end(), 0);
+
+	auto val = std::stable_partition(new_indices->begin(), new_indices->end(), [begin, &flags](size_t index)
+			{ return flags[index + begin] == 0; }) - new_indices->begin() + begin;
+
+	if (indices)
+	{
+		*indices = std::move(new_indices);
+	}
+
+	return val;
+}
+
 std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_alive(size_t begin, size_t length)
 {
 	if (length == static_cast<size_t>(-1))
 	{
 		length = n - begin;
 	}
-	
-	auto indices = std::make_unique<std::vector<size_t>>(length);
-	std::iota(indices->begin(), indices->end(), 0);
-	n_alive = std::stable_partition(indices->begin(), indices->end(), [begin, this](size_t index)
-			{ return deathflags[index + begin] == 0; }) - indices->begin() + begin;
 
+	std::unique_ptr<std::vector<size_t>> indices;
+	n_alive = stable_partition_alive_indices(deathflags, begin, length, &indices);
+	
 	gather(r, *indices, begin, length);
 	gather(v, *indices, begin, length);
 	gather(deathtime, *indices, begin, length);
@@ -36,8 +50,11 @@ Configuration::Configuration()
 	t_f = 365e4;
 	dt = 122;
 	tbsize = 1024;
-	ce_n1 = 10;
-	ce_n2 = 4;
+	wh_ce_n1 = 8;
+	wh_ce_n2 = 4;
+	wh_ce_r1 = 1;
+	wh_ce_r2 = 3.5;
+
 	print_every = 10;
 	energy_every = 1;
 	track_every = 0;
@@ -60,6 +77,11 @@ Configuration::Configuration()
 	writemomenta = false;
 }
 
+Configuration Configuration::output_config() const
+{
+#pragma GCC warning "TODO"
+	return *this;
+}
 
 bool read_configuration(std::istream& in, Configuration* out)
 {
@@ -93,10 +115,14 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->tbsize = std::stoul(second);
 			else if (first == "Big-G")
 				out->big_g = std::stod(second);
-			else if (first == "Encounter-N1")
-				out->ce_n1 = std::stoull(second);
-			else if (first == "Encounter-N2")
-				out->ce_n2 = std::stoull(second);
+			else if (first == "WH-Encounter-N1")
+				out->wh_ce_n1 = std::stoull(second);
+			else if (first == "WH-Encounter-N2")
+				out->wh_ce_n2 = std::stoull(second);
+			else if (first == "WH-Encounter-R1")
+				out->wh_ce_r1 = std::stod(second);
+			else if (first == "WH-Encounter-R2")
+				out->wh_ce_r2 = std::stod(second);
 			else if (first == "Limit-Particle-Count")
 				out->max_particle = std::stoull(second);
 			else if (first == "Log-Interval")
@@ -193,8 +219,10 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "Time-Step " << out.dt << std::endl;
 	outstream << "Final-Time " << out.t_f << std::endl;
 	outstream << "Time-Block-Size " << out.tbsize << std::endl;
-	outstream << "Encounter-N1 " << out.ce_n1 << std::endl;
-	outstream << "Encounter-N2 " << out.ce_n2 << std::endl;
+	outstream << "WH-Encounter-N1 " << out.wh_ce_n1 << std::endl;
+	outstream << "WH-Encounter-N2 " << out.wh_ce_n2 << std::endl;
+	outstream << "WH-Encounter-R1 " << out.wh_ce_r1 << std::endl;
+	outstream << "WH-Encounter-R2 " << out.wh_ce_r2 << std::endl;
 	outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 	outstream << "Log-Interval " << out.print_every << std::endl;
 	outstream << "Status-Interval " << out.energy_every << std::endl;

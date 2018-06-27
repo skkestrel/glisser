@@ -16,6 +16,7 @@ ExecutorData::ExecutorData(size_t n)
 	r = v = std::vector<f64_3>(n);
 	id = deathtime_index = std::vector<uint32_t>(n);
 	deathflags = std::vector<uint16_t>(n);
+	encounter_planet_id = std::vector<uint8_t>(n);
 }
 
 struct DeviceParticleUnflaggedPredicate
@@ -29,14 +30,14 @@ struct DeviceParticleUnflaggedPredicate
 	}
 };
 
-Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), tbsize(128), ce_n1(10), ce_n2(4),
-	output(out), resolve_encounters(false) { }
+Executor::Executor(HostData& hd, DeviceData& dd, const Configuration& config, std::ostream& out)
+	: hd(hd), dd(dd), output(out), config(config) { }
 
 void Executor::init()
 {
 	to_helio(hd);
 
-	integrator = WHCudaIntegrator(hd.planets, hd.particles);
+	integrator = WHCudaIntegrator(hd.planets, hd.particles, config);
 	calculate_planet_metrics(hd.planets, &e_0, nullptr);
 
 	output << std::setprecision(7);
@@ -50,6 +51,10 @@ void Executor::init()
 	cudaStreamCreate(&htd_stream);
 	cudaStreamCreate(&par_stream);
 	cudaStreamCreate(&dth_stream);
+
+	cudaEventCreate(&start_event);
+	cudaEventCreate(&cpu_finish_event);
+	cudaEventCreate(&gpu_finish_event);
 
 	upload_data();
 	output << "n_particle_alive = " << dd.particle_phase_space().n_alive << std::endl;
@@ -71,35 +76,7 @@ void Executor::init()
 
 void Executor::step_and_upload_planets()
 {
-	if (resolve_encounters > 1)
-	{
-
-		for (size_t i = 0; i < tbsize * ce_n1 * ce_n2; i++)
-		{
-			integrator.step_planets(hd.planets, t, i, dt / static_cast<double>(ce_n1 * ce_n2));
-			// take the planet positions at the end of every timestep
-
-			if ((i + 1) % (ce_n1 * ce_n2) == 0)
-			{
-				size_t slow_index = i / (ce_n1 * ce_n2);
-
-				auto fast_begin = hd.planets.r_log.begin() + i * (hd.planets.n - 1);
-				std::copy(fast_begin, fast_begin + (hd.planets.n - 1), hd.planets.r_log_slow.begin() + slow_index * (hd.planets.n - 1));
-
-				fast_begin = hd.planets.v_log.begin() + i * (hd.planets.n - 1);
-				std::copy(fast_begin, fast_begin + (hd.planets.n - 1), hd.planets.v_log_slow.begin() + slow_index * (hd.planets.n - 1));
-
-				hd.planets.h0_log_slow[i / (ce_n1 * ce_n2)] = hd.planets.h0_log[i];
-			}
-		}
-	}
-	else
-	{
-		for (size_t i = 0; i < tbsize; i++)
-		{
-			integrator.step_planets(hd.planets, t, i, dt);
-		}
-	}
+	integrator.integrate_planets_timeblock(hd.planets, t);
 
 	// We only upload the planet log if any particles are going to use the planet log on the GPU
 	// Cases where the planet log is not used by the particles:
@@ -117,8 +94,8 @@ void Executor::upload_data()
 {
 	dd.particles = DeviceParticlePhaseSpace(hd.particles.n);
 
-	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, tbsize);
-	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, tbsize);
+	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
+	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
 
 	dd.planet_data_id = 0;
 
@@ -181,7 +158,7 @@ void Executor::upload_planet_log()
 	dd.planet_data_id++;
 	auto& planets = dd.planet_phase_space();
 
-	if (resolve_encounters)
+	if (config.resolve_encounters)
 	{
 		memcpy_htd(planets.h0_log, hd.planets.h0_log_slow, htd_stream);
 		cudaStreamSynchronize(htd_stream);
@@ -207,13 +184,12 @@ double Executor::time() const
 
 void Executor::loop()
 {
-	integrator.step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
+	cudaEventRecord(start_event, main_stream);
+	integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space());
+	cudaEventRecord(gpu_finish_event, main_stream);
 
 	// The queued work should begin RIGHT after the CUDA call
-	for (auto& i : work)
-	{
-		i();
-	}
+	for (auto& i : work) i();
 	work.clear();
 
 	// The snapshot contains the planet states at the end of the previous timestep - 
@@ -229,19 +205,51 @@ void Executor::loop()
 	std::swap(hd.planets.h0_log, hd.planets.h0_log_old);
 	std::swap(hd.planets.h0_log_slow, hd.planets.h0_log_slow_old);
 
-	t += dt * static_cast<double>(tbsize);
+	t += config.dt * static_cast<double>(config.tbsize);
 	step_and_upload_planets();
 	cudaStreamSynchronize(htd_stream);
 
 	for (size_t i = hd.particles.n_alive - hd.particles.n_encounter; i < hd.particles.n_alive; i++)
 	{
-		// ff
+		/*
+
+		if (encounter_output)
+		{
+			*encounter_output << hd.particles.r[i] << std::endl;
+			*encounter_output << hd.particles.v[i] << std::endl;
+			*encounter_output << hd.particles.id[i] << " "
+				<< hd.particles.deathflags[i] << " "
+				<< t - config.dt * static_cast<double>(tbsize - ed.deathtime_index[i]) << " death"
+				<< std::endl;
+			*encounter_output << hd.planets.n_alive << std::endl;
+
+			*encounter_output << hd.planets.m[0] << std::endl;
+			*encounter_output << f64_3(0) << std::endl;
+			*encounter_output << f64_3(0) << std::endl;
+			*encounter_output << hd.planets.id[0] << std::endl;
+			for (size_t j = 1; j < hd.planets.n_alive; j++)
+			{
+				*encounter_output << hd.planets.m[j] << std::endl;
+				*encounter_output << hd.planets.r_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+				*encounter_output << hd.planets.v_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+				*encounter_output << hd.planets.id[i] << std::endl;
+			}
+		}
+		*/
 	}
 	// auto gather_indices = hd.particles.stable_partition_alive(...)
 	// memcy_htd(particles.n_alive, hd.n_encounter)
 	// dd.n_alive = hd.n_alive
 
-	cudaStreamSynchronize(main_stream);
+	cudaEventRecord(cpu_finish_event, par_stream);
+
+	cudaEventSynchronize(gpu_finish_event);
+
+	float cputime, gputime;
+	cudaEventElapsedTime(&cputime, start_event, cpu_finish_event);
+	cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
+	output << "GPU took " << static_cast<int>((gputime - cputime) * 10) / 10. << " ms longer than CPU" << std::endl;
+
 	resync();
 }
 
@@ -258,9 +266,9 @@ void Executor::resync()
 	size_t prev_alive = particles.n_alive;
 
 	auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), integrator.device_begin()));
-	particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(par_stream),
+	particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
 			partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
-	cudaStreamSynchronize(par_stream);
+	cudaStreamSynchronize(main_stream);
 
 	size_t diff = prev_alive - particles.n_alive;
 
@@ -277,6 +285,29 @@ void Executor::resync()
 	memcpy_dth(ed.deathflags, particles.deathflags, dth_stream, 0, particles.n_alive, diff);
 	cudaStreamSynchronize(dth_stream);
 
+	for (size_t i = 0; i < diff; i++)
+	{
+		// Lower 8 bits of deathflags are death bits - don't bother doing encounters on particles that died
+		// for reason other than an encounter (e.g. OOB, kepler nonconvergence)
+		if (config.resolve_encounters && ((ed.deathflags[i] & 0x00FF) == 0x0001))
+		{
+			// set the encounter planet
+			ed.encounter_planet_id[i] = static_cast<uint8_t>((ed.deathflags[i] & 0xFF00) >> 8);
+
+			// clear the death bits
+			ed.deathflags[i] = 0;
+		}
+	}
+
+	std::unique_ptr<std::vector<size_t>> ed_indices;
+	stable_partition_alive_indices(ed.deathflags, 0, diff, &ed_indices);
+	gather(ed.r, *ed_indices, 0, diff);
+	gather(ed.v, *ed_indices, 0, diff);
+	gather(ed.id, *ed_indices, 0, diff);
+	gather(ed.encounter_planet_id, *ed_indices, 0, diff);
+	gather(ed.deathflags, *ed_indices, 0, diff);
+	gather(ed.deathtime_index, *ed_indices, 0, diff);
+
 	std::unordered_map<size_t, size_t> indices;
 	for (size_t i = 0; i < prev_alive; i++)
 	{
@@ -290,30 +321,34 @@ void Executor::resync()
 		hd.particles.v[index] = ed.v[i];
 		hd.particles.deathflags[index] = ed.deathflags[i];
 
-		if ((ed.deathflags[i] & 0x0001) && resolve_encounters)
+		if (ed.deathflags[i])
 		{
-			// TODO do something here... maybe clear the death bit?
-		}
-		else
-		{
-			hd.particles.deathtime[index] = static_cast<float>(t - dt * static_cast<double>(tbsize - ed.deathtime_index[i]));
+			hd.particles.deathtime[index] = static_cast<float>(t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i]));
 		}
 	}
 
-	auto gather_indices = hd.particles.stable_partition_alive(0, prev_alive);
-	integrator.gather_particles(*gather_indices, 0, prev_alive);
+	ed.gather_indices = hd.particles.stable_partition_alive(0, prev_alive);
+	integrator.gather_particles(*ed.gather_indices, 0, prev_alive);
 
 	hd.particles.n_encounter = hd.particles.n_alive - particles.n_alive;
 
-	if (encounter_output)
-	{
-		add_job([diff, this]()
+	size_t encounter_start = particles.n_alive;
+
+	add_job([encounter_start, diff, this]()
+		{
+			gather(ed.deathtime_index, *ed.gather_indices, 0, diff);
+			gather(ed.encounter_planet_id, *ed.gather_indices, 0, diff);
+
+			if (encounter_output)
 			{
-				for (size_t i = 0; i < diff; i++)
+				for (size_t i = hd.particles.n_alive - hd.particles.n_encounter; i < diff; i++)
 				{
-					*encounter_output << ed.r[i] << std::endl;
-					*encounter_output << ed.v[i] << std::endl;
-					*encounter_output << ed.id[i] << " " << ed.deathflags[i] << " " << t - dt * static_cast<double>(tbsize - ed.deathtime_index[i]) << std::endl;
+					*encounter_output << hd.particles.r[encounter_start + i] << std::endl;
+					*encounter_output << hd.particles.v[encounter_start + i] << std::endl;
+					*encounter_output << hd.particles.id[encounter_start + i] << " "
+						<< hd.particles.deathflags[encounter_start + i] << " "
+						<< t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i]) << " death"
+						<< std::endl;
 					*encounter_output << hd.planets.n_alive << std::endl;
 
 					*encounter_output << hd.planets.m[0] << std::endl;
@@ -328,15 +363,23 @@ void Executor::resync()
 						*encounter_output << hd.planets.id[i] << std::endl;
 					}
 				}
-			});
-	}
+			}
+		});
 }
 
 
 void Executor::finish()
 {
 	cudaStreamSynchronize(main_stream);
+
+	for (auto& i : work) i();
+	work.clear();
+
 	resync();
+
+	for (auto& i : work) i();
+	work.clear();
+
 	download_data();
 
 	output << "Simulation finished. t = " << t << ". n_particle = " << hd.particles.n_alive << std::endl;

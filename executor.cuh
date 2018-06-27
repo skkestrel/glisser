@@ -13,12 +13,18 @@ struct ExecutorData
 	std::vector<uint32_t> id, deathtime_index;
 	std::vector<uint16_t> deathflags;
 
+	std::vector<uint8_t> encounter_planet_id;
+
+	std::unique_ptr<std::vector<size_t>> gather_indices;
+
 	ExecutorData();
 	ExecutorData(size_t size);
 };
 
 struct Executor
 {
+	const Configuration& config;
+
 	HostData& hd;
 	DeviceData& dd;
 	WHCudaIntegrator integrator;
@@ -26,13 +32,10 @@ struct Executor
 	ExecutorData ed;
 
 	cudaStream_t main_stream, dth_stream, htd_stream, par_stream;
+	cudaEvent_t start_event, cpu_finish_event, gpu_finish_event;
 
-	float64_t t_0, t, dt, t_f;
+	float64_t t;
 	float64_t e_0;
-
-	size_t tbsize, ce_n1, ce_n2;
-
-	bool resolve_encounters;
 
 	std::ostream& output;
 	std::ostream* encounter_output;
@@ -42,7 +45,7 @@ struct Executor
 	std::vector<std::function<void()>> work;
 
 	Executor(const Executor&) = delete;
-	Executor(HostData& hd, DeviceData& dd, std::ostream& out);
+	Executor(HostData& hd, DeviceData& dd, const Configuration& config, std::ostream& out);
 
 	void init();
 	void upload_data();

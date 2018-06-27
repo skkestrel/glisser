@@ -13,13 +13,26 @@ public:
 	Vf64_3 planet_rj, planet_vj;
 	Vf64_3 planet_a, particle_a;
 
-	WHIntegrator();
-	WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa);
+	Vf64 planet_rh;
 
-	void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t dt) override;
-	void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index, float64_t dt) override;
-	void integrate_encounter_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t n_timesteps, float64_t dt) override;
+	size_t tbsize;
+	size_t encounter_n1, encounter_n2;
+	double encounter_r1, encounter_r2;
+
+	bool resolve_encounters;
+
+	double dt;
+
+	WHIntegrator();
+	WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
+
+	void integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t) override;
+	void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t) override;
+	void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index) override;
 	void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length) override;
+
+	void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t timestep_index);
+	void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index);
 
 	void drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v) const;
 	void drift(float64_t t, const Vu8& mask, const Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start, size_t n);

@@ -16,11 +16,8 @@ struct HostParticlePhaseSpace
 
 	Vu16 deathflags;
 	Vf32 deathtime;
-	Vu32 deathtime_index;
-	Vu32 id; 
-
-	inline HostParticlePhaseSpace() { }
-	inline HostParticlePhaseSpace(size_t siz) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), deathflags(siz), deathtime(siz), deathtime_index(siz), id(siz) { }
+	Vu32 id; inline HostParticlePhaseSpace() { }
+	inline HostParticlePhaseSpace(size_t siz) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), deathflags(siz), deathtime(siz), id(siz) { }
 
 	std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
 };
@@ -77,7 +74,10 @@ struct HostData
 struct Configuration
 {
 	double t_0, t_f, dt, big_g;
-	size_t tbsize, ce_n1, ce_n2, print_every, dump_every, track_every, energy_every, max_particle;
+	size_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
+	double wh_ce_r1, wh_ce_r2;
+	size_t wh_ce_n1, wh_ce_n2;
+
 	bool resolve_encounters, readmomenta, writemomenta, trackbinary, readsplit, writesplit, dumpbinary, writebinary, readbinary;
 
 	std::string icsin, plin, hybridin, hybridout;
@@ -85,10 +85,12 @@ struct Configuration
 
 	inline size_t fast_timestep_factor() const
 	{
-		return resolve_encounters ? (ce_n1 * ce_n2) : 1;
+		return resolve_encounters ? (wh_ce_n1 * wh_ce_n2) : 1;
 	}
 
 	Configuration();
+
+	Configuration output_config() const;
 };
 
 template<typename T>
@@ -238,6 +240,8 @@ void gather(std::vector<T>& values, const std::vector<size_t>& indices, size_t b
 		values[i] = copy[indices[i - begin]];
 	}
 }
+
+size_t stable_partition_alive_indices(const std::vector<uint16_t>& flags, size_t begin, size_t length, std::unique_ptr<std::vector<size_t>>* indices);
 
 bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::istream& in);
 bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& in);
