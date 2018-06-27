@@ -101,6 +101,16 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa,
 	planet_a = Vf64_3(pl.n);
 	particle_a = Vf64_3(pa.n);
 
+	encounter_n1 = config.wh_ce_n1;
+	encounter_n2 = config.wh_ce_n2;
+	encounter_r1 = config.wh_ce_r1;
+	encounter_r2 = config.wh_ce_r2;
+
+	tbsize = config.tbsize;
+	resolve_encounters = config.resolve_encounters;
+	dt = config.dt;
+
+
 
 	eta[0] = pl.m[0];
 	for (size_t i = 1; i < pl.n; i++)
@@ -114,14 +124,6 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa,
 	helio_acc_planets(pl, 0);
 	helio_acc_particles(pl, pa, 0, pa.n_alive, 0, 0);
 
-	encounter_n1 = config.wh_ce_n1;
-	encounter_n2 = config.wh_ce_n2;
-	tbsize = config.tbsize;
-	resolve_encounters = config.resolve_encounters;
-	dt = config.dt;
-
-	encounter_r1 = config.wh_ce_r1;
-	encounter_r2 = config.wh_ce_r2;
 }
 
 void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t)
