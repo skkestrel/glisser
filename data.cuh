@@ -3,11 +3,13 @@
 
 struct DeviceParticlePhaseSpace
 {
-	Dvf64_3 r, v, a;
+	Dvf64_3 r, v;
 
 	Dvu16 deathflags;
 	Dvu32 deathtime_index;
 	Dvu32 id;
+
+	Dvu32 gather_indices;
 
 	size_t n_total;
 	size_t n_alive;
@@ -16,24 +18,15 @@ struct DeviceParticlePhaseSpace
 	DeviceParticlePhaseSpace(const DeviceParticlePhaseSpace&) = delete;
 
 	inline DeviceParticlePhaseSpace() { }
-	inline DeviceParticlePhaseSpace(size_t n) : r(n), v(n), a(n), deathflags(n), deathtime_index(n), id(n), n_total(n), n_alive(n) { }
+	inline DeviceParticlePhaseSpace(size_t n) : r(n), v(n), deathflags(n), deathtime_index(n), id(n), n_total(n), n_alive(n), gather_indices(n) { }
 
-	using iterator_tuple = decltype(thrust::make_tuple(r.begin(), v.begin(), a.begin(), deathflags.begin(), deathtime_index.begin(), id.begin()));
+	using iterator_tuple = decltype(thrust::make_tuple(r.begin(), v.begin(), deathflags.begin(), deathtime_index.begin(), id.begin()));
 	using iterator = thrust::zip_iterator<iterator_tuple>;
-
-	using mvs_iterator_tuple = decltype(thrust::make_tuple(r.begin(), v.begin(), a.begin(), deathflags.begin(), deathtime_index.begin()));
-	using mvs_iterator = thrust::zip_iterator<mvs_iterator_tuple>;
 
 	inline iterator begin()
 	{
 		return thrust::make_zip_iterator(thrust::make_tuple(
-			r.begin(), v.begin(), a.begin(), deathflags.begin(), deathtime_index.begin(), id.begin()));
-	}
-
-	inline mvs_iterator mvs_begin()
-	{
-		return thrust::make_zip_iterator(thrust::make_tuple(
-			r.begin(), v.begin(), a.begin(), deathflags.begin(), deathtime_index.begin()));
+			r.begin(), v.begin(), deathflags.begin(), deathtime_index.begin(), id.begin()));
 	}
 };
 

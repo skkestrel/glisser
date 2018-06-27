@@ -85,11 +85,12 @@ struct MVSKernel
 	__host__ __device__
 	void operator()(Tuple args) const
 	{
-		f64_3 r = thrust::get<0>(args);
-		f64_3 v = thrust::get<1>(args);
-		f64_3 a = thrust::get<2>(args);
+		f64_3 r = thrust::get<0>(thrust::get<0>(args));
+		f64_3 v = thrust::get<1>(thrust::get<0>(args));
+		uint16_t flags = thrust::get<2>(thrust::get<0>(args));
+
 		uint32_t deathtime_index = 0;
-		uint16_t flags = thrust::get<3>(args);
+		f64_3 a = thrust::get<1>(args);
 
 		size_t tbsize = this->tbsize;
 		const f64_3* h0_log = this->planet_h0_log;
@@ -115,7 +116,7 @@ struct MVSKernel
 
 					float64_t rad = dr.lensq();
 
-					if (rad < 0.5 * 0.5)
+					if (rad < 0.5 * 0.5 && flags == 0)
 					{
 						flags = static_cast<uint16_t>(flags | (i << 8) | 0x0001);
 					}
@@ -143,18 +144,26 @@ struct MVSKernel
 			}
 		}
 
-		thrust::get<0>(args) = r;
-		thrust::get<1>(args) = v;
-		thrust::get<2>(args) = a;
-		thrust::get<3>(args) = flags;
-		thrust::get<4>(args) = deathtime_index;
+		thrust::get<0>(thrust::get<0>(args)) = r;
+		thrust::get<1>(thrust::get<0>(args)) = v;
+		thrust::get<2>(thrust::get<0>(args)) = flags;
+		thrust::get<3>(thrust::get<0>(args)) = deathtime_index;
+
+		thrust::get<1>(args) = a;
 	}
 };
+
+WHCudaIntegrator::WHCudaIntegrator() { }
 
 WHCudaIntegrator::WHCudaIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
 	: base(pl, pa)
 {
 	device_particle_a = Dvf64_3(pa.n);
+}
+
+void WHCudaIntegrator::gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length)
+{
+	base.gather_particles(indices, begin, length);
 }
 
 void WHCudaIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t dt)
@@ -172,7 +181,7 @@ void WHCudaIntegrator::integrate_encounter_particle(const HostPlanetPhaseSpace& 
 	base.integrate_encounter_particle(pl, pa, particle_index, n_timesteps, dt);
 }
 
-void WHCudaIntegrator::upload_data(cudaStream_t& stream)
+void WHCudaIntegrator::upload_data_cuda(cudaStream_t& stream)
 {
 	memcpy_htd(device_particle_a, base.particle_a, stream);
 	cudaStreamSynchronize(stream);
@@ -182,6 +191,7 @@ void WHCudaIntegrator::step_particles_cuda(cudaStream_t& stream, const DevicePla
 {
 	if (pa.n_alive > 0)
 	{
-		thrust::for_each(thrust::cuda::par.on(stream), pa.mvs_begin(), pa.mvs_begin() + pa.n_alive, MVSKernel(pl, tbsize, dt));
+		auto it = thrust::make_zip_iterator(thrust::make_tuple(pa.begin(), device_begin()));
+		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, tbsize, dt));
 	}
 }

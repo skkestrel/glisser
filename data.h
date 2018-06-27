@@ -1,6 +1,7 @@
 #pragma once
 #include "types.h"
 #include <string>
+#include <memory>
 #include <utility>
 #include <cstdlib>
 #include <istream>
@@ -14,11 +15,14 @@ struct HostParticlePhaseSpace
 	Vf64_3 r, v;
 
 	Vu16 deathflags;
-	Vf32 deathtime; Vu32 id; 
-	inline HostParticlePhaseSpace() { }
-	inline HostParticlePhaseSpace(size_t siz) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), deathflags(siz), deathtime(siz), id(siz) { }
+	Vf32 deathtime;
+	Vu32 deathtime_index;
+	Vu32 id; 
 
-	void stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
+	inline HostParticlePhaseSpace() { }
+	inline HostParticlePhaseSpace(size_t siz) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), deathflags(siz), deathtime(siz), deathtime_index(siz), id(siz) { }
+
+	std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
 };
 
 struct HostPlanetPhaseSpace
@@ -223,6 +227,16 @@ inline void read_binary(std::istream& i, T& t)
 {
 	i.read(reinterpret_cast<char*>(&t), sizeof(T));
 	t = to_little_endian(t);
+}
+
+template<typename T>
+void gather(std::vector<T>& values, const std::vector<size_t>& indices, size_t begin, size_t length)
+{
+	std::vector<T> copy(values.begin() + begin, values.begin() + begin + length);
+	for (size_t i = begin; i < begin + length; i++)
+	{
+		values[i] = copy[indices[i - begin]];
+	}
 }
 
 bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::istream& in);

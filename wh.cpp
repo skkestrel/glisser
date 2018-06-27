@@ -97,7 +97,7 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
 	mu = Vf64(max);
 	mask = Vu8(max);
 	eta = Vf64(pl.n);
-	rj = vj = Vf64_3(pl.n);
+	planet_rj = planet_vj = Vf64_3(pl.n);
 	planet_a = Vf64_3(pl.n);
 	particle_a = Vf64_3(pa.n);
 
@@ -108,8 +108,8 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
 		eta[i] = eta[i - 1] + pl.m[i];
 	}
 
-	helio_to_jacobi_r_planets(pl, eta, rj);
-	helio_to_jacobi_v_planets(pl, eta, vj);
+	helio_to_jacobi_r_planets(pl, eta, planet_rj);
+	helio_to_jacobi_v_planets(pl, eta, planet_vj);
 
 	helio_acc_planets(pl, 0);
 	helio_acc_particles(pl, pa, 0, pa.n_alive, 0, 0);
@@ -122,15 +122,15 @@ void WHIntegrator::helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostPar
 	for (size_t j = 1; j < pl.n_alive; j++)
 	{
 		f64_3 dr = pa.r[particle_index] - pl.r[j];
-		float64_t rji2 = dr.lensq();
-		float64_t irij3 = 1. / (rji2 * std::sqrt(rji2));
+		float64_t planet_rji2 = dr.lensq();
+		float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 		float64_t fac = pl.m[j] * irij3;
 
 		particle_a[particle_index] -= dr * fac;
 	}
 
-	float64_t rji2 = pa.r[particle_index].lensq();
-	if (rji2 > 200 * 200)
+	float64_t planet_rji2 = pa.r[particle_index].lensq();
+	if (planet_rji2 > 200 * 200)
 	{
 		pa.deathtime[particle_index] = static_cast<float>(time);
 		pa.deathflags[particle_index] = pa.deathflags[particle_index] | 0x0002;
@@ -155,15 +155,15 @@ void WHIntegrator::nonhelio_acc_particle_ce(const HostPlanetPhaseSpace& pl, Host
 		if (j == central_planet_index) continue;
 
 		f64_3 dr = pa.r[particle_index] - pl.r[j];
-		float64_t rji2 = dr.lensq();
-		float64_t irij3 = 1. / (rji2 * std::sqrt(rji2));
+		float64_t planet_rji2 = dr.lensq();
+		float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 		float64_t fac = pl.m[j] * irij3;
 
 		particle_a[particle_index] -= dr * fac;
 	}
 
-	float64_t rji2 = pa.r[particle_index].lensq();
-	if (rji2 > 200 * 200)
+	float64_t planet_rji2 = pa.r[particle_index].lensq();
+	if (planet_rji2 > 200 * 200)
 	{
 		pa.deathtime[particle_index] = static_cast<float>(time);
 		pa.deathflags[particle_index] = pa.deathflags[particle_index] | 0x0002;
@@ -179,26 +179,26 @@ void WHIntegrator::helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParti
 		for (size_t j = 1; j < pl.n_alive; j++)
 		{
 			f64_3 dr = pa.r[i] - pl.r[j];
-			float64_t rji2 = dr.lensq();
-			float64_t irij3 = 1. / (rji2 * std::sqrt(rji2));
+			float64_t planet_rji2 = dr.lensq();
+			float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 			float64_t fac = pl.m[j] * irij3;
 
 			particle_a[i] -= dr * fac;
 
-			if (rji2 < 0.5 * 0.5)
+			if (planet_rji2 < 0.5 * 0.5)
 			{
 				pa.deathtime[i] = static_cast<float>(time);
 				pa.deathflags[i] = static_cast<uint16_t>(pa.deathflags[i] | (j << 8) | 0x0001);
 			}
 		}
 
-		float64_t rji2 = pa.r[i].lensq();
-		if (rji2 < 0.5 * 0.5)
+		float64_t planet_rji2 = pa.r[i].lensq();
+		if (planet_rji2 < 0.5 * 0.5)
 		{
 			pa.deathtime[i] = static_cast<float>(time);
 			pa.deathflags[i] = pa.deathflags[i] | 0x0001;
 		}
-		if (rji2 > 200 * 200)
+		if (planet_rji2 > 200 * 200)
 		{
 			pa.deathtime[i] = static_cast<float>(time);
 			pa.deathflags[i] = pa.deathflags[i] | 0x0002;
@@ -212,7 +212,7 @@ void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	{
 		float64_t r2 = p.r[i].lensq();
 		inverse_helio_cubed[i] = 1. / (std::sqrt(r2) * r2);
-		r2 = this->rj[i].lensq();
+		r2 = this->planet_rj[i].lensq();
 		inverse_jacobi_cubed[i] = 1. / (std::sqrt(r2) * r2);
         }
 	
@@ -235,7 +235,7 @@ void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	// Now do indirect acceleration ; note that planet 1 does not receive a contribution 
 	for (size_t i = 2; i < p.n_alive; i++)    
 	{
-		planet_a[i] += (this->rj[i] * this->inverse_jacobi_cubed[i] - p.r[i] * this->inverse_helio_cubed[i]) * p.m[0];
+		planet_a[i] += (this->planet_rj[i] * this->inverse_jacobi_cubed[i] - p.r[i] * this->inverse_helio_cubed[i]) * p.m[0];
         }
 	
 	/* next term ; again, first planet does not participate */
@@ -243,7 +243,7 @@ void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	for (size_t i = 2; i < p.n_alive; i++)    
 	{
 		float64_t mfac = p.m[i] * p.m[0] * this->inverse_jacobi_cubed[i] / eta[i-1];
-		a_accum += this->rj[i] * mfac;
+		a_accum += this->planet_rj[i] * mfac;
 		planet_a[i] += a_accum;
         }
 
@@ -434,6 +434,11 @@ void WHIntegrator::integrate_encounter_particle(const HostPlanetPhaseSpace& pl, 
 	}
 }
 
+void WHIntegrator::gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length)
+{
+	gather(particle_a, indices, begin, length);
+}
+
 void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t dt)
 {
 	(void) t;
@@ -444,7 +449,7 @@ void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t in
 	}
 
 	// Convert the heliocentric velocities to Jacobi velocities 
-	helio_to_jacobi_v_planets(pl, eta, vj);
+	helio_to_jacobi_v_planets(pl, eta, planet_vj);
 
 	for (size_t i = 1; i < pl.n_alive; i++)
 	{
@@ -454,10 +459,10 @@ void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t in
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(dt, this->mask, this->mu, this->rj, this->vj, 1, pl.n_alive - 1);
+	drift(dt, this->mask, this->mu, this->planet_rj, this->planet_vj, 1, pl.n_alive - 1);
 
 	// convert Jacobi vectors to helio. ones for acceleration calc 
-	jacobi_to_helio_planets(eta, rj, vj, pl);
+	jacobi_to_helio_planets(eta, planet_rj, planet_vj, pl);
 
 	// find the accelerations of the heliocentric velocities
 	helio_acc_planets(pl, index);

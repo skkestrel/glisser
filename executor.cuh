@@ -1,6 +1,7 @@
 #include "data.cuh"
 #include "data.h"
 #include "integrator.cuh"
+#include "wh.cuh"
 #include <ctime>
 #include <chrono>
 #include <functional>
@@ -20,7 +21,7 @@ struct Executor
 {
 	HostData& hd;
 	DeviceData& dd;
-	std::unique_ptr<CudaIntegrator> integrator;
+	WHCudaIntegrator integrator;
 
 	ExecutorData ed;
 

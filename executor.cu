@@ -24,7 +24,7 @@ struct DeviceParticleUnflaggedPredicate
 	__host__ __device__
 	bool operator()(const Tuple& args)
 	{
-		uint16_t flag = thrust::get<3>(args);
+		uint16_t flag = thrust::get<2>(thrust::get<0>(args));
 		return flag == 0;
 	}
 };
@@ -36,7 +36,7 @@ void Executor::init()
 {
 	to_helio(hd);
 
-	integrator = std::make_unique<WHCudaIntegrator>(hd.planets, hd.particles);
+	integrator = WHCudaIntegrator(hd.planets, hd.particles);
 	calculate_planet_metrics(hd.planets, &e_0, nullptr);
 
 	output << std::setprecision(7);
@@ -76,7 +76,7 @@ void Executor::step_and_upload_planets()
 
 		for (size_t i = 0; i < tbsize * ce_n1 * ce_n2; i++)
 		{
-			integrator->step_planets(hd.planets, t, i, dt / static_cast<double>(ce_n1 * ce_n2));
+			integrator.step_planets(hd.planets, t, i, dt / static_cast<double>(ce_n1 * ce_n2));
 			// take the planet positions at the end of every timestep
 
 			if ((i + 1) % (ce_n1 * ce_n2) == 0)
@@ -97,7 +97,7 @@ void Executor::step_and_upload_planets()
 	{
 		for (size_t i = 0; i < tbsize; i++)
 		{
-			integrator->step_planets(hd.planets, t, i, dt);
+			integrator.step_planets(hd.planets, t, i, dt);
 		}
 	}
 
@@ -126,7 +126,7 @@ void Executor::upload_data()
 
 	particles.n_alive = hd.particles.n_alive;
 
-	integrator->upload_data(htd_stream);
+	integrator.upload_data_cuda(htd_stream);
 
 	memcpy_htd(particles.r, hd.particles.r, htd_stream);
 	cudaStreamSynchronize(htd_stream);
@@ -207,7 +207,7 @@ double Executor::time() const
 
 void Executor::loop()
 {
-	integrator->step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
+	integrator.step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
 
 	// The queued work should begin RIGHT after the CUDA call
 	for (auto& i : work)
@@ -233,11 +233,11 @@ void Executor::loop()
 	step_and_upload_planets();
 	cudaStreamSynchronize(htd_stream);
 
-	for (size_t i = hd.particles.n_alive; i < hd.particles.n_alive + hd.particles.n_encounter; i++)
+	for (size_t i = hd.particles.n_alive - hd.particles.n_encounter; i < hd.particles.n_alive; i++)
 	{
-		// step_particle(..)
+		// ff
 	}
-	// hd.n_alive = hd.particles.stable_partition_alive(...)
+	// auto gather_indices = hd.particles.stable_partition_alive(...)
 	// memcy_htd(particles.n_alive, hd.n_encounter)
 	// dd.n_alive = hd.n_alive
 
@@ -257,8 +257,9 @@ void Executor::resync()
 	auto& particles = dd.particle_phase_space();
 	size_t prev_alive = particles.n_alive;
 
-	particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(par_stream), particles.begin(), particles.begin() + particles.n_alive, DeviceParticleUnflaggedPredicate())
-		- particles.begin();
+	auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), integrator.device_begin()));
+	particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(par_stream),
+			partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
 	cudaStreamSynchronize(par_stream);
 
 	size_t diff = prev_alive - particles.n_alive;
@@ -299,7 +300,9 @@ void Executor::resync()
 		}
 	}
 
-	hd.particles.stable_partition_alive();
+	auto gather_indices = hd.particles.stable_partition_alive(0, prev_alive);
+	integrator.gather_particles(*gather_indices, 0, prev_alive);
+
 	hd.particles.n_encounter = hd.particles.n_alive - particles.n_alive;
 
 	if (encounter_output)

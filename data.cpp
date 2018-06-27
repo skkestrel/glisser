@@ -1,4 +1,5 @@
 #include "data.h"
+#include "util.h"
 
 #include <iostream>
 #include <fstream>
@@ -8,33 +9,25 @@
 #include <algorithm>
 #include <numeric>
 
-template<typename T>
-void gather(std::vector<T>& values, const std::vector<size_t>& indices, size_t begin, size_t length)
-{
-	std::vector<T> copy(values.begin() + begin, values.begin() + begin + length);
-	for (size_t i = begin; i < begin + length; i++)
-	{
-		values[i] = copy[indices[i - begin]];
-	}
-}
-
-void HostParticlePhaseSpace::stable_partition_alive(size_t begin, size_t length)
+std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_alive(size_t begin, size_t length)
 {
 	if (length == static_cast<size_t>(-1))
 	{
 		length = n - begin;
 	}
+	
+	auto indices = std::make_unique<std::vector<size_t>>(length);
+	std::iota(indices->begin(), indices->end(), 0);
+	n_alive = std::stable_partition(indices->begin(), indices->end(), [begin, this](size_t index)
+			{ return deathflags[index + begin] == 0; }) - indices->begin() + begin;
 
-	std::vector<size_t> indices(length);
-	std::iota(indices.begin(), indices.end(), 0);
-	n_alive = std::stable_partition(indices.begin(), indices.end(), [begin, this](size_t index)
-			{ return deathflags[index + begin] == 0; }) - indices.begin() + begin;
+	gather(r, *indices, begin, length);
+	gather(v, *indices, begin, length);
+	gather(deathtime, *indices, begin, length);
+	gather(deathflags, *indices, begin, length);
+	gather(id, *indices, begin, length);
 
-	gather(r, indices, begin, length);
-	gather(v, indices, begin, length);
-	gather(deathtime, indices, begin, length);
-	gather(deathflags, indices, begin, length);
-	gather(id, indices, begin, length);
+	return indices;
 }
 
 Configuration::Configuration()
