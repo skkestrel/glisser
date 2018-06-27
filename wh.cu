@@ -1,7 +1,7 @@
 #include "types.cuh"
 #include "wh.cuh"
-#include "wh.h"
 #include "convert.h"
+#include "util.cuh"
 
 const size_t MAXKEP = 5;
 const float64_t TOLKEP = 1E-14;
@@ -151,7 +151,34 @@ struct MVSKernel
 	}
 };
 
-void step_particles_cuda(cudaStream_t& stream, const DevicePlanetPhaseSpace& pl, DeviceParticlePhaseSpace& pa, size_t tbsize, float64_t dt)
+WHCudaIntegrator::WHCudaIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa)
+	: base(pl, pa)
+{
+	device_particle_a = Dvf64_3(pa.n);
+}
+
+void WHCudaIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t index, float64_t dt)
+{
+	base.step_planets(pl, t, index, dt);
+}
+
+void WHCudaIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index, float64_t dt)
+{
+	base.step_particles(pl, pa, begin, length, t, timestep_index, dt);
+}
+
+void WHCudaIntegrator::integrate_encounter_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t n_timesteps, float64_t dt)
+{
+	base.integrate_encounter_particle(pl, pa, particle_index, n_timesteps, dt);
+}
+
+void WHCudaIntegrator::upload_data(cudaStream_t& stream)
+{
+	memcpy_htd(device_particle_a, base.particle_a, stream);
+	cudaStreamSynchronize(stream);
+}
+
+void WHCudaIntegrator::step_particles_cuda(cudaStream_t& stream, const DevicePlanetPhaseSpace& pl, DeviceParticlePhaseSpace& pa, size_t tbsize, float64_t dt)
 {
 	if (pa.n_alive > 0)
 	{

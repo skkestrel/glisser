@@ -3,11 +3,12 @@
 #include <unordered_map>
 #include <algorithm>
 
+#include "util.cuh"
+#include "util.h"
 #include "types.h"
 #include "executor.cuh"
 #include "wh.cuh"
 #include "convert.h"
-#include "wh.h"
 
 ExecutorData::ExecutorData() { }
 ExecutorData::ExecutorData(size_t n)
@@ -15,36 +16,6 @@ ExecutorData::ExecutorData(size_t n)
 	r = v = std::vector<f64_3>(n);
 	id = deathtime_index = std::vector<uint32_t>(n);
 	deathflags = std::vector<uint16_t>(n);
-}
-
-template<typename T>
-cudaError_t memcpy_dth(std::vector<T>& dest, const thrust::device_vector<T>& src, cudaStream_t& stream, size_t destbegin = 0, size_t srcbegin = 0, size_t len = static_cast<uint32_t>(-1))
-{
-	if (len == static_cast<uint32_t>(-1))
-	{
-		len = src.size();
-	}
-	if (dest.size() < destbegin + len)
-	{
-		throw std::exception();
-	}
-
-	return cudaMemcpyAsync(dest.data() + destbegin, src.data().get() + srcbegin, len * sizeof(T), cudaMemcpyDeviceToHost, stream);
-}
-
-template<typename T>
-cudaError_t memcpy_htd(thrust::device_vector<T>& dest, const std::vector<T>& src, cudaStream_t& stream, size_t destbegin = 0, size_t srcbegin = 0, size_t len = static_cast<uint32_t>(-1))
-{
-	if (len == static_cast<uint32_t>(-1))
-	{
-		len = src.size();
-	}
-	if (dest.size() < destbegin + len)
-	{
-		throw std::exception();
-	}
-
-	return cudaMemcpyAsync(dest.data().get() + destbegin, src.data() + srcbegin, len * sizeof(T), cudaMemcpyHostToDevice, stream);
 }
 
 struct DeviceParticleUnflaggedPredicate
@@ -58,14 +29,15 @@ struct DeviceParticleUnflaggedPredicate
 	}
 };
 
-Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), tbsize(128), ce_factor(1),
+Executor::Executor(HostData& hd, DeviceData& dd, std::ostream& out) : hd(hd), dd(dd), tbsize(128), ce_n1(10), ce_n2(4),
 	output(out), resolve_encounters(false) { }
 
 void Executor::init()
 {
 	to_helio(hd);
-	initialize(hd.planets, hd.particles, wh_alloc);
-	calculate_planet_metrics(hd.planets, wh_alloc, &e_0, nullptr);
+
+	integrator = std::make_unique<WHCudaIntegrator>(hd.planets, hd.particles);
+	calculate_planet_metrics(hd.planets, &e_0, nullptr);
 
 	output << std::setprecision(7);
 	output << "e_0 (planets) = " << e_0 << std::endl;
@@ -95,25 +67,21 @@ void Executor::init()
 	}
 
 	step_and_upload_planets();
-	if (!resolve_encounters)
-	{
-		ce_factor = 1;
-	}
 }
 
 void Executor::step_and_upload_planets()
 {
-	if (resolve_encounters)
+	if (resolve_encounters > 1)
 	{
 
-		for (size_t i = 0; i < tbsize * ce_factor; i++)
+		for (size_t i = 0; i < tbsize * ce_n1 * ce_n2; i++)
 		{
-			step_planets(hd.planets, wh_alloc, t, i, dt / static_cast<double>(ce_factor));
+			integrator->step_planets(hd.planets, t, i, dt / static_cast<double>(ce_n1 * ce_n2));
 			// take the planet positions at the end of every timestep
 
-			if (i % ce_factor == ce_factor - 1)
+			if ((i + 1) % (ce_n1 * ce_n2) == 0)
 			{
-				size_t slow_index = i / ce_factor;
+				size_t slow_index = i / (ce_n1 * ce_n2);
 
 				auto fast_begin = hd.planets.r_log.begin() + i * (hd.planets.n - 1);
 				std::copy(fast_begin, fast_begin + (hd.planets.n - 1), hd.planets.r_log_slow.begin() + slow_index * (hd.planets.n - 1));
@@ -121,7 +89,7 @@ void Executor::step_and_upload_planets()
 				fast_begin = hd.planets.v_log.begin() + i * (hd.planets.n - 1);
 				std::copy(fast_begin, fast_begin + (hd.planets.n - 1), hd.planets.v_log_slow.begin() + slow_index * (hd.planets.n - 1));
 
-				hd.planets.h0_log_slow[i / ce_factor] = hd.planets.h0_log[i];
+				hd.planets.h0_log_slow[i / (ce_n1 * ce_n2)] = hd.planets.h0_log[i];
 			}
 		}
 	}
@@ -129,12 +97,8 @@ void Executor::step_and_upload_planets()
 	{
 		for (size_t i = 0; i < tbsize; i++)
 		{
-			step_planets(hd.planets, wh_alloc, t, i, dt);
+			integrator->step_planets(hd.planets, t, i, dt);
 		}
-
-		std::copy(hd.planets.h0_log.begin(), hd.planets.h0_log.end(), hd.planets.h0_log_slow.begin());
-		std::copy(hd.planets.r_log.begin(), hd.planets.r_log.end(), hd.planets.r_log_slow.begin());
-		std::copy(hd.planets.v_log.begin(), hd.planets.v_log.end(), hd.planets.v_log_slow.begin());
 	}
 
 	// We only upload the planet log if any particles are going to use the planet log on the GPU
@@ -151,24 +115,22 @@ void Executor::step_and_upload_planets()
 
 void Executor::upload_data()
 {
-	dd.particles0 = DeviceParticlePhaseSpace(hd.particles.n);
-	dd.particles1 = DeviceParticlePhaseSpace(hd.particles.n);
+	dd.particles = DeviceParticlePhaseSpace(hd.particles.n);
 
 	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, tbsize);
 	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, tbsize);
 
 	dd.planet_data_id = 0;
-	dd.particle_data_id = 0;
 
 	auto& particles = dd.particle_phase_space();
 
 	particles.n_alive = hd.particles.n_alive;
 
+	integrator->upload_data(htd_stream);
+
 	memcpy_htd(particles.r, hd.particles.r, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 	memcpy_htd(particles.v, hd.particles.v, htd_stream);
-	cudaStreamSynchronize(htd_stream);
-	memcpy_htd(particles.a, hd.particles.a, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 	memcpy_htd(particles.deathflags, hd.particles.deathflags, htd_stream);
 	cudaStreamSynchronize(htd_stream);
@@ -198,8 +160,6 @@ void Executor::download_data()
 	cudaStreamSynchronize(dth_stream);
 	memcpy_dth(hd.particles.v, particles.v, dth_stream);
 	cudaStreamSynchronize(dth_stream);
-	memcpy_dth(hd.particles.a, particles.a, dth_stream);
-	cudaStreamSynchronize(dth_stream);
 	memcpy_dth(hd.particles.id, particles.id, dth_stream);
 	cudaStreamSynchronize(dth_stream);
 	memcpy_dth(hd.particles.deathflags, particles.deathflags, dth_stream);
@@ -221,10 +181,20 @@ void Executor::upload_planet_log()
 	dd.planet_data_id++;
 	auto& planets = dd.planet_phase_space();
 
-	memcpy_htd(planets.h0_log, hd.planets.h0_log_slow, htd_stream);
-	cudaStreamSynchronize(htd_stream);
-	memcpy_htd(planets.r_log, hd.planets.r_log_slow, htd_stream);
-	cudaStreamSynchronize(htd_stream);
+	if (resolve_encounters)
+	{
+		memcpy_htd(planets.h0_log, hd.planets.h0_log_slow, htd_stream);
+		cudaStreamSynchronize(htd_stream);
+		memcpy_htd(planets.r_log, hd.planets.r_log_slow, htd_stream);
+		cudaStreamSynchronize(htd_stream);
+	}
+	else
+	{
+		memcpy_htd(planets.h0_log, hd.planets.h0_log, htd_stream);
+		cudaStreamSynchronize(htd_stream);
+		memcpy_htd(planets.r_log, hd.planets.r_log, htd_stream);
+		cudaStreamSynchronize(htd_stream);
+	}
 }
 
 
@@ -237,7 +207,7 @@ double Executor::time() const
 
 void Executor::loop()
 {
-	step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
+	integrator->step_particles_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space(), tbsize, dt);
 
 	// The queued work should begin RIGHT after the CUDA call
 	for (auto& i : work)

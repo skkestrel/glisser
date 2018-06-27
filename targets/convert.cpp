@@ -51,7 +51,6 @@ int main(int argv, char** argc)
 			config.readmomenta = momentum;
 
 			load_data(hd, config);
-			hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 
 			if (hd.planets.r[0].lensq() == 0 && hd.planets.r[0].lensq() == 0) ishelio = true;
 			else
@@ -72,7 +71,6 @@ int main(int argv, char** argc)
 			config.readsplit = true;
 
 			load_data(hd, config);
-			hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 
 			if (hd.planets.r[0].lensq() == 0 && hd.planets.r[0].lensq() == 0) ishelio = true;
 			else
@@ -89,6 +87,7 @@ int main(int argv, char** argc)
 			config.writebinary = binary;
 			config.writemomenta = momentum;
 
+			hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 			save_data(hd, config, config.hybridout);
 
 			i++;
@@ -110,20 +109,20 @@ int main(int argv, char** argc)
 			int esign;
 
 			double totalmass = 0;
-			for (size_t j = 0; j < hd.planets_snapshot.n; j++)
+			for (size_t j = 0; j < hd.planets.n; j++)
 			{
-				totalmass += hd.planets_snapshot.m[j];
+				totalmass += hd.planets.m[j];
 			}
 
-			for (size_t j = 1; j < hd.planets_snapshot.n; j++)
+			for (size_t j = 1; j < hd.planets.n; j++)
 			{
 				if (ishelio)
 				{
-					to_elements(hd.planets_snapshot.m[j] + hd.planets_snapshot.m[0], hd.planets_snapshot.r[j], hd.planets_snapshot.v[j], &esign, &a, &e, &i, &capom, &om, &f);
+					to_elements(hd.planets.m[j] + hd.planets.m[0], hd.planets.r[j], hd.planets.v[j], &esign, &a, &e, &i, &capom, &om, &f);
 				}
 				else
 				{
-					to_elements(totalmass, hd.planets_snapshot.r[j], hd.planets_snapshot.v[j], &esign, &a, &e, &i, &capom, &om, &f);
+					to_elements(totalmass, hd.planets.r[j], hd.planets.v[j], &esign, &a, &e, &i, &capom, &om, &f);
 				}
 
 				if (esign == 0)
@@ -131,19 +130,19 @@ int main(int argv, char** argc)
 					std::cout << "Parabolic orbit detected!" << std::endl;
 				}
 
-				hd.planets_snapshot.r[j].x = a;
-				hd.planets_snapshot.r[j].y = e;
-				hd.planets_snapshot.r[j].z = i;
-				hd.planets_snapshot.v[j].x = capom;
-				hd.planets_snapshot.v[j].y = om;
-				hd.planets_snapshot.v[j].z = f;
+				hd.planets.r[j].x = a;
+				hd.planets.r[j].y = e;
+				hd.planets.r[j].z = i;
+				hd.planets.v[j].x = capom;
+				hd.planets.v[j].y = om;
+				hd.planets.v[j].z = f;
 			}
 
 			for (size_t j = 0; j < hd.particles.n; j++)
 			{
 				if (ishelio)
 				{
-					to_elements(hd.planets_snapshot.m[0], hd.particles.r[j], hd.particles.v[j], &esign, &a, &e, &i, &capom, &om, &f);
+					to_elements(hd.planets.m[0], hd.particles.r[j], hd.particles.v[j], &esign, &a, &e, &i, &capom, &om, &f);
 				}
 				else
 				{

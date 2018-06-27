@@ -12,12 +12,11 @@ struct HostParticlePhaseSpace
 	size_t n, n_alive, n_encounter;
 
 	Vf64_3 r, v;
-	Vf64_3 a;
 
 	Vu16 deathflags;
 	Vf32 deathtime; Vu32 id; 
 	inline HostParticlePhaseSpace() { }
-	inline HostParticlePhaseSpace(size_t siz) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), a(siz), deathflags(siz), deathtime(siz), id(siz) { }
+	inline HostParticlePhaseSpace(size_t siz) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), deathflags(siz), deathtime(siz), id(siz) { }
 
 	void stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
 };
@@ -25,9 +24,8 @@ struct HostParticlePhaseSpace
 struct HostPlanetPhaseSpace
 {
 	size_t n, n_alive;
-	Vf64 m, eta;
-	Vf64_3 r, v, rj, vj;
-	Vf64_3 a;
+	Vf64 m;
+	Vf64_3 r, v;
 
 	Vf64_3 r_log, v_log;
 	Vf64_3 r_log_old, v_log_old;
@@ -36,14 +34,11 @@ struct HostPlanetPhaseSpace
 	Vf64_3 h0_log, h0_log_old;
 	Vf64_3 h0_log_slow, h0_log_slow_old;
 
-	f64_3 bary_r, bary_v;
-
 	Vu32 id;
 
 	inline HostPlanetPhaseSpace() { }
 	inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor):
-		n(siz), n_alive(siz), m(siz), eta(siz), r(siz), v(siz), rj(siz), vj(siz),
-		a(siz), id(siz)
+		n(siz), n_alive(siz), m(siz), r(siz), v(siz), id(siz)
 	{
 		r_log = v_log = r_log_old = v_log_old = Vf64_3((n - 1) * tb_size * ce_factor);
 		r_log_slow = v_log_slow = r_log_slow_old = v_log_slow_old = Vf64_3((n - 1) * tb_size);
@@ -77,12 +72,17 @@ struct HostData
 
 struct Configuration
 {
-	double t_0, t_f, dt;
-	size_t tbsize, ce_factor, print_every, dump_every, track_every, energy_every, max_particle;
+	double t_0, t_f, dt, big_g;
+	size_t tbsize, ce_n1, ce_n2, print_every, dump_every, track_every, energy_every, max_particle;
 	bool resolve_encounters, readmomenta, writemomenta, trackbinary, readsplit, writesplit, dumpbinary, writebinary, readbinary;
 
 	std::string icsin, plin, hybridin, hybridout;
 	std::string outfolder;
+
+	inline size_t fast_timestep_factor() const
+	{
+		return resolve_encounters ? (ce_n1 * ce_n2) : 1;
+	}
 
 	Configuration();
 };

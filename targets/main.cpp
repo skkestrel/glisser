@@ -38,6 +38,16 @@ int main(int argv, char** argc)
 	signal(SIGTERM, term);
 	signal(SIGINT, term);
 
+	if (sizeof(double) != 8)
+	{
+		std::cerr << "sizeof double is not 8 - this code will likely not work!" << std::endl;
+	}
+
+	if (sizeof(float) != 4)
+	{
+		std::cerr << "sizeof float is not 4 - this code will likely not work!" << std::endl;
+	}
+
 	std::string configin = "config.in";
 	if (argv >= 2) configin = std::string(argc[1]);
 	
@@ -81,7 +91,8 @@ int main(int argv, char** argc)
 	*ex.t_f = config.t_f;
 	*ex.tbsize = config.tbsize;
 	*ex.resolve_encounters = config.resolve_encounters;
-	*ex.ce_factor = config.ce_factor;
+	*ex.ce_n1 = config.ce_n1;
+	*ex.ce_n2 = config.ce_n2;
 
 	if (load_data(hd, config)) return -1;
 
@@ -127,7 +138,7 @@ int main(int argv, char** argc)
 
 					double e_;
 					f64_3 l_;
-					calculate_planet_metrics(ex.hd.planets, *ex.wh_alloc, &e_, &l_);
+					calculate_planet_metrics(ex.hd.planets, &e_, &l_);
 					double elapsed = ex.time();
 					double total = elapsed * (*ex.t_f - *ex.t_0) / (*ex.t - *ex.t_0);
 

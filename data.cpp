@@ -43,13 +43,15 @@ Configuration::Configuration()
 	t_f = 365e4;
 	dt = 122;
 	tbsize = 1024;
-	ce_factor = 8;
+	ce_n1 = 10;
+	ce_n2 = 4;
 	print_every = 10;
 	energy_every = 1;
 	track_every = 0;
 	dump_every = 1000;
 	max_particle = static_cast<size_t>(-1);
 	resolve_encounters = false;
+	big_g = 1;
 	icsin = "";
 	plin = "";
 	hybridin = "";
@@ -96,8 +98,12 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->t_f = std::stod(second);
 			else if (first == "Time-Block-Size")
 				out->tbsize = std::stoul(second);
-			else if (first == "Encounter-Time-Factor")
-				out->ce_factor = std::stoull(second);
+			else if (first == "Big-G")
+				out->big_g = std::stod(second);
+			else if (first == "Encounter-N1")
+				out->ce_n1 = std::stoull(second);
+			else if (first == "Encounter-N2")
+				out->ce_n2 = std::stoull(second);
 			else if (first == "Limit-Particle-Count")
 				out->max_particle = std::stoull(second);
 			else if (first == "Log-Interval")
@@ -146,11 +152,6 @@ bool read_configuration(std::istream& in, Configuration* out)
 		}
 	}
 
-	if (!out->resolve_encounters && out->ce_factor != 1)
-	{
-		std::cerr << "Warning: Resolve-Encounters was not selected but Encounter-Time-Factor is not 1" << std::endl;
-		out->ce_factor = 1;
-	}
 	if (out->outfolder.empty())
 	{
 		std::cerr << "Warning: Output-Folder was not specified, defaulting to ./" << std::endl;
@@ -199,7 +200,8 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "Time-Step " << out.dt << std::endl;
 	outstream << "Final-Time " << out.t_f << std::endl;
 	outstream << "Time-Block-Size " << out.tbsize << std::endl;
-	outstream << "Encounter-Time-Factor " << out.ce_factor << std::endl;
+	outstream << "Encounter-N1 " << out.ce_n1 << std::endl;
+	outstream << "Encounter-N2 " << out.ce_n2 << std::endl;
 	outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 	outstream << "Log-Interval " << out.print_every << std::endl;
 	outstream << "Status-Interval " << out.energy_every << std::endl;
@@ -231,20 +233,13 @@ bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream&
 	size_t npl;
 	plin >> npl;
 
-	hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.ce_factor);
+	hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
 
 	for (size_t i = 0; i < npl; i++)
 	{
 		plin >> hd.planets.m[i];
 		plin >> hd.planets.r[i].x >> hd.planets.r[i].y >> hd.planets.r[i].z;
 		plin >> hd.planets.v[i].x >> hd.planets.v[i].y >> hd.planets.v[i].z;
-
-		if (config.readmomenta)
-		{
-			hd.planets.v[i].x /= hd.planets.m[i];
-			hd.planets.v[i].y /= hd.planets.m[i];
-			hd.planets.v[i].z /= hd.planets.m[i];
-		}
 
 		hd.planets.id[i] = static_cast<uint32_t>(i);
 	}
@@ -287,8 +282,8 @@ bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& i
 	std::istringstream ss(s);
 	size_t npl;
 	ss >> npl;
-
-	hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.ce_factor);
+	
+	hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
 
 	for (size_t i = 0; i < npl; i++)
 	{
@@ -308,11 +303,6 @@ bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& i
 		ss = std::istringstream(s);
 		
 		ss >> hd.planets.id[i];
-
-		if (config.readmomenta)
-		{
-			hd.planets.v[i] /= hd.planets.m[i];
-		}
 
 		hd.planets.id[i] = static_cast<uint32_t>(i);
 	}
@@ -349,7 +339,7 @@ bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& i
 bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::istream& in)
 {
 	read_binary(in, hd.planets.n);
-	hd.planets = HostPlanetPhaseSpace(hd.planets.n, config.tbsize, config.ce_factor);
+	hd.planets = HostPlanetPhaseSpace(hd.planets.n, config.tbsize, config.fast_timestep_factor());
 
 	for (size_t i = 0; i < hd.planets.n; i++)
 	{
@@ -361,11 +351,6 @@ bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::ist
 		read_binary(in, hd.planets.v[i].x);
 		read_binary(in, hd.planets.v[i].y);
 		read_binary(in, hd.planets.v[i].z);
-
-		if (config.readmomenta)
-		{
-			hd.planets.v[i] /= hd.planets.m[i];
-		}
 	}
 
 	read_binary(in, hd.particles.n);
@@ -412,7 +397,21 @@ bool load_data(HostData& hd, const Configuration& config)
 		}
 	}
 
-	if (!ret) hd.particles.stable_partition_alive();
+	if (!ret)
+	{
+		for (size_t i = 0; i < hd.planets.n; i++)
+		{
+			if (config.readmomenta)
+			{
+				hd.planets.v[i] /= hd.planets.m[i];
+			}
+
+			hd.planets.m[i] *= config.big_g;
+		}
+
+		hd.particles.stable_partition_alive();
+	}
+
 	return ret;
 }
 

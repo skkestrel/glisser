@@ -56,14 +56,14 @@ struct DevicePlanetPhaseSpace
 struct DeviceData
 {
 	// double buffer for HtD transfer of planet locations
-	DeviceParticlePhaseSpace particles0, particles1;
+	DeviceParticlePhaseSpace particles;
 	DevicePlanetPhaseSpace planets0, planets1;
 
 	size_t particle_data_id, planet_data_id;
 
 	DeviceData(const DeviceData&) = delete;
 	inline DeviceData() { }
-	inline DeviceParticlePhaseSpace& particle_phase_space() { return particle_data_id % 2 ? particles1 : particles0; }
+	inline DeviceParticlePhaseSpace& particle_phase_space() { return particles; }
 	inline DevicePlanetPhaseSpace& planet_phase_space() { return planet_data_id % 2 ? planets1 : planets0; }
 };
 

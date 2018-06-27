@@ -1,6 +1,6 @@
 #include "data.cuh"
 #include "data.h"
-#include "wh.h"
+#include "integrator.cuh"
 #include <ctime>
 #include <chrono>
 #include <functional>
@@ -20,7 +20,7 @@ struct Executor
 {
 	HostData& hd;
 	DeviceData& dd;
-	WHIntermediate wh_alloc;
+	std::unique_ptr<CudaIntegrator> integrator;
 
 	ExecutorData ed;
 
@@ -29,7 +29,7 @@ struct Executor
 	float64_t t_0, t, dt, t_f;
 	float64_t e_0;
 
-	size_t tbsize, ce_factor;
+	size_t tbsize, ce_n1, ce_n2;
 
 	bool resolve_encounters;
 

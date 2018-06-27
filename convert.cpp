@@ -1,26 +1,25 @@
 #include "convert.h"
 #include <cmath>
 
-void jacobi_to_helio_planets(HostPlanetPhaseSpace& pl)
+void jacobi_to_helio_planets(const Vf64& eta, const Vf64_3& rj, const Vf64_3& vj, HostPlanetPhaseSpace& pl)
 {
 	// sun at origin
 	pl.r[0] = f64_3(0);
 	pl.v[0] = f64_3(0);
 
-	pl.r[1] = pl.rj[1];
-	pl.v[1] = pl.vj[1];
+	pl.r[1] = rj[1];
+	pl.v[1] = vj[1];
 
 	f64_3 rsum(0), vsum(0);
 
 	for (size_t i = 2; i < pl.n; i++)
 	{
-		rsum += pl.rj[i-1] * (pl.m[i - 1] / pl.eta[i-1]);
-		vsum += pl.vj[i-1] * (pl.m[i - 1] / pl.eta[i-1]);
+		rsum += rj[i-1] * (pl.m[i - 1] / eta[i-1]);
+		vsum += vj[i-1] * (pl.m[i - 1] / eta[i-1]);
 
-		pl.r[i] = pl.rj[i] + rsum;
-		pl.v[i] = pl.vj[i] + vsum;
+		pl.r[i] = rj[i] + rsum;
+		pl.v[i] = vj[i] + vsum;
 	}
-
 }
 
 /*
@@ -41,13 +40,13 @@ void helio_to_jacobi_v_particles(const HostPlanetPhaseSpace& pl, HostParticlePha
 }
 */
 
-void helio_to_jacobi_v_planets(HostPlanetPhaseSpace& p)
+void helio_to_jacobi_v_planets(const HostPlanetPhaseSpace& p, const Vf64& eta, Vf64_3& vj)
 {
 	// COM
-	p.vj[0] = f64_3(0);
+	vj[0] = f64_3(0);
 
 	// same as heliocentric
-	p.vj[1] = p.v[1];
+	vj[1] = p.v[1];
 
 	// momentum sum
 	f64_3 psum(0);
@@ -58,29 +57,22 @@ void helio_to_jacobi_v_planets(HostPlanetPhaseSpace& p)
 		f64_3 vsum;
 
 		psum += p.v[i - 1] * p.m[i - 1];
-		vsum = psum / p.eta[i - 1];
+		vsum = psum / eta[i - 1];
 
-		p.vj[i] = p.v[i] - vsum;
+		vj[i] = p.v[i] - vsum;
 	}
 
 	psum += p.v[p.n - 1] * p.m[p.n - 1];
-	p.bary_v = psum / p.eta[p.n - 1];
+	// p.bary_v = psum / eta[p.n - 1];
 }
 
-void helio_to_jacobi_r_planets(HostPlanetPhaseSpace& p)
+void helio_to_jacobi_r_planets(const HostPlanetPhaseSpace& p, const Vf64& eta, Vf64_3& rj)
 {
-	p.eta[0] = p.m[0];
-
-	for (size_t i = 1; i < p.n; i++)
-	{
-		p.eta[i] = p.eta[i - 1] + p.m[i];
-	}
-
 	// pick origin at baricenter
-	p.rj[0] = f64_3(0);
+	rj[0] = f64_3(0);
 
 	// first jacobi coordinate is same as heliocentric
-	p.rj[1] = p.r[1];
+	rj[1] = p.r[1];
 
 	f64_3 sum(0);
 	f64_3 bary;
@@ -88,13 +80,13 @@ void helio_to_jacobi_r_planets(HostPlanetPhaseSpace& p)
 	for (size_t i = 2; i < p.n; i++)
 	{
 		sum += p.r[i - 1] * p.m[i - 1];
-		bary = sum / p.eta[i - 1];
+		bary = sum / eta[i - 1];
 
-		p.rj[i] = p.r[i] - bary;
+		rj[i] = p.r[i] - bary;
 	}
 
 	sum += p.r[p.n - 1] * p.m[p.n - 1];
-	p.bary_r = sum / p.eta[p.n - 1];
+	// p.bary_r = sum / p.eta[p.n - 1];
 }
 
 void find_barycenter(const Vf64_3& r, const Vf64_3& v, const Vf64& m, size_t n, f64_3& r_out, f64_3& v_out)

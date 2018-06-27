@@ -2,6 +2,17 @@
 #include <dirent.h>
 #include <unistd.h>
 
+#if __cplusplus < 201404L
+namespace std
+{
+	template<typename T, typename... Args>
+	inline std::unique_ptr<T> make_unique(Args&&... args)
+	{
+	    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+	}
+}
+#endif
+
 inline bool does_file_exist(const std::string& filename)
 {
 	return access(filename.c_str(), F_OK) != -1;
@@ -11,10 +22,9 @@ inline bool does_file_exist(const std::string& filename)
 inline bool is_dir_empty(const std::string& dirname)
 {
 	int n = 0;
-	struct dirent *d;
 	DIR *dir = opendir(dirname.c_str());
 	if (!dir) return 1;
-	while ((d = readdir(dir)))
+	while (readdir(dir))
 	{
 		if (++n > 2) break;
 	}
