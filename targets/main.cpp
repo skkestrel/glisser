@@ -120,10 +120,14 @@ int main(int argv, char** argc)
 	{
 		while (*ex.t < config.t_f)
 		{
-			ex.loop();
+			double cputimeout, gputimeout;
+		       	ex.loop(&cputimeout, &gputimeout);
+
+			double timediff = gputimeout - cputimeout;
+
 			counter++;
 
-			ex.add_job([&timelog, &tout, &ex, &config, counter]()
+			ex.add_job([&timelog, &tout, &ex, &config, counter, timediff]()
 				{
 					bool output_energy = config.energy_every != 0 && (counter % config.energy_every == 0);
 					bool log_out = config.print_every != 0 && (counter % config.print_every == 0);
@@ -146,10 +150,13 @@ int main(int argv, char** argc)
 
 					if (log_out)
 					{
+						tout << std::setprecision(4);
 						tout << "t=" << *ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
 							<< total << "m total " << total - elapsed << "m remain)" << std::endl;
 						tout << "Error = " << (e_ - *ex.e_0) / *ex.e_0 * 100 << ", " <<
 							ex.hd.particles.n_alive << " particles remaining, " << ex.hd.particles.n_encounter << " in encounter" << std::endl;
+
+						tout << "GPU took " << std::setprecision(4) << timediff << " ms longer than CPU" << std::endl;
 					}
 				});
 			
@@ -190,10 +197,9 @@ int main(int argv, char** argc)
 
 								for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
 								{
-									int esign;
-									double a, e, in, capom, om, f;
+									double a, e, in;
 									to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
-										&esign, &a, &e, &in, &capom, &om, &f);
+										nullptr, &a, &e, &in, nullptr, nullptr, nullptr);
 
 									write_binary(trackout, static_cast<uint32_t>(ex.hd.planets.id[i]));
 									write_binary(trackout, static_cast<float>(a));
@@ -204,10 +210,9 @@ int main(int argv, char** argc)
 								write_binary(trackout, ex.hd.particles.n_alive);
 								for (size_t i = 0; i < ex.hd.particles.n_alive; i++)
 								{
-									int esign;
-									double a, e, in, capom, om, f;
+									double a, e, in;
 									to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
-										&esign, &a, &e, &in, &capom, &om, &f);
+										nullptr, &a, &e, &in, nullptr, nullptr, nullptr);
 
 									write_binary(trackout, static_cast<uint32_t>(ex.hd.particles.id[i]));
 									write_binary(trackout, static_cast<float>(a));
@@ -222,20 +227,18 @@ int main(int argv, char** argc)
 								trackout << ex.hd.planets.n_alive - 1 << std::endl;
 								for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
 								{
-									int esign;
-									double a, e, in, capom, om, f;
+									double a, e, in;
 									to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
-										&esign, &a, &e, &in, &capom, &om, &f);
+										nullptr, &a, &e, &in, nullptr, nullptr, nullptr);
 									trackout << ex.hd.planets.id[i] << " " << a << " " << e << " " << in << std::endl;
 								}
 
 								trackout << ex.hd.particles.n_alive << std::endl;
 								for (size_t i = 0; i < ex.hd.particles.n_alive; i++)
 								{
-									int esign;
-									double a, e, in, capom, om, f;
+									double a, e, in;
 									to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
-										&esign, &a, &e, &in, &capom, &om, &f);
+										nullptr, &a, &e, &in, nullptr, nullptr, nullptr);
 									trackout << ex.hd.particles.id[i] << " " << a << " " << e << " " << in << std::endl;
 								}
 							}

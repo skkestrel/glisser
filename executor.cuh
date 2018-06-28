@@ -53,7 +53,7 @@ struct Executor
 	void download_data();
 
 	double time() const;
-	void loop();
+	void loop(double* cputime, double* gputime);
 	void add_job(const std::function<void()>& job);
 	void resync();
 	void finish();

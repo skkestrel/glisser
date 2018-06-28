@@ -26,7 +26,7 @@ struct ExecutorFacade
 	void init();
 	void download_data();
 	double time() const;
-	void loop();
+	void loop(double* cputimeout, double* gputimeout);
 	void add_job(const std::function<void()>& job);
 	void finish();
 };

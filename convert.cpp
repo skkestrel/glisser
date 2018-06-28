@@ -285,7 +285,7 @@ void to_elements(double mu, f64_3 r, f64_3 v, int* esignout, double* aout, doubl
 
 	if (esignout) *esignout = esign;
 	if (aout) *aout = a;
-	if (eout) *eout = a;
+	if (eout) *eout = e;
 	if (iout) *iout = i;
 	if (capomout) *capomout = capom;
 	if (omout) *omout = om;

@@ -32,9 +32,9 @@ double ExecutorFacade::time() const
 	return impl->time();
 }
 
-void ExecutorFacade::loop()
+void ExecutorFacade::loop(double* cputimeout, double* gputimeout)
 {
-	impl->loop();
+	impl->loop(cputimeout, gputimeout);
 }
 
 void ExecutorFacade::finish()

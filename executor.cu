@@ -169,7 +169,7 @@ double Executor::time() const
 	return millis.count() / 60000;
 }
 
-void Executor::loop()
+void Executor::loop(double* cputimeout, double* gputimeout)
 {
 	cudaEventRecord(start_event, main_stream);
 	integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space());
@@ -205,7 +205,8 @@ void Executor::loop()
 	float cputime, gputime;
 	cudaEventElapsedTime(&cputime, start_event, cpu_finish_event);
 	cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
-	output << "GPU took " << static_cast<int>((gputime - cputime) * 10) / 10. << " ms longer than CPU" << std::endl;
+	if (cputimeout) *cputimeout = cputime;
+	if (gputimeout) *gputimeout = gputime;
 
 	resync();
 }
