@@ -146,9 +146,12 @@ void to_helio(HostData& hd)
 	}
 }
 
-void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, double* i, double* capom, double* om, double* f)
+void to_elements(double mu, f64_3 r, f64_3 v, int* esignout, double* aout, double* eout, double* iout, double* capomout, double* omout, double* fout)
 {
 	using namespace std;
+
+	double a, e, i, capom, om, f;
+	int esign;
 
 	double x = r.x, y = r.y, z = r.z;
 	double vx = v.x, vy = v.y, vz = v.z;
@@ -174,17 +177,17 @@ void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, 
 	{
 
 		/* compute the orbital inclination */
-		*i = acos( hz/sqrt(hsq) );
+		i = acos( hz/sqrt(hsq) );
 
 		/* compute the longitude of the ascending node */
-		if( fabs( *i ) < prec) {
-			*capom = 0.0;
+		if( fabs( i ) < prec) {
+			capom = 0.0;
 		} 
-		else if( fabs( pi - fabs( *i) ) < prec ) {
-			*capom = 0.0;
+		else if( fabs( pi - fabs( i) ) < prec ) {
+			capom = 0.0;
 		} 
 		else {
-			*capom = atan2(hx, -hy);
+			capom = atan2(hx, -hy);
 		}
 
 		/* compute some required quantities */
@@ -194,8 +197,8 @@ void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, 
 		xhat = x/rr;
 		yhat = y/rr;
 		zhat = z/rr;
-		nx = cos( *capom);
-		ny = sin( *capom);
+		nx = cos( capom);
+		ny = sin( capom);
 
 		/* compute the Hamilton vector and thus the eccentricity */
 		fac = vsq * rr - mu;
@@ -203,21 +206,21 @@ void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, 
 		Py = fac * yhat - vdotr * vy;
 		Pz = fac * zhat - vdotr * vz;
 		modP = sqrt( Px*Px + Py*Py + Pz*Pz );
-		*e = modP / mu;
+		e = modP / mu;
 
 		/* compute the argument of pericenter */
-		if( fabs( *e ) < prec) {
-			*om = 0.0;
+		if (fabs(e) < prec) {
+			om = 0.0;
 		} 
 		else {
-			if ( (*i < prec) || (pi - *i < prec) ) {
-				*om = atan2(Py,Px);
+			if ((i < prec) || (pi - i < prec)) {
+				om = atan2(Py, Px);
 			} else {
-				ecosw = (nx*Px + ny*Py)/mu;
-				*om = acos( ecosw/ *e );
+				ecosw = (nx * Px + ny * Py) / mu;
+				om = acos(ecosw / e);
 				if ( fabs(Pz) > prec ) {
 					/* resolve sign ambiguity by sign of Pz  */
-					*om *= fabs(Pz)/Pz;
+					om *= fabs(Pz)/Pz;
 				}
 			}
 		}
@@ -226,57 +229,65 @@ void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, 
 		   the semimajor axis (or pericenter) and true anomaly      */
 		energy = vsq/2.0 - mu/rr;
 		if( fabs(energy) < prec) {
-			*esign = 0;		/* parabolic */
-			*a = 0.5 * hsq / mu;	/* actually PERICENTRIC DISTANCE */
+			esign = 0;		/* parabolic */
+			a = 0.5 * hsq / mu;	/* actually PERICENTRIC DISTANCE */
 			if ( fabs(vdotr) < prec ) {
-				*f = 0.0;
+				f = 0.0;
 			} else {
-				*f = 2.0 * acos(sqrt( *a/rr)) * vdotr/fabs(vdotr);
+				f = 2.0 * acos(sqrt(a/rr)) * vdotr/fabs(vdotr);
 			} 
 		} else if (energy > 0.0) {
-			*esign = 1;		/* hyperbolic */
-			*a = -0.5 * mu/energy;  /* will be negative */
+			esign = 1;		/* hyperbolic */
+			a = -0.5 * mu/energy;  /* will be negative */
 
 			if ( fabs(vdotr) < prec ) {
-				*f = 0.0;
+				f = 0.0;
 			} else {
-				fac =  *a * (1.0 - *e * *e)/rr - 1.0;
-				*f =  acos( fac/ *e ) * vdotr/fabs(vdotr);
+				fac =  a * (1.0 - e * e)/rr - 1.0;
+				f =  acos( fac/ e ) * vdotr/fabs(vdotr);
 			} 
 		} else {
-			*esign = -1;		/* elliptic */
-			*a = -0.5 * mu/energy;
-			if ( fabs( *e ) > prec ) {      
+			esign = -1;		/* elliptic */
+			a = -0.5 * mu/energy;
+			if ( fabs( e ) > prec ) {      
 				if ( fabs(vdotr) < prec ) {
-					if ( rr < *a ) {		/* determine apside */
-						*f = 0.0;
+					if ( rr < a ) {		/* determine apside */
+						f = 0.0;
 					} else {
-						*f = pi;
+						f = pi;
 					}
 				} else {
-					fac =  *a * (1.0 - *e * *e)/rr - 1.0;
-					*f =  acos( fac/ *e ) * vdotr/fabs(vdotr);
+					fac =  a * (1.0 - e * e)/rr - 1.0;
+					f =  acos( fac/ e ) * vdotr/fabs(vdotr);
 				} 
 			} else {                       /* compute circular cases */
 				fac = (x * nx + y * ny)/rr;
-				*f = acos(fac);
+				f = acos(fac);
 				if ( fabs(z) > prec ) {
 					/* resolve sign ambiguity by sign of z  */
-					*f *= fabs(z)/z;
-				} else if ( (*i < prec) || (pi - *i < prec) ) {
-					*f = atan2(y,x) * cos( *i);
+					f *= fabs(z)/z;
+				} else if ( (i < prec) || (pi - i < prec) ) {
+					f = atan2(y,x) * cos( i);
 				} 
 
 			}
 		}
 
 	} else { 				/* PANIC: radial orbit */
-		*esign = 1;			/* call it hyperbolic */
-		*a = sqrt(x*x + y*y + z*z);
-		*e = 9999.;
-		*i = asin(z/sqrt(x*x + y*y + z*z) );	/* latitude above plane */
-		*capom = atan2(y,x);			/* azimuth */
-		*om = 9999.0;
-		*f = 9999.0;
+		esign = 1;			/* call it hyperbolic */
+		a = sqrt(x*x + y*y + z*z);
+		e = HUGE_VAL;
+		i = asin(z/sqrt(x*x + y*y + z*z) );	/* latitude above plane */
+		capom = atan2(y,x);			/* azimuth */
+		om = HUGE_VAL;
+		f = HUGE_VAL;
 	}
+
+	if (esignout) *esignout = esign;
+	if (aout) *aout = a;
+	if (eout) *eout = a;
+	if (iout) *iout = i;
+	if (capomout) *capomout = capom;
+	if (omout) *omout = om;
+	if (fout) *fout = f;
 }

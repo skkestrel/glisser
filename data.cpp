@@ -15,7 +15,7 @@ size_t stable_partition_alive_indices(const std::vector<uint16_t>& flags, size_t
 	std::iota(new_indices->begin(), new_indices->end(), 0);
 
 	auto val = std::stable_partition(new_indices->begin(), new_indices->end(), [begin, &flags](size_t index)
-			{ return flags[index + begin] == 0; }) - new_indices->begin() + begin;
+			{ return (flags[index + begin] & 0x00FE) == 0; }) - new_indices->begin() + begin;
 
 	if (indices)
 	{
@@ -54,6 +54,7 @@ Configuration::Configuration()
 	wh_ce_n2 = 4;
 	wh_ce_r1 = 1;
 	wh_ce_r2 = 3.5;
+	cull_radius = 0.5;
 
 	print_every = 10;
 	energy_every = 1;
@@ -115,6 +116,8 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->tbsize = std::stoul(second);
 			else if (first == "Big-G")
 				out->big_g = std::stod(second);
+			else if (first == "Cull-Radius")
+				out->cull_radius = std::stod(second);
 			else if (first == "WH-Encounter-N1")
 				out->wh_ce_n1 = std::stoull(second);
 			else if (first == "WH-Encounter-N2")
@@ -176,6 +179,10 @@ bool read_configuration(std::istream& in, Configuration* out)
 		std::cerr << "Warning: Output-Folder was not specified, defaulting to ./" << std::endl;
 		out->outfolder = "./";
 	}
+	if (out->cull_radius != 0.5 && out->resolve_encounters)
+	{
+		std::cerr << "Warning: Cull-Radius was set but Resolve-Encounters was also set: Planets will not be culled with Cull-Radius!" << std::endl;
+	}
 	if (out->dump_every == 0 && out->dumpbinary)
 	{
 		std::cerr << "Warning: Dumping is disabled but Write-Binary-Dump was specified" << std::endl;
@@ -219,6 +226,7 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "Time-Step " << out.dt << std::endl;
 	outstream << "Final-Time " << out.t_f << std::endl;
 	outstream << "Time-Block-Size " << out.tbsize << std::endl;
+	outstream << "Cull-Radius " << out.cull_radius << std::endl;
 	outstream << "WH-Encounter-N1 " << out.wh_ce_n1 << std::endl;
 	outstream << "WH-Encounter-N2 " << out.wh_ce_n2 << std::endl;
 	outstream << "WH-Encounter-R1 " << out.wh_ce_r1 << std::endl;

@@ -8,6 +8,17 @@
 #include <ostream>
 using size_t = std::size_t;
 
+
+/// Deathflags guide:
+/// High byte:
+///     Planet ID that killed the particle
+/// Low byte:
+/// 0x80 Particle fell into sun
+/// 0x08 Particle absorbed by planet
+/// 0x04 Kepler didn't converge
+/// 0x02 Out of bounds
+/// 0x01 Particle is in close encounter
+
 struct HostParticlePhaseSpace
 {
 	size_t n, n_alive, n_encounter;
@@ -28,24 +39,55 @@ struct HostPlanetPhaseSpace
 	Vf64 m;
 	Vf64_3 r, v;
 
+	size_t n_alive_old;
 	Vf64_3 r_log, v_log;
 	Vf64_3 r_log_old, v_log_old;
 	Vf64_3 r_log_slow, v_log_slow;
 	Vf64_3 r_log_slow_old, v_log_slow_old;
-	Vf64_3 h0_log, h0_log_old;
-	Vf64_3 h0_log_slow, h0_log_slow_old;
+
 
 	Vu32 id;
 
 	inline HostPlanetPhaseSpace() { }
 	inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor):
-		n(siz), n_alive(siz), m(siz), r(siz), v(siz), id(siz)
+		n(siz), n_alive(siz), n_alive_old(siz), m(siz), r(siz), v(siz), id(siz)
 	{
 		r_log = v_log = r_log_old = v_log_old = Vf64_3((n - 1) * tb_size * ce_factor);
 		r_log_slow = v_log_slow = r_log_slow_old = v_log_slow_old = Vf64_3((n - 1) * tb_size);
+	}
 
-		h0_log = h0_log_old = Vf64_3(tb_size * ce_factor);
-		h0_log_slow = h0_log_slow_old = Vf64_3(tb_size);
+	inline void swap()
+	{
+		std::swap(n_alive, n_alive_old);
+
+		std::swap(r_log, r_log_old);
+		std::swap(v_log, v_log_old);
+		std::swap(r_log_slow, r_log_slow_old);
+		std::swap(v_log_slow, v_log_slow_old);
+	}
+
+	inline Vf64_3& r_log_at(size_t timestep, size_t planet_id, bool old)
+	{
+		if (old)
+		{
+			return r_log_old[timestep * (n_alive_old - 1) + planet_id - 1];
+		}
+		else
+		{
+			return r_log[timestep * (n_alive - 1) + planet_id - 1];
+		}
+	}
+
+	inline Vf64_3& v_log_at(size_t timestep, size_t planet_id, bool old)
+	{
+		if (old)
+		{
+			return v_log_old[timestep * (n_alive_old - 1) + planet_id - 1];
+		}
+		else
+		{
+			return v_log[timestep * (n_alive - 1) + planet_id - 1];
+		}
 	}
 };
 
@@ -77,6 +119,8 @@ struct Configuration
 	size_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
 	double wh_ce_r1, wh_ce_r2;
 	size_t wh_ce_n1, wh_ce_n2;
+
+	double cull_radius;
 
 	bool resolve_encounters, readmomenta, writemomenta, trackbinary, readsplit, writesplit, dumpbinary, writebinary, readbinary;
 

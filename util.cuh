@@ -5,7 +5,7 @@
 #include "types.cuh"
 
 template<typename T>
-inline cudaError_t memcpy_dth(std::vector<T>& dest, const thrust::device_vector<T>& src, cudaStream_t& stream, size_t destbegin = 0, size_t srcbegin = 0, size_t len = static_cast<uint32_t>(-1))
+inline cudaError_t memcpy_dth(std::vector<T>& dest, const thrust::device_vector<T>& src, cudaStream_t stream, size_t destbegin = 0, size_t srcbegin = 0, size_t len = static_cast<uint32_t>(-1))
 {
 	if (len == static_cast<uint32_t>(-1))
 	{
@@ -20,7 +20,7 @@ inline cudaError_t memcpy_dth(std::vector<T>& dest, const thrust::device_vector<
 }
 
 template<typename T>
-inline cudaError_t memcpy_htd(thrust::device_vector<T>& dest, const std::vector<T>& src, cudaStream_t& stream, size_t destbegin = 0, size_t srcbegin = 0, size_t len = static_cast<uint32_t>(-1))
+inline cudaError_t memcpy_htd(thrust::device_vector<T>& dest, const std::vector<T>& src, cudaStream_t stream, size_t destbegin = 0, size_t srcbegin = 0, size_t len = static_cast<uint32_t>(-1))
 {
 	if (len == static_cast<uint32_t>(-1))
 	{

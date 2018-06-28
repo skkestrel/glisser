@@ -34,7 +34,6 @@ struct DevicePlanetPhaseSpace
 {
 	Dvf64 m;
 	Dvf64_3 r_log;
-	Dvf64_3 h0_log;
 
 	size_t n_total;
 	size_t n_alive;
@@ -42,8 +41,7 @@ struct DevicePlanetPhaseSpace
 	DevicePlanetPhaseSpace(const DevicePlanetPhaseSpace&) = delete;
 
 	inline DevicePlanetPhaseSpace() { }
-	inline DevicePlanetPhaseSpace(size_t n, size_t tbsize) : m(n), r_log(n * tbsize), h0_log(tbsize),
-		n_total(n), n_alive(n) { }
+	inline DevicePlanetPhaseSpace(size_t n, size_t tbsize) : m(n), r_log(n * tbsize), n_total(n), n_alive(n) { }
 };
 
 struct DeviceData
@@ -52,7 +50,7 @@ struct DeviceData
 	DeviceParticlePhaseSpace particles;
 	DevicePlanetPhaseSpace planets0, planets1;
 
-	size_t particle_data_id, planet_data_id;
+	size_t planet_data_id;
 
 	DeviceData(const DeviceData&) = delete;
 	inline DeviceData() { }

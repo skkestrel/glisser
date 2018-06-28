@@ -13,6 +13,9 @@ public:
 	Vf64_3 planet_rj, planet_vj;
 	Vf64_3 planet_a, particle_a;
 
+	Vf64_3 planet_h0_log, planet_h0_log_old;
+	Vf64_3 planet_h0_log_slow, planet_h0_log_slow_old;
+
 	Vf64 planet_rh;
 
 	size_t tbsize;
@@ -36,10 +39,24 @@ public:
 
 	void drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v) const;
 	void drift(float64_t t, const Vu8& mask, const Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start, size_t n);
-	void helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t particle_index, float64_t time, size_t timestep_index);
-	void nonhelio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t particle_index, float64_t time, size_t central_planet_index);
+	void helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t particle_index, float64_t time, bool old, size_t timestep_index);
+	void nonhelio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t particle_index, float64_t time, bool old, size_t timestep_index, size_t central_planet_index);
+
+	void helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, bool old, size_t timestep_index);
 	void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t begin, size_t length, float64_t time, size_t timestep_index);
 	void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index);
+
+	inline Vf64& h0_log_at(size_t timestep, bool old)
+	{
+		if (old)
+		{
+			return h0_log_old[timestep];
+		}
+		else
+		{
+			return h0_log[timestep];
+		}
+	}
 };
 
 void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64_3* l);

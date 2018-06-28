@@ -56,7 +56,18 @@ void Executor::init()
 	cudaEventCreate(&cpu_finish_event);
 	cudaEventCreate(&gpu_finish_event);
 
-	upload_data();
+	dd.particles = DeviceParticlePhaseSpace(hd.particles.n);
+
+	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
+	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
+	dd.planet_data_id = 0;
+	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream, begin, begin, length);
+	cudaStreamSynchronize(htd_stream);
+	dd.planet_data_id++;
+	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream, begin, begin, length);
+	cudaStreamSynchronize(htd_stream);
+
+	upload_data(0, hd.particles.n);
 	output << "n_particle_alive = " << dd.particle_phase_space().n_alive << std::endl;
 
 	resync();
@@ -90,35 +101,19 @@ void Executor::step_and_upload_planets()
 	}
 }
 
-void Executor::upload_data()
+void Executor::upload_data(size_t begin, size_t length)
 {
-	dd.particles = DeviceParticlePhaseSpace(hd.particles.n);
-
-	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
-	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
-
-	dd.planet_data_id = 0;
-
 	auto& particles = dd.particle_phase_space();
-
 	particles.n_alive = hd.particles.n_alive;
+	integrator.upload_data_cuda(htd_stream, begin, length);
 
-	integrator.upload_data_cuda(htd_stream);
-
-	memcpy_htd(particles.r, hd.particles.r, htd_stream);
+	memcpy_htd(particles.r, hd.particles.r, htd_stream, begin, begin, length);
 	cudaStreamSynchronize(htd_stream);
-	memcpy_htd(particles.v, hd.particles.v, htd_stream);
+	memcpy_htd(particles.v, hd.particles.v, htd_stream, begin, begin, length);
 	cudaStreamSynchronize(htd_stream);
-	memcpy_htd(particles.deathflags, hd.particles.deathflags, htd_stream);
+	memcpy_htd(particles.deathflags, hd.particles.deathflags, htd_stream, begin, begin, length);
 	cudaStreamSynchronize(htd_stream);
-	memcpy_htd(particles.id, hd.particles.id, htd_stream);
-	cudaStreamSynchronize(htd_stream);
-
-	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
-	cudaStreamSynchronize(htd_stream);
-
-	dd.planet_data_id++;
-	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
+	memcpy_htd(particles.id, hd.particles.id, htd_stream, begin, begin, length);
 	cudaStreamSynchronize(htd_stream);
 }
 
@@ -160,18 +155,16 @@ void Executor::upload_planet_log()
 
 	if (config.resolve_encounters)
 	{
-		memcpy_htd(planets.h0_log, hd.planets.h0_log_slow, htd_stream);
-		cudaStreamSynchronize(htd_stream);
 		memcpy_htd(planets.r_log, hd.planets.r_log_slow, htd_stream);
 		cudaStreamSynchronize(htd_stream);
 	}
 	else
 	{
-		memcpy_htd(planets.h0_log, hd.planets.h0_log, htd_stream);
-		cudaStreamSynchronize(htd_stream);
 		memcpy_htd(planets.r_log, hd.planets.r_log, htd_stream);
 		cudaStreamSynchronize(htd_stream);
 	}
+
+	integrator.upload_planet_log_cuda(htd_stream, dd.planet_data_id);
 }
 
 
@@ -185,64 +178,33 @@ double Executor::time() const
 void Executor::loop()
 {
 	cudaEventRecord(start_event, main_stream);
-	integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_phase_space(), dd.particle_phase_space());
+	integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space());
 	cudaEventRecord(gpu_finish_event, main_stream);
 
 	// The queued work should begin RIGHT after the CUDA call
 	for (auto& i : work) i();
 	work.clear();
 
+	size_t encounter_start = hd.particles.n_alive - hd.particles.n_encounter;
+	for (size_t i = encounter_start; i < hd.particles.n_alive; i++)
+	{
+		integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i, ed.deathtime_index[i - encounter_start]);
+	}
+	auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter);
+	integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter);
+	upload_data(encounter_start, hd.particles.n_encounter);
+
 	// The snapshot contains the planet states at the end of the previous timestep - 
 	// consider removing this? We can use hd.planets.*_log_old[-1] to replicate this functionality
 	hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 
 	// The OLD logs are required by the close encounter handler
-	std::swap(hd.planets.r_log, hd.planets.r_log_old);
-	std::swap(hd.planets.v_log, hd.planets.v_log_old);
-	std::swap(hd.planets.r_log_slow, hd.planets.r_log_slow_old);
-	std::swap(hd.planets.v_log_slow, hd.planets.v_log_slow_old);
-
-	std::swap(hd.planets.h0_log, hd.planets.h0_log_old);
-	std::swap(hd.planets.h0_log_slow, hd.planets.h0_log_slow_old);
 
 	t += config.dt * static_cast<double>(config.tbsize);
 	step_and_upload_planets();
 	cudaStreamSynchronize(htd_stream);
 
-	for (size_t i = hd.particles.n_alive - hd.particles.n_encounter; i < hd.particles.n_alive; i++)
-	{
-		/*
-
-		if (encounter_output)
-		{
-			*encounter_output << hd.particles.r[i] << std::endl;
-			*encounter_output << hd.particles.v[i] << std::endl;
-			*encounter_output << hd.particles.id[i] << " "
-				<< hd.particles.deathflags[i] << " "
-				<< t - config.dt * static_cast<double>(tbsize - ed.deathtime_index[i]) << " death"
-				<< std::endl;
-			*encounter_output << hd.planets.n_alive << std::endl;
-
-			*encounter_output << hd.planets.m[0] << std::endl;
-			*encounter_output << f64_3(0) << std::endl;
-			*encounter_output << f64_3(0) << std::endl;
-			*encounter_output << hd.planets.id[0] << std::endl;
-			for (size_t j = 1; j < hd.planets.n_alive; j++)
-			{
-				*encounter_output << hd.planets.m[j] << std::endl;
-				*encounter_output << hd.planets.r_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-				*encounter_output << hd.planets.v_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-				*encounter_output << hd.planets.id[i] << std::endl;
-			}
-		}
-		*/
-	}
-	// auto gather_indices = hd.particles.stable_partition_alive(...)
-	// memcy_htd(particles.n_alive, hd.n_encounter)
-	// dd.n_alive = hd.n_alive
-
 	cudaEventRecord(cpu_finish_event, par_stream);
-
 	cudaEventSynchronize(gpu_finish_event);
 
 	float cputime, gputime;

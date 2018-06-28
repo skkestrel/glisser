@@ -48,7 +48,7 @@ struct Executor
 	Executor(HostData& hd, DeviceData& dd, const Configuration& config, std::ostream& out);
 
 	void init();
-	void upload_data();
+	void upload_data(size_t begin, size_t length);
 	void upload_planet_log();
 	void download_data();
 

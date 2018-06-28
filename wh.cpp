@@ -5,6 +5,7 @@
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
 
 const size_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-14;
@@ -100,6 +101,7 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa,
 	planet_rj = planet_vj = Vf64_3(pl.n);
 	planet_a = Vf64_3(pl.n);
 	particle_a = Vf64_3(pa.n);
+	planet_rh = Vf64(pl.n);
 
 	encounter_n1 = config.wh_ce_n1;
 	encounter_n2 = config.wh_ce_n2;
@@ -110,6 +112,13 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa,
 	resolve_encounters = config.resolve_encounters;
 	dt = config.dt;
 
+	size_t ce_factor = resolve_encounters ? encounter_n1 * encounter_n2 : 1;
+	planet_h0_log = planet_h0_log_old = Vf64_3(tbsize * ce_factor);
+
+	if (resolve_encounters)
+	{
+		planet_h0_log_slow = planet_h0_log_slow_old = Vf64_3(tbsize);
+	}
 
 
 	eta[0] = pl.m[0];
@@ -118,16 +127,41 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa,
 		eta[i] = eta[i - 1] + pl.m[i];
 	}
 
+	if (resolve_encounters)
+	{
+		planet_rh[0] = 0.5;
+		for (size_t i = 1; i < pl.n; i++)
+		{
+			double a, e;
+			to_elements(pl.m[0] + pl.m[i], pl.r[i], pl.v[i], nullptr, &a, &e);
+
+			planet_rh[i] = a * (1 - e) * std::pow(pl.m[i] / (3 * pl.m[0]), 1. / 3);
+			std::cout << planet_rh[i] << std::endl;
+		}
+	}
+	else
+	{
+		encounter_r2 = 1;
+		for (size_t i = 0; i < pl.n; i++)
+		{
+			planet_rh[i] = config.cull_radius;
+		}
+	}
+
 	helio_to_jacobi_r_planets(pl, eta, planet_rj);
 	helio_to_jacobi_v_planets(pl, eta, planet_vj);
 
 	helio_acc_planets(pl, 0);
 	helio_acc_particles(pl, pa, 0, pa.n_alive, 0, 0);
-
 }
 
 void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t)
 {
+	std::swap(planet_h0_log, planet_h0_log_old);
+	std::swap(planet_h0_log_slow, planet_h0_log_slow_old);
+
+	pl.n_alive = pl.n_alive_old;
+
 	if (resolve_encounters)
 	{
 		size_t fast_factor = encounter_n1 * encounter_n2;
@@ -147,7 +181,7 @@ void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64
 				fast_begin = pl.v_log.begin() + i * (pl.n - 1);
 				std::copy(fast_begin, fast_begin + (pl.n - 1), pl.v_log_slow.begin() + slow_index * (pl.n - 1));
 
-				pl.h0_log_slow[i / fast_factor] = pl.h0_log[i];
+				planet_h0_log_slow[i / fast_factor] = planet_h0_log[i];
 			}
 
 			t += dt / static_cast<double>(fast_factor);
@@ -172,13 +206,13 @@ void WHIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace& pl,
 	}
 }
 
-void WHIntegrator::helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index)
+void WHIntegrator::helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, bool old, size_t timestep_index)
 {
-	particle_a[particle_index] = pl.h0_log[timestep_index];
+	particle_a[particle_index] = h0_log_at(timestep_index, old);
 
-	for (size_t j = 1; j < pl.n_alive; j++)
+	for (size_t j = 1; j < old ? pl.n_alive_old : pl.n_alive; j++)
 	{
-		f64_3 dr = pa.r[particle_index] - pl.r[j];
+		f64_3 dr = pa.r[particle_index] - pl.r_log_at(timestep_index, j, old);
 		float64_t planet_rji2 = dr.lensq();
 		float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 		float64_t fac = pl.m[j] * irij3;
@@ -187,31 +221,33 @@ void WHIntegrator::helio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostPar
 	}
 
 	float64_t planet_rji2 = pa.r[particle_index].lensq();
-	if (planet_rji2 > 200 * 200)
+	if (planet_rji2 > 2000 * 2000)
 	{
 		pa.deathtime[particle_index] = static_cast<float>(time);
 		pa.deathflags[particle_index] = pa.deathflags[particle_index] | 0x0002;
 	}
 }
 
-void WHIntegrator::nonhelio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t central_planet_index)
+void WHIntegrator::nonhelio_acc_particle_ce(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, bool old, size_t timestep_index, size_t central_planet_index)
 {
 	particle_a[particle_index] = f64_3(0);
-	for (size_t i = 0; i < pl.n_alive; i++)    
+
+	for (size_t i = 0; i < old ? pl.n_alive_old : pl.n_alive; i++)    
 	{
 		if (i == central_planet_index) continue;
 
-		float64_t r2 = (pl.r[i] - pl.r[central_planet_index]).lensq();
-		double inverse_helio_cubed = 1. / (std::sqrt(r2) * r2);
+		float64_t rsq = (pl.r_log_at(timestep_index, i, old) - pl.r_log_at(timestep_index, central_planet_index, old)).lensq();
+		double inverse_helio_cubed = 1. / (std::sqrt(rsq) * rsq);
 
-		particle_a[i] -= (pl.r[i] - pl.r[central_planet_index]) * pl.m[i] * inverse_helio_cubed;
+#pragma GCC warning "TODO"
+		particle_a[i] -= rsq * pl.m[i] * inverse_helio_cubed;
         }
 
-	for (size_t j = 0; j < pl.n_alive; j++)
+	for (size_t j = 0; j < old ? pl.n_alive_old : pl.n_alive; j++)
 	{
 		if (j == central_planet_index) continue;
 
-		f64_3 dr = pa.r[particle_index] - pl.r[j];
+		f64_3 dr = pa.r[particle_index] - pl.r_log_at(timestep_index, j, old);
 		float64_t planet_rji2 = dr.lensq();
 		float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 		float64_t fac = pl.m[j] * irij3;
@@ -220,25 +256,15 @@ void WHIntegrator::nonhelio_acc_particle_ce(const HostPlanetPhaseSpace& pl, Host
 	}
 
 	float64_t planet_rji2 = pa.r[particle_index].lensq();
-	if (planet_rji2 > 200 * 200)
+	if (planet_rji2 > 2000 * 2000)
 	{
 		pa.deathtime[particle_index] = static_cast<float>(time);
 		pa.deathflags[particle_index] = pa.deathflags[particle_index] | 0x0002;
 	}
 }
 
-void WHIntegrator::helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t time, size_t timestep_index)
-{
-	for (size_t i = begin; i < begin + length; i++)
-	{
-		if (resolve_encounters)
-		{
-			particle_a[i] = pl.h0_log_slow[timestep_index];
-		}
-		else
-		{
-			particle_a[i] = pl.h0_log[timestep_index];
-		}
+void WH
+		particle_a[i] = planet_h0_log_slow[timestep_index];
 
 		for (size_t j = 1; j < pl.n_alive; j++)
 		{
@@ -249,7 +275,7 @@ void WHIntegrator::helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParti
 
 			particle_a[i] -= dr * fac;
 
-			if (planet_rji2 < 0.5 * 0.5)
+			if (planet_rji2 < planet_rh[j] * planet_rh[j] * encounter_r2 * encounter_r2)
 			{
 				pa.deathtime[i] = static_cast<float>(time);
 				pa.deathflags[i] = static_cast<uint16_t>(pa.deathflags[i] | (j << 8) | 0x0001);
@@ -257,12 +283,46 @@ void WHIntegrator::helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParti
 		}
 
 		float64_t planet_rji2 = pa.r[i].lensq();
-		if (planet_rji2 < 0.5 * 0.5)
+		if (planet_rji2 < planet_rh[0] * planet_rh[0] * encounter_r2 * encounter_r2)
 		{
 			pa.deathtime[i] = static_cast<float>(time);
 			pa.deathflags[i] = pa.deathflags[i] | 0x0001;
 		}
-		if (planet_rji2 > 200 * 200)
+		if (planet_rji2 > 2000 * 2000)
+		{
+			pa.deathtime[i] = static_cast<float>(time);
+			pa.deathflags[i] = pa.deathflags[i] | 0x0002;
+		}
+
+void WHIntegrator::helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t time, size_t timestep_index)
+{
+	for (size_t i = begin; i < begin + length; i++)
+	{
+		particle_a[i] = planet_h0_log_slow[timestep_index];
+
+		for (size_t j = 1; j < pl.n_alive; j++)
+		{
+			f64_3 dr = pa.r[i] - pl.r[j];
+			float64_t planet_rji2 = dr.lensq();
+			float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
+			float64_t fac = pl.m[j] * irij3;
+
+			particle_a[i] -= dr * fac;
+
+			if (planet_rji2 < planet_rh[j] * planet_rh[j] * encounter_r2 * encounter_r2)
+			{
+				pa.deathtime[i] = static_cast<float>(time);
+				pa.deathflags[i] = static_cast<uint16_t>(pa.deathflags[i] | (j << 8) | 0x0001);
+			}
+		}
+
+		float64_t planet_rji2 = pa.r[i].lensq();
+		if (planet_rji2 < planet_rh[0] * planet_rh[0] * encounter_r2 * encounter_r2)
+		{
+			pa.deathtime[i] = static_cast<float>(time);
+			pa.deathflags[i] = pa.deathflags[i] | 0x0001;
+		}
+		if (planet_rji2 > 2000 * 2000)
 		{
 			pa.deathtime[i] = static_cast<float>(time);
 			pa.deathflags[i] = pa.deathflags[i] | 0x0002;
@@ -294,7 +354,7 @@ void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 		planet_a[i] = a_common;
         }
 
-	p.h0_log[index] = a_common - p.r[1] * p.m[1] * this->inverse_helio_cubed[1];
+	planet_h0_log[index] = a_common - p.r[1] * p.m[1] * this->inverse_helio_cubed[1];
 	
 	// Now do indirect acceleration ; note that planet 1 does not receive a contribution 
 	for (size_t i = 2; i < p.n_alive; i++)    
@@ -473,20 +533,107 @@ void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePh
 	}
 }
 
-void WHIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index)
+void WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t planet_index, bool old, size_t timestep_index)
 {
-	double t = pa.deathtime[particle_index];
+	size_t time_factor = encounter_n1 * encounter_n2;
+#pragma GCC warning "What happens when n_planets changes from the old log to the new log?"
+	Vf63_3 planet_rel = pa.r[particle_index] -
+		pl.r_log_at(timestep_index * time_factor, planet_index, old);
+	double rsq = planet_rel.lensq();
+
+	double rh = planet_rh[planet_index];
+
+	if (rsq < rh * rh * encounter_r2 * encounter_r2)
+	{
+		if (rsq < rh * rh * encounter_r1 * encounter_r1)
+		{
+			pa.deathflags[particles_index] |= 0x0008;
+
+			if (false)
+			{
+			for (size_t i = 0; i < time_factor; i++)
+			{
+				size_t log_index = timestep_index * time_factor + i;
+					
+				double little_dt = dt / static_cast<double>(time_factor);
+				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+
+				f64_3 r_logged = pl.r_log_at(log_index, planet_index, old);
+				f64_3 v_logged = pl.v_log_at(log_index, planet_index, old);
+
+				f64_3 rel_r = pa.r[particle_index] - r_logged;
+				f64_3 rel_v = pa.v[particle_index] - v_logged;
+
+				// Drift all the particles along their Jacobi Kepler ellipses
+				drift_single(little_dt, pl.m[planet_index], rel_r, rel_v);
+				pa.r[particle_index] = rel_r + r_logged;
+				pa.v[particle_index] = rel_v + v_logged;
+
+				// find the accelerations of the heliocentric velocities
+				nonhelio_acc_particle_ce(pl, pa, particle_index, t, log_index, planet_index, old);
+
+				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+			}
+			}
+		}
+		else
+		{
+			for (size_t i = 0; i < encounter_n1; i++)
+			{
+				double little_dt = dt / static_cast<double>(encounter_n1);
+				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+
+				// Drift all the particles along their Jacobi Kepler ellipses
+				drift_single(little_dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
+
+				// find the accelerations of the heliocentric velocities
+				helio_acc_particle_ce(pl, pa, particle_index, t, timestep_index * time_factor + i * encounter_n2, old);
+
+				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+			}
+		}
+	}
+	else
+	{
+		pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
+
+		// Drift all the particles along their Jacobi Kepler ellipses
+		drift_single(dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
+
+		// find the accelerations of the heliocentric velocities
+		helio_acc_particle(pl, pa, particle_index, t, timestep_index, old);
+
+		pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
+	}
+}
+
+void WHIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index)
+{
+	// Umm...
+	if (planet_index == 0)
+	{
+		pa.deathflags[particle_index] = 0x0080;
+		return;
+	}
 
 #pragma GCC warning "TODO"
-	size_t n_timesteps = 0;
-
-	for (size_t i = 0; i < n_timesteps; i++)
+	for (size_t i = particle_deathtime_index; i < tbsize; i++)
 	{
-		if ((pa.deathflags[particle_index] & 0x0001) || (pa.deathflags[particle_index] == 0))
-		{
-			return;
-		}
+		pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
 
+		// Drift all the particles along their Jacobi Kepler ellipses
+		drift_single(dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
+
+		// find the accelerations of the heliocentric velocities
+		helio_acc_particle_ce(pl, pa, particle_index, t, i);
+
+		pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
+
+		t += dt;
+	}
+
+	for (size_t i = 0; i < tbsize; i++)
+	{
 		pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
 
 		// Drift all the particles along their Jacobi Kepler ellipses
