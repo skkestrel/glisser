@@ -61,10 +61,11 @@ void Executor::init()
 	dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
 	dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
 	dd.planet_data_id = 0;
-	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream, begin, begin, length);
+
+	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 	dd.planet_data_id++;
-	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream, begin, begin, length);
+	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 
 	upload_data(0, hd.particles.n);
@@ -153,16 +154,8 @@ void Executor::upload_planet_log()
 	dd.planet_data_id++;
 	auto& planets = dd.planet_phase_space();
 
-	if (config.resolve_encounters)
-	{
-		memcpy_htd(planets.r_log, hd.planets.r_log_slow, htd_stream);
-		cudaStreamSynchronize(htd_stream);
-	}
-	else
-	{
-		memcpy_htd(planets.r_log, hd.planets.r_log, htd_stream);
-		cudaStreamSynchronize(htd_stream);
-	}
+	memcpy_htd(planets.r_log, hd.planets.r_log_slow, htd_stream);
+	cudaStreamSynchronize(htd_stream);
 
 	integrator.upload_planet_log_cuda(htd_stream, dd.planet_data_id);
 }
@@ -188,7 +181,8 @@ void Executor::loop()
 	size_t encounter_start = hd.particles.n_alive - hd.particles.n_encounter;
 	for (size_t i = encounter_start; i < hd.particles.n_alive; i++)
 	{
-		integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i, ed.deathtime_index[i - encounter_start]);
+		integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
+				ed.deathtime_index[i - encounter_start], ed.encounter_planet_id[i - encounter_start]);
 	}
 	auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter);
 	integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter);

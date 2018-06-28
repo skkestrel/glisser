@@ -208,9 +208,9 @@ void WHCudaIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace&
 	base.integrate_particles_timeblock(pl, pa, begin, length, t);
 }
 
-void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index)
+void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index)
 {
-	base.integrate_encounter_particle_catchup(pl, pa, particle_index, particle_deathtime_index);
+	base.integrate_encounter_particle_catchup(pl, pa, particle_index, particle_deathtime_index, planet_index);
 }
 
 void WHCudaIntegrator::upload_data_cuda(cudaStream_t stream, size_t begin, size_t length)
