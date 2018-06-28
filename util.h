@@ -1,6 +1,8 @@
+#pragma once
 #include <streambuf>
 #include <dirent.h>
 #include <unistd.h>
+#include <algorithm>
 
 #if __cplusplus < 201404L
 namespace std
@@ -79,3 +81,86 @@ private:
 };
 
 inline teestream::teestream(std::ostream& o1, std::ostream& o2) : std::ostream(&tbuf), tbuf(o1.rdbuf(), o2.rdbuf()) { }
+
+
+namespace detail
+{
+	template<typename Self, typename Return, bool slow, bool old>
+	struct Selector
+	{
+		static Return get(Self x)
+		{
+			return Self::not_implemented;
+		}
+	};
+
+	template<typename Self, typename Return>
+	struct Selector<Self, Return, false, false>
+	{
+		static Return get(Self x) { return x->log; }
+	};
+
+	template<typename Self, typename Return>
+	struct Selector<Self, Return, false, true>
+	{
+		static Return get(Self x) { return x->old; }
+	};
+
+	template<typename Self, typename Return>
+	struct Selector<Self, Return, true, false>
+	{
+		static Return get(Self x) { return x->slow; }
+	};
+
+	template<typename Self, typename Return>
+	struct Selector<Self, Return, true, true>
+	{
+		static Return get(Self x) { return x->slow_old; }
+	};
+}
+
+template<typename Vector>
+struct LogQuartet
+{
+	Vector log;
+	Vector old;
+	Vector slow;
+	Vector slow_old;
+
+	inline LogQuartet(size_t slow_size, size_t speed_factor)
+	{
+		slow = slow_old = Vector(slow_size);
+
+		if (speed_factor > 1)
+		{
+			log = old = Vector(slow_size * speed_factor);
+		}
+	}
+
+	inline void swap_old()
+	{
+		std::swap(log, old);
+		std::swap(slow, slow_old);
+	}
+
+	template<typename... Args>
+	LogQuartet(Args... args);
+
+	template<bool slow, bool old>
+	inline Vector& get()
+	{
+		return detail::Selector<LogQuartet<Vector>*, Vector&, slow, old>::get(this);
+	}
+
+	template<bool slow, bool old>
+	inline const Vector& get() const
+	{
+		return detail::Selector<const LogQuartet<Vector>*, const Vector&, slow, old>::get(this);
+	}
+};
+
+template<typename Vector>
+template<typename... Args>
+inline LogQuartet<Vector>::LogQuartet(Args... args)
+	: log(args...), old(args...), slow(args...), slow_old(args...)
+{ }

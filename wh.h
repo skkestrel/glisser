@@ -1,5 +1,6 @@
 #pragma once
 #include "data.h"
+#include "util.h"
 #include "integrator.h"
 
 class WHIntegrator : public Integrator
@@ -13,8 +14,7 @@ public:
 	Vf64_3 planet_rj, planet_vj;
 	Vf64_3 planet_a, particle_a;
 
-	Vf64_3 planet_h0_log, planet_h0_log_old;
-	Vf64_3 planet_h0_log_slow, planet_h0_log_slow_old;
+	LogQuartet<Vf64_3> planet_h0_log;
 
 	Vf64 planet_rh;
 
@@ -50,54 +50,11 @@ public:
 	template<bool encounter, bool old>
 	void helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index);
 
+	template<bool encounter, bool old>
 	void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t begin, size_t length, float64_t time, size_t timestep_index);
+
+	template<bool slow>
 	void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index);
-
-	template<bool slow, bool old>
-	inline f64_3& h0_log_at(size_t timestep);
-	template<bool slow, bool old>
-	inline const f64_3& h0_log_at(size_t timestep) const;
 };
-
-template<>
-inline const f64_3& WHIntegrator::h0_log_at<false, false>(size_t timestep) const
-{
-	return planet_h0_log[timestep];
-}
-template<>
-inline const f64_3& WHIntegrator::h0_log_at<true, false>(size_t timestep) const
-{
-	return planet_h0_log_slow[timestep];
-}
-template<>
-inline const f64_3& WHIntegrator::h0_log_at<false, true>(size_t timestep) const
-{
-	return planet_h0_log_old[timestep];
-}
-template<>
-inline const f64_3& WHIntegrator::h0_log_at<true, true>(size_t timestep) const
-{
-	return planet_h0_log_slow_old[timestep];
-}
-template<>
-inline f64_3& WHIntegrator::h0_log_at<false, false>(size_t timestep)
-{
-	return planet_h0_log[timestep];
-}
-template<>
-inline f64_3& WHIntegrator::h0_log_at<true, false>(size_t timestep)
-{
-	return planet_h0_log_slow[timestep];
-}
-template<>
-inline f64_3& WHIntegrator::h0_log_at<false, true>(size_t timestep)
-{
-	return planet_h0_log_old[timestep];
-}
-template<>
-inline f64_3& WHIntegrator::h0_log_at<true, true>(size_t timestep)
-{
-	return planet_h0_log_slow_old[timestep];
-}
 
 void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64_3* l);

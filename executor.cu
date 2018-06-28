@@ -88,6 +88,7 @@ void Executor::init()
 
 void Executor::step_and_upload_planets()
 {
+	hd.planets.swap_old();
 	integrator.integrate_planets_timeblock(hd.planets, t);
 
 	// We only upload the planet log if any particles are going to use the planet log on the GPU
@@ -154,7 +155,7 @@ void Executor::upload_planet_log()
 	dd.planet_data_id++;
 	auto& planets = dd.planet_phase_space();
 
-	memcpy_htd(planets.r_log, hd.planets.r_log_slow, htd_stream);
+	memcpy_htd(planets.r_log, hd.planets.r_log.slow, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 
 	integrator.upload_planet_log_cuda(htd_stream, dd.planet_data_id);
@@ -243,15 +244,21 @@ void Executor::resync()
 
 	for (size_t i = 0; i < diff; i++)
 	{
-		// Lower 8 bits of deathflags are death bits - don't bother doing encounters on particles that died
-		// for reason other than an encounter (e.g. OOB, kepler nonconvergence)
-		if (config.resolve_encounters && ((ed.deathflags[i] & 0x00FF) == 0x0001))
+		if ((ed.deathflags[i] & 0x00FF) == 0x0001)
 		{
-			// set the encounter planet
-			ed.encounter_planet_id[i] = static_cast<uint8_t>((ed.deathflags[i] & 0xFF00) >> 8);
+			if (config.resolve_encounters)
+			{
+				// set the encounter planet
+				ed.encounter_planet_id[i] = static_cast<uint8_t>((ed.deathflags[i] & 0xFF00) >> 8);
 
-			// clear the death bits
-			ed.deathflags[i] = 0;
+				// clear the upper bits
+				ed.deathflags[i] &= 0x00FF;
+			}
+			else
+			{
+				// If encounters are not being dealt with, kill the particle!
+				ed.deathflags[i] |= 0x0080;
+			}
 		}
 	}
 
@@ -314,8 +321,8 @@ void Executor::resync()
 					for (size_t j = 1; j < hd.planets.n_alive; j++)
 					{
 						*encounter_output << hd.planets.m[j] << std::endl;
-						*encounter_output << hd.planets.r_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-						*encounter_output << hd.planets.v_log_slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+						*encounter_output << hd.planets.r_log.slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+						*encounter_output << hd.planets.v_log.slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
 						*encounter_output << hd.planets.id[i] << std::endl;
 					}
 				}

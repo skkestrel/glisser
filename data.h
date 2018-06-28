@@ -1,11 +1,12 @@
 #pragma once
-#include "types.h"
 #include <string>
 #include <memory>
 #include <utility>
 #include <cstdlib>
 #include <istream>
 #include <ostream>
+#include "util.h"
+#include "types.h"
 using size_t = std::size_t;
 
 
@@ -39,11 +40,8 @@ struct HostPlanetPhaseSpace
 	Vf64 m;
 	Vf64_3 r, v;
 
-	Vf64_3 r_log, v_log;
-	Vf64_3 r_log_old, v_log_old;
-	Vf64_3 r_log_slow, v_log_slow;
-	Vf64_3 r_log_slow_old, v_log_slow_old;
-
+	LogQuartet<Vf64_3> r_log;
+	LogQuartet<Vf64_3> v_log;
 
 	Vu32 id;
 
@@ -51,116 +49,24 @@ struct HostPlanetPhaseSpace
 	inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor):
 		n(siz), n_alive(siz), n_alive_old(siz), m(siz), r(siz), v(siz), id(siz)
 	{
-		if (ce_factor > 1)
-		{
-			r_log = v_log = r_log_old = v_log_old = Vf64_3((n - 1) * tb_size * ce_factor);
-		}
-
-		r_log_slow = v_log_slow = r_log_slow_old = v_log_slow_old = Vf64_3((n - 1) * tb_size);
+		r_log = LogQuartet<Vf64_3>((n - 1) * tb_size, ce_factor);
+		v_log = LogQuartet<Vf64_3>((n - 1) * tb_size, ce_factor);
 	}
 
-	inline void swap()
+	inline void swap_old()
 	{
 		std::swap(n_alive, n_alive_old);
 
-		std::swap(r_log, r_log_old);
-		std::swap(v_log, v_log_old);
-		std::swap(r_log_slow, r_log_slow_old);
-		std::swap(v_log_slow, v_log_slow_old);
+		r_log.swap_old();
+		v_log.swap_old();
 	}
 
-	template<bool slow, bool old>
-	inline f64_3& r_log_at(size_t timestep, size_t planet_id);
-	template<bool slow, bool old>
-	inline const f64_3& r_log_at(size_t timestep, size_t planet_id) const;
-
-	template<bool slow, bool old>
-	inline f64_3& v_log_at(size_t timestep, size_t planet_id);
-	template<bool slow, bool old>
-	inline const f64_3& v_log_at(size_t timestep, size_t planet_id) const;
+	template<bool old>
+	inline size_t log_index_at(size_t timestep, size_t planet_id) const
+	{
+		return timestep * ((old ? n_alive : n_alive_old) - 1) + planet_id - 1;
+	}
 };
-
-template<>
-inline const f64_3& HostPlanetPhaseSpace::r_log_at<false, false>(size_t timestep, size_t planet_id) const
-{
-	return r_log[timestep * (n_alive - 1) + planet_id - 1];
-}
-template<>
-inline const f64_3& HostPlanetPhaseSpace::r_log_at<true, false>(size_t timestep, size_t planet_id) const
-{
-	return r_log_slow[timestep * (n_alive - 1) + planet_id - 1];
-}
-template<>
-inline const f64_3& HostPlanetPhaseSpace::r_log_at<false, true>(size_t timestep, size_t planet_id) const
-{
-	return r_log_old[timestep * (n_alive_old - 1) + planet_id - 1];
-}
-template<>
-inline const f64_3& HostPlanetPhaseSpace::r_log_at<true, true>(size_t timestep, size_t planet_id) const
-{
-	return r_log_slow_old[timestep * (n_alive_old - 1) + planet_id - 1];
-}
-template<>
-inline f64_3& HostPlanetPhaseSpace::r_log_at<false, false>(size_t timestep, size_t planet_id)
-{
-	return r_log[timestep * (n_alive - 1) + planet_id - 1];
-}
-template<>
-inline f64_3& HostPlanetPhaseSpace::r_log_at<true, false>(size_t timestep, size_t planet_id)
-{
-	return r_log_slow[timestep * (n_alive - 1) + planet_id - 1];
-}
-template<>
-inline f64_3& HostPlanetPhaseSpace::r_log_at<false, true>(size_t timestep, size_t planet_id)
-{
-	return r_log_old[timestep * (n_alive_old - 1) + planet_id - 1];
-}
-template<>
-inline f64_3& HostPlanetPhaseSpace::r_log_at<true, true>(size_t timestep, size_t planet_id)
-{
-	return r_log_slow_old[timestep * (n_alive_old - 1) + planet_id - 1];
-}
-
-template<>
-inline const f64_3& HostPlanetPhaseSpace::v_log_at<false, false>(size_t timestep, size_t planet_id) const
-{
-	return v_log[timestep * (n_alive - 1) + planet_id - 1];
-}
-template<>
-inline const f64_3& HostPlanetPhaseSpace::v_log_at<true, false>(size_t timestep, size_t planet_id) const
-{
-	return v_log_slow[timestep * (n_alive - 1) + planet_id - 1];
-}
-template<>
-inline const f64_3& HostPlanetPhaseSpace::v_log_at<false, true>(size_t timestep, size_t planet_id) const
-{
-	return v_log_old[timestep * (n_alive_old - 1) + planet_id - 1];
-}
-template<>
-inline const f64_3& HostPlanetPhaseSpace::v_log_at<true, true>(size_t timestep, size_t planet_id) const
-{
-	return v_log_slow_old[timestep * (n_alive_old - 1) + planet_id - 1];
-}
-template<>
-inline f64_3& HostPlanetPhaseSpace::v_log_at<false, false>(size_t timestep, size_t planet_id)
-{
-	return v_log[timestep * (n_alive - 1) + planet_id - 1];
-}
-template<>
-inline f64_3& HostPlanetPhaseSpace::v_log_at<true, false>(size_t timestep, size_t planet_id)
-{
-	return v_log_slow[timestep * (n_alive - 1) + planet_id - 1];
-}
-template<>
-inline f64_3& HostPlanetPhaseSpace::v_log_at<false, true>(size_t timestep, size_t planet_id)
-{
-	return v_log_old[timestep * (n_alive_old - 1) + planet_id - 1];
-}
-template<>
-inline f64_3& HostPlanetPhaseSpace::v_log_at<true, true>(size_t timestep, size_t planet_id)
-{
-	return v_log_slow_old[timestep * (n_alive_old - 1) + planet_id - 1];
-}
 
 struct HostPlanetSnapshot
 {

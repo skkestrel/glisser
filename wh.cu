@@ -181,16 +181,8 @@ Dvf64_3& WHCudaIntegrator::device_h0_log(size_t planet_data_id)
 
 void WHCudaIntegrator::upload_planet_log_cuda(cudaStream_t stream, size_t planet_data_id)
 {
-	if (base.resolve_encounters)
-	{
-		memcpy_htd(device_h0_log(planet_data_id), base.planet_h0_log_slow, stream);
-		cudaStreamSynchronize(stream);
-	}
-	else
-	{
-		memcpy_htd(device_h0_log(planet_data_id), base.planet_h0_log, stream);
-		cudaStreamSynchronize(stream);
-	}
+	memcpy_htd(device_h0_log(planet_data_id), base.planet_h0_log.get<true, false>(), stream);
+	cudaStreamSynchronize(stream);
 }
 
 void WHCudaIntegrator::gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length)

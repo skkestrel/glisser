@@ -113,13 +113,7 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa,
 	dt = config.dt;
 
 	size_t ce_factor = resolve_encounters ? encounter_n1 * encounter_n2 : 1;
-	planet_h0_log = planet_h0_log_old = Vf64_3(tbsize * ce_factor);
-
-	if (resolve_encounters)
-	{
-		planet_h0_log_slow = planet_h0_log_slow_old = Vf64_3(tbsize);
-	}
-
+	planet_h0_log = LogQuartet<Vf64_3>(tbsize, ce_factor);
 
 	eta[0] = pl.m[0];
 	for (size_t i = 1; i < pl.n; i++)
@@ -151,14 +145,14 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa,
 	helio_to_jacobi_r_planets(pl, eta, planet_rj);
 	helio_to_jacobi_v_planets(pl, eta, planet_vj);
 
-	helio_acc_planets(pl, 0);
-	helio_acc_particles(pl, pa, 0, pa.n_alive, 0, 0);
+	std::copy(pl.r.begin() + 1, pl.r.end(), pl.r_log.slow.begin());
+	helio_acc_planets<true>(pl, 0);
+	helio_acc_particles<false, false>(pl, pa, 0, pa.n_alive, 0, 0);
 }
 
 void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t)
 {
-	std::swap(planet_h0_log, planet_h0_log_old);
-	std::swap(planet_h0_log_slow, planet_h0_log_slow_old);
+	planet_h0_log.swap_old();
 
 	pl.n_alive = pl.n_alive_old;
 
@@ -175,13 +169,13 @@ void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64
 			{
 				size_t slow_index = i / fast_factor;
 
-				auto fast_begin = pl.r_log.begin() + i * (pl.n - 1);
-				std::copy(fast_begin, fast_begin + (pl.n - 1), pl.r_log_slow.begin() + slow_index * (pl.n - 1));
+				auto fast_begin = pl.r_log.log.begin() + i * (pl.n - 1);
+				std::copy(fast_begin, fast_begin + (pl.n - 1), pl.r_log.slow.begin() + slow_index * (pl.n - 1));
 
-				fast_begin = pl.v_log.begin() + i * (pl.n - 1);
-				std::copy(fast_begin, fast_begin + (pl.n - 1), pl.v_log_slow.begin() + slow_index * (pl.n - 1));
+				fast_begin = pl.v_log.log.begin() + i * (pl.n - 1);
+				std::copy(fast_begin, fast_begin + (pl.n - 1), pl.v_log.slow.begin() + slow_index * (pl.n - 1));
 
-				planet_h0_log_slow[i / fast_factor] = planet_h0_log[i];
+				planet_h0_log.slow[i / fast_factor] = planet_h0_log.log[i];
 			}
 
 			t += dt / static_cast<double>(fast_factor);
@@ -215,7 +209,8 @@ void WHIntegrator::nonhelio_acc_encounter_particle(const HostPlanetPhaseSpace& p
 	{
 		if (i == central_planet_index) continue;
 
-		f64_3 dr = pl.r_log_at<false, old>(timestep_index, i) - pl.r_log_at<false, old>(timestep_index, central_planet_index);
+		f64_3 dr = pl.r_log.get<false, old>()[pl.log_index_at<old>(timestep_index, i)]
+			- pl.r_log.get<false, old>()[pl.log_index_at<old>(timestep_index, central_planet_index)];
 		float64_t rsq = dr.lensq();
 		double inverse_helio_cubed = 1. / (std::sqrt(rsq) * rsq);
 
@@ -227,7 +222,7 @@ void WHIntegrator::nonhelio_acc_encounter_particle(const HostPlanetPhaseSpace& p
 	{
 		if (j == central_planet_index) continue;
 
-		f64_3 dr = pa.r[particle_index] - pl.r_log_at<false, old>(timestep_index, j);
+		f64_3 dr = pa.r[particle_index] - pl.r_log.get<false, old>()[pl.log_index_at<old>(timestep_index, j)];
 		float64_t planet_rji2 = dr.lensq();
 		float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 		float64_t fac = pl.m[j] * irij3;
@@ -246,11 +241,11 @@ void WHIntegrator::nonhelio_acc_encounter_particle(const HostPlanetPhaseSpace& p
 template<bool encounter, bool old>
 void WHIntegrator::helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index)
 {
-	particle_a[particle_index] = h0_log_at<!encounter, old>(timestep_index);
+	particle_a[particle_index] = planet_h0_log.get<!encounter, old>()[timestep_index];
 
 	for (size_t j = 1; j < pl.n_alive; j++)
 	{
-		f64_3 dr = pa.r[particle_index] - pl.r_log_at<!encounter, old>(timestep_index, j);
+		f64_3 dr = pa.r[particle_index] - pl.r_log.get<!encounter, old>()[pl.log_index_at<old>(timestep_index, j)];
 		float64_t planet_rji2 = dr.lensq();
 		float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 		float64_t fac = pl.m[j] * irij3;
@@ -277,14 +272,16 @@ void WHIntegrator::helio_acc_particle(const HostPlanetPhaseSpace& pl, HostPartic
 	}
 }
 
+template<bool encounter, bool old>
 void WHIntegrator::helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t time, size_t timestep_index)
 {
 	for (size_t i = begin; i < begin + length; i++)
 	{
-		helio_acc_particle<false, false>(pl, pa, i, time, timestep_index);
+		helio_acc_particle<encounter, old>(pl, pa, i, time, timestep_index);
 	}
 }
 
+template<bool slow>
 void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 {
 	for (size_t i = 1; i < p.n_alive; i++)
@@ -309,7 +306,7 @@ void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 		planet_a[i] = a_common;
         }
 
-	planet_h0_log[index] = a_common - p.r[1] * p.m[1] * this->inverse_helio_cubed[1];
+	planet_h0_log.get<slow, false>()[index] = a_common - p.r[1] * p.m[1] * this->inverse_helio_cubed[1];
 	
 	// Now do indirect acceleration ; note that planet 1 does not receive a contribution 
 	for (size_t i = 2; i < p.n_alive; i++)    
@@ -480,7 +477,7 @@ void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePh
 	drift(dt, this->mask, this->mu, pa.r, pa.v, begin, length);
 
 	// find the accelerations of the heliocentric velocities
-	helio_acc_particles(pl, pa, begin, length, t, timestep_index);
+	helio_acc_particles<false, false>(pl, pa, begin, length, t, timestep_index);
 
 	for (size_t i = begin; i < begin + length; i++)
 	{
@@ -493,7 +490,7 @@ void WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpace&
 {
 	size_t time_factor = encounter_n1 * encounter_n2;
 	f64_3 planet_rel = pa.r[particle_index] -
-		pl.r_log_at<true, old>(timestep_index, planet_index);
+		pl.r_log.get<true, old>()[pl.log_index_at<old>(timestep_index, planet_index)];
 	double rsq = planet_rel.lensq();
 
 	double rh = planet_rh[planet_index];
@@ -513,8 +510,8 @@ void WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpace&
 				double little_dt = dt / static_cast<double>(time_factor);
 				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
 
-				f64_3 r_logged = pl.r_log_at<false, old>(log_index, planet_index);
-				f64_3 v_logged = pl.v_log_at<false, old>(log_index, planet_index);
+				f64_3 r_logged = pl.r_log.get<false, old>()[pl.log_index_at<old>(log_index, planet_index)];
+				f64_3 v_logged = pl.v_log.get<false, old>()[pl.log_index_at<old>(log_index, planet_index)];
 
 				f64_3 rel_r = pa.r[particle_index] - r_logged;
 				f64_3 rel_v = pa.v[particle_index] - v_logged;
@@ -621,13 +618,21 @@ void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t ti
 	jacobi_to_helio_planets(eta, planet_rj, planet_vj, pl);
 
 	// find the accelerations of the heliocentric velocities
-	helio_acc_planets(pl, timestep_index);
-	auto& r_log = pl.r_log_slow;
-	auto& v_log = pl.v_log_slow;
 	if (resolve_encounters)
 	{
-		r_log = pl.r_log;
-		v_log = pl.v_log;
+		helio_acc_planets<false>(pl, timestep_index);
+	}
+	else
+	{
+		helio_acc_planets<true>(pl, timestep_index);
+	}
+
+	auto& r_log = pl.r_log.slow;
+	auto& v_log = pl.v_log.slow;
+	if (resolve_encounters)
+	{
+		r_log = pl.r_log.log;
+		v_log = pl.v_log.log;
 	}
 
 	std::copy(pl.r.begin() + 1, pl.r.end(), r_log.begin() + (pl.n_alive - 1) * timestep_index);
