@@ -183,7 +183,9 @@ void Executor::loop(double* cputimeout, double* gputimeout)
 	for (size_t i = encounter_start; i < hd.particles.n_alive; i++)
 	{
 		integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
-				ed.deathtime_index[i - encounter_start], ed.encounter_planet_id[i - encounter_start]);
+				ed.deathtime_index[i - encounter_start], ed.encounter_planet_id[i - encounter_start],
+				t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i - encounter_start])
+			);
 	}
 	auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter);
 	integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter);

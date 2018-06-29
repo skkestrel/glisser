@@ -130,7 +130,6 @@ WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa,
 			to_elements(pl.m[0] + pl.m[i], pl.r[i], pl.v[i], nullptr, &a, &e);
 
 			planet_rh[i] = a * (1 - e) * std::pow(pl.m[i] / (3 * pl.m[0]), 1. / 3);
-			std::cout << planet_rh[i] << std::endl;
 		}
 	}
 	else
@@ -238,10 +237,24 @@ void WHIntegrator::nonhelio_acc_encounter_particle(const HostPlanetPhaseSpace& p
 	}
 }
 
+uint8_t WHIntegrator::detect_encounter(float64_t r_rel_sq, float64_t rh, double r1, double r2)
+{
+	if (r_rel_sq < rh * rh * r1 * r2)
+	{
+		return 2;
+	}
+	if (r_rel_sq < rh * rh * r2 * r2)
+	{
+		return 1;
+	}
+	return 0;
+}
+
 template<bool encounter, bool old>
-void WHIntegrator::helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index)
+uint8_t WHIntegrator::helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index)
 {
 	particle_a[particle_index] = planet_h0_log.get<!encounter, old>()[timestep_index];
+	uint8_t max_encounter = 0;
 
 	for (size_t j = 1; j < pl.n_alive; j++)
 	{
@@ -252,24 +265,54 @@ void WHIntegrator::helio_acc_particle(const HostPlanetPhaseSpace& pl, HostPartic
 
 		particle_a[particle_index] -= dr * fac;
 
-		if (planet_rji2 < planet_rh[j] * planet_rh[j] * encounter_r2 * encounter_r2)
+		uint8_t detection = WHIntegrator::detect_encounter(planet_rji2, planet_rh[j], encounter_r1, encounter_r2);
+		if (detection > max_encounter) max_encounter = detection;
+
+		if (encounter)
 		{
-			pa.deathtime[particle_index] = static_cast<float>(time);
-			pa.deathflags[particle_index] = static_cast<uint16_t>(pa.deathflags[particle_index] | (j << 8) | 0x0001);
+			if (detection > 1)
+			{
+				pa.deathflags[particle_index] = pa.deathflags[particle_index] & 0x00FF;
+				pa.deathflags[particle_index] = static_cast<uint16_t>(pa.deathflags[particle_index] | (j << 8) | 0x0001);
+			}
+		}
+		else
+		{
+			if (detection > 0)
+			{
+				pa.deathflags[particle_index] = static_cast<uint16_t>(pa.deathflags[particle_index] | (j << 8) | 0x0001);
+			}
 		}
 	}
 
 	float64_t planet_rji2 = pa.r[particle_index].lensq();
-	if (planet_rji2 < planet_rh[0] * planet_rh[0] * encounter_r2 * encounter_r2)
+
+	uint8_t detection = WHIntegrator::detect_encounter(planet_rji2, planet_rh[0], encounter_r1, encounter_r2);
+	if (detection > max_encounter) max_encounter = detection;
+
+	if (encounter)
 	{
-		pa.deathtime[particle_index] = static_cast<float>(time);
-		pa.deathflags[particle_index] = pa.deathflags[particle_index] | 0x0001;
+		if (detection > 1)
+		{
+			pa.deathflags[particle_index] = pa.deathflags[particle_index] & 0x00FF;
+			pa.deathflags[particle_index] = pa.deathflags[particle_index] | 0x0001;
+		}
 	}
+	else
+	{
+		if (detection > 0)
+		{
+			pa.deathflags[particle_index] = pa.deathflags[particle_index] | 0x0001;
+		}
+	}
+
 	if (planet_rji2 > 2000 * 2000)
 	{
 		pa.deathtime[particle_index] = static_cast<float>(time);
 		pa.deathflags[particle_index] = pa.deathflags[particle_index] | 0x0002;
 	}
+
+	return max_encounter;
 }
 
 template<bool encounter, bool old>
@@ -486,101 +529,111 @@ void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePh
 }
 
 template<bool old>
-void WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t planet_index, size_t timestep_index, double t)
+size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, size_t* planet_index, uint8_t* encounter_level, double t)
 {
-	size_t time_factor = encounter_n1 * encounter_n2;
-	f64_3 planet_rel = pa.r[particle_index] -
-		pl.r_log.get<true, old>()[pl.log_index_at<old>(timestep_index, planet_index)];
-	double rsq = planet_rel.lensq();
+	size_t tfactor = encounter_n1 * encounter_n2;
 
-	double rh = planet_rh[planet_index];
-
-	if (rsq < rh * rh * encounter_r2 * encounter_r2)
+	switch (*encounter_level)
 	{
-		if (rsq < rh * rh * encounter_r1 * encounter_r1)
+		default:
+		case 2:
 		{
 			pa.deathflags[particle_index] |= 0x0008;
 
-			if (false)
+			/*
+			double little_dt = dt / static_cast<double>(tfactor);
+			pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+
+			f64_3 r_logged = pl.r_log.get<false, old>()[pl.log_index_at<old>(timestep_index, planet_index)];
+			f64_3 v_logged = pl.v_log.get<false, old>()[pl.log_index_at<old>(timestep_index, planet_index)];
+
+			f64_3 rel_r = pa.r[particle_index] - r_logged;
+			f64_3 rel_v = pa.v[particle_index] - v_logged;
+
+			// Drift all the particles along their Jacobi Kepler ellipses
+			drift_single(little_dt, pl.m[planet_index], &rel_r, &rel_v);
+			pa.r[particle_index] = rel_r + r_logged;
+			pa.v[particle_index] = rel_v + v_logged;
+
+			// find the accelerations of the heliocentric velocities
+			nonhelio_acc_encounter_particle<old>(pl, pa, particle_index, t, timestep_index, planet_index);
+
+			pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+
+			// Only lower the encounter level if we are aligned
+			if (detection > 1 || (timestep_index % tfactor == 0))
 			{
-			for (size_t i = 0; i < time_factor; i++)
-			{
-				size_t log_index = timestep_index * time_factor + i;
-					
-				double little_dt = dt / static_cast<double>(time_factor);
-				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
-
-				f64_3 r_logged = pl.r_log.get<false, old>()[pl.log_index_at<old>(log_index, planet_index)];
-				f64_3 v_logged = pl.v_log.get<false, old>()[pl.log_index_at<old>(log_index, planet_index)];
-
-				f64_3 rel_r = pa.r[particle_index] - r_logged;
-				f64_3 rel_v = pa.v[particle_index] - v_logged;
-
-				// Drift all the particles along their Jacobi Kepler ellipses
-				drift_single(little_dt, pl.m[planet_index], &rel_r, &rel_v);
-				pa.r[particle_index] = rel_r + r_logged;
-				pa.v[particle_index] = rel_v + v_logged;
-
-				// find the accelerations of the heliocentric velocities
-				nonhelio_acc_encounter_particle<old>(pl, pa, particle_index, t, log_index, planet_index);
-
-				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+				*encounter_level = detection;
 			}
-			}
+			*planet_index = (pa.deathflags[particle_index] & 0x00FF) >> 8;
+			*/
+
+			return encounter_n2;
 		}
-		else
+		case 1:
 		{
-			for (size_t i = 0; i < encounter_n1; i++)
+			double little_dt = dt / static_cast<double>(encounter_n1);
+			pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+
+			// Drift all the particles along their Jacobi Kepler ellipses
+			drift_single(little_dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
+
+			// find the accelerations of the heliocentric velocities
+			uint8_t detection = helio_acc_particle<true, old>(pl, pa, particle_index, t, timestep_index);
+
+			pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+
+			// Only lower the encounter level if we are aligned
+			if (detection > 0 || (timestep_index % tfactor == 0))
 			{
-				double little_dt = dt / static_cast<double>(encounter_n1);
-				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
-
-				// Drift all the particles along their Jacobi Kepler ellipses
-				drift_single(little_dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
-
-				// find the accelerations of the heliocentric velocities
-				helio_acc_particle<true, old>(pl, pa, particle_index, t, timestep_index * time_factor + i * encounter_n2);
-
-				pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
+				*encounter_level = detection;
 			}
+
+			*planet_index = (pa.deathflags[particle_index] & 0x00FF) >> 8;
+			return encounter_n2;
 		}
-	}
-	else
-	{
-		pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
+		case 0:
+		{
+			pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
 
-		// Drift all the particles along their Jacobi Kepler ellipses
-		drift_single(dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
+			// Drift all the particles along their Jacobi Kepler ellipses
+			drift_single(dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
 
-		// find the accelerations of the heliocentric velocities
-		helio_acc_particle<false, old>(pl, pa, particle_index, t, timestep_index);
+			// find the accelerations of the heliocentric velocities
+			uint8_t detection = helio_acc_particle<false, old>(pl, pa, particle_index, t, timestep_index / tfactor);
 
-		pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
+			pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
+
+			*encounter_level = detection;
+			*planet_index = (pa.deathflags[particle_index] & 0x00FF) >> 8;
+			return encounter_n1 * encounter_n2; 
+		}
 	}
 }
 
-void WHIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index)
+void WHIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index, double t)
 {
-	// Umm...
-	if (planet_index == 0)
+	f64_3 dr = pa.r[particle_index] - pl.r_log.get<true, true>()[pl.log_index_at<true>(particle_deathtime_index, planet_index)];
+	uint8_t enc_level = WHIntegrator::detect_encounter(dr.lensq(), planet_rh[planet_index], encounter_r1, encounter_r2);
+
+	size_t tfactor = encounter_n1 * encounter_n2;
+
+	for (size_t i = particle_deathtime_index * tfactor; i < tbsize * tfactor; i++)
 	{
-		pa.deathflags[particle_index] = 0x0080;
-		return;
+		size_t adv = integrate_encounter_particle_step<true>(pl, pa, particle_index, i, &planet_index, &enc_level, t);
+		t += dt * static_cast<double>(adv) / static_cast<double>(tfactor);
 	}
 
-#pragma GCC warning "TODO"
-	double t = 0;
-
-	for (size_t i = particle_deathtime_index; i < tbsize; i++)
+	for (size_t i = 0; i < tbsize * tfactor; i++)
 	{
-		integrate_encounter_particle_step<true>(pl, pa, particle_index, planet_index, i, t);
-		t += dt;
+		size_t adv = integrate_encounter_particle_step<false>(pl, pa, particle_index, i, &planet_index, &enc_level, t);
+		t += dt * static_cast<double>(adv) / static_cast<double>(tfactor);
 	}
 
-	for (size_t i = 0; i < tbsize; i++)
+	// Clear all the encounter bits if the encounter is clear
+	if (enc_level == 0)
 	{
-		integrate_encounter_particle_step<false>(pl, pa, particle_index, planet_index, i, t);
-		t += dt;
+		pa.deathflags[particle_index] &= 0x00FE;
 	}
 }
 

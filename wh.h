@@ -33,10 +33,10 @@ public:
 	void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t) override;
 	void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length) override;
 
-	void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index) override;
+	void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index, double t) override;
 
 	template<bool old>
-	void integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t planet_index, size_t timestep_index, double t);
+	size_t integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, size_t* planet_index, uint8_t* encounter_level, double t);
 
 	void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t timestep_index);
 	void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index);
@@ -48,13 +48,15 @@ public:
 	void nonhelio_acc_encounter_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t particle_index, float64_t time, size_t timestep_index, size_t central_planet_index);
 
 	template<bool encounter, bool old>
-	void helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index);
+	uint8_t helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index);
 
 	template<bool encounter, bool old>
 	void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t begin, size_t length, float64_t time, size_t timestep_index);
 
 	template<bool slow>
 	void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index);
+
+	static uint8_t detect_encounter(float64_t r_rel_sq, float64_t rh, double r1, double r2);
 };
 
 void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64_3* l);

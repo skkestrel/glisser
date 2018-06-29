@@ -124,6 +124,7 @@ struct MVSKernel
 
 					if (rad < rh[i] * rh[i] * r2 * r2 && flags == 0)
 					{
+						flags = flags & 0x00FF;
 						flags = static_cast<uint16_t>(flags | (i << 8) | 0x0001);
 					}
 
@@ -136,6 +137,7 @@ struct MVSKernel
 				float64_t rad = r.lensq();
 				if (rad < rh[0] * rh[0] * r2 * r2)
 				{
+					flags = flags & 0x00FF;
 					flags = flags | 0x0001;
 				}
 				if (rad > 200 * 200)
@@ -200,9 +202,9 @@ void WHCudaIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace&
 	base.integrate_particles_timeblock(pl, pa, begin, length, t);
 }
 
-void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index)
+void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index, double t)
 {
-	base.integrate_encounter_particle_catchup(pl, pa, particle_index, particle_deathtime_index, planet_index);
+	base.integrate_encounter_particle_catchup(pl, pa, particle_index, particle_deathtime_index, planet_index, t);
 }
 
 void WHCudaIntegrator::upload_data_cuda(cudaStream_t stream, size_t begin, size_t length)

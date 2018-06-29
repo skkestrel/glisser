@@ -197,27 +197,33 @@ int main(int argv, char** argc)
 
 								for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
 								{
-									double a, e, in;
+									double a, e, in, capom, om, f;
 									to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
-										nullptr, &a, &e, &in, nullptr, nullptr, nullptr);
+										nullptr, &a, &e, &in, &capom, &om, &f);
 
 									write_binary(trackout, static_cast<uint32_t>(ex.hd.planets.id[i]));
 									write_binary(trackout, static_cast<float>(a));
 									write_binary(trackout, static_cast<float>(e));
 									write_binary(trackout, static_cast<float>(in));
+									write_binary(trackout, static_cast<float>(capom));
+									write_binary(trackout, static_cast<float>(om));
+									write_binary(trackout, static_cast<float>(f));
 								}
 
 								write_binary(trackout, ex.hd.particles.n_alive);
 								for (size_t i = 0; i < ex.hd.particles.n_alive; i++)
 								{
-									double a, e, in;
+									double a, e, in, capom, om, f;
 									to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
-										nullptr, &a, &e, &in, nullptr, nullptr, nullptr);
+										nullptr, &a, &e, &in, &capom, &om, &f);
 
 									write_binary(trackout, static_cast<uint32_t>(ex.hd.particles.id[i]));
 									write_binary(trackout, static_cast<float>(a));
 									write_binary(trackout, static_cast<float>(e));
 									write_binary(trackout, static_cast<float>(in));
+									write_binary(trackout, static_cast<float>(capom));
+									write_binary(trackout, static_cast<float>(om));
+									write_binary(trackout, static_cast<float>(f));
 								}
 							}
 							else
