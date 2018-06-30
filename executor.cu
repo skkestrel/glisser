@@ -2,6 +2,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <algorithm>
+#include <thread>
 
 #include "util.cuh"
 #include "util.h"
@@ -11,11 +12,16 @@
 #include "convert.h"
 
 ExecutorData::ExecutorData() { }
-ExecutorData::ExecutorData(size_t n)
+ExecutorData::ExecutorData(size_t n, bool cpu_only)
 {
-	r = v = std::vector<f64_3>(n);
-	id = deathtime_index = std::vector<uint32_t>(n);
-	deathflags = std::vector<uint16_t>(n);
+	if (!cpu_only)
+	{
+		r = v = std::vector<f64_3>(n);
+		deathflags = std::vector<uint16_t>(n);
+		id = std::vector<uint32_t>(n);
+		deathtime_index = std::vector<uint32_t>(n);
+	}
+
 	encounter_planet_id = std::vector<uint8_t>(n);
 }
 
@@ -30,8 +36,8 @@ struct DeviceParticleUnflaggedPredicate
 	}
 };
 
-Executor::Executor(HostData& hd, DeviceData& dd, const Configuration& config, std::ostream& out)
-	: hd(hd), dd(dd), output(out), config(config) { }
+Executor::Executor(HostData& _hd, DeviceData& _dd, const Configuration& _config, std::ostream& out)
+	: hd(_hd), dd(_dd), output(out), config(_config) { }
 
 void Executor::init()
 {
@@ -68,8 +74,10 @@ void Executor::init()
 	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 
-	upload_data(0, hd.particles.n);
-	output << "n_particle_alive = " << dd.particle_phase_space().n_alive << std::endl;
+	if (config.use_gpu && hd.particles.n > 0)
+	{
+		upload_data(0, hd.particles.n);
+	}
 
 	resync();
 	download_data();
@@ -97,7 +105,7 @@ void Executor::step_and_upload_planets()
 	// since the particles that survive close encounters can make it to the GPU at the end of this timestep
 	// and thus the next planet chunk will be required
 
-	if (dd.particle_phase_space().n_alive > 0 || hd.particles.n_encounter > 0)
+	if (config.use_gpu && (dd.particle_phase_space().n_alive > 0 || hd.particles.n_encounter > 0))
 	{
 		upload_planet_log();
 	}
@@ -124,19 +132,24 @@ void Executor::add_job(const std::function<void()>& job)
 	work.push_back(std::move(job));
 }
 
-void Executor::download_data()
+void Executor::download_data(bool ignore_errors)
 {
+	if (!config.use_gpu)
+	{
+		return;
+	}
+
 	auto& particles = dd.particle_phase_space();
 
 	Vu32 prev_ids(hd.particles.id.begin(), hd.particles.id.end());
 
-	memcpy_dth(hd.particles.r, particles.r, dth_stream);
+	memcpy_dth(hd.particles.r, particles.r, dth_stream, 0, 0, particles.n_alive);
 	cudaStreamSynchronize(dth_stream);
-	memcpy_dth(hd.particles.v, particles.v, dth_stream);
+	memcpy_dth(hd.particles.v, particles.v, dth_stream, 0, 0, particles.n_alive);
 	cudaStreamSynchronize(dth_stream);
-	memcpy_dth(hd.particles.id, particles.id, dth_stream);
+	memcpy_dth(hd.particles.id, particles.id, dth_stream, 0, 0, particles.n_alive);
 	cudaStreamSynchronize(dth_stream);
-	memcpy_dth(hd.particles.deathflags, particles.deathflags, dth_stream);
+	memcpy_dth(hd.particles.deathflags, particles.deathflags, dth_stream, 0, 0, particles.n_alive);
 	cudaStreamSynchronize(dth_stream);
 
 	// This should NEVER happen. I think this is a recoverable 
@@ -144,7 +157,11 @@ void Executor::download_data()
 	if (prev_ids != hd.particles.id)
 	{
 		output << "WARNING! ID MISMATCH! WARNING!" << std::endl;
-		throw std::exception();
+
+		if (!ignore_errors)
+		{
+			throw std::exception();
+		}
 	}
 
 	hd.particles.n_alive = dd.particle_phase_space().n_alive;
@@ -171,9 +188,22 @@ double Executor::time() const
 
 void Executor::loop(double* cputimeout, double* gputimeout)
 {
-	cudaEventRecord(start_event, main_stream);
-	integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space());
-	cudaEventRecord(gpu_finish_event, main_stream);
+	std::thread cpu_thread;
+	
+	if (config.use_gpu)
+	{
+		if (dd.particle_phase_space().n_alive > 0)
+		{
+			cudaEventRecord(start_event, main_stream);
+			integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space());
+			cudaEventRecord(gpu_finish_event, main_stream);
+		}
+	}
+	else
+	{
+		integrator.integrate_particles_timeblock(hd.planets, hd.particles, 0, hd.particles.n_alive - hd.particles.n_encounter, t);
+		// cpu_thread = std::thread([this]() { integrator.integrate_particles_timeblock(hd.planets, hd.particles, 0, hd.particles.n_alive - hd.particles.n_encounter, t); });
+	}
 
 	// The queued work should begin RIGHT after the CUDA call
 	for (auto& i : work) i();
@@ -199,29 +229,110 @@ void Executor::loop(double* cputimeout, double* gputimeout)
 
 	t += config.dt * static_cast<double>(config.tbsize);
 	step_and_upload_planets();
-	cudaStreamSynchronize(htd_stream);
 
-	cudaEventRecord(cpu_finish_event, par_stream);
-	cudaEventSynchronize(gpu_finish_event);
+	if (config.use_gpu)
+	{
+		if (dd.particle_phase_space().n_alive > 0)
+		{
+			cudaStreamSynchronize(htd_stream);
+			cudaEventRecord(cpu_finish_event, par_stream);
+			cudaEventSynchronize(gpu_finish_event);
 
-	float cputime, gputime;
-	cudaEventElapsedTime(&cputime, start_event, cpu_finish_event);
-	cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
-	if (cputimeout) *cputimeout = cputime;
-	if (gputimeout) *gputimeout = gputime;
+			float cputime, gputime;
+			cudaEventElapsedTime(&cputime, start_event, cpu_finish_event);
+			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
+			if (cputimeout) *cputimeout = cputime;
+			if (gputimeout) *gputimeout = gputime;
 
-	resync();
+			// There's nothing to resync if all the particles on the device are dead!
+			// Although dd.particles.n_alive can be out of sync with dd.particles.deathflags before
+			// resync() is called, this is safe:
+			// - The MVS kernel does not revive particles, so resync() will never INCREASE n_alive
+			// - dd.particles.n_alive is adjusted by the close encounter handler just BEFORE this call
+			resync();
+		}
+	}
+	else
+	{
+		// cpu_thread.join();
+		resync_cpu();
+	}
+}
+
+void Executor::resync_cpu()
+{
+	if (hd.particles.n_alive == 0) return;
+
+	size_t prev_alive = hd.particles.n_alive;
+
+	auto gather_indices = hd.particles.stable_partition_unflagged(0, prev_alive);
+	integrator.gather_particles(*gather_indices, 0, prev_alive);
+
+	size_t diff = prev_alive - hd.particles.n_alive;
+
+	ed = ExecutorData(diff);
+
+	for (size_t i = hd.particles.n_alive; i < hd.particles.n_alive + diff; i++)
+	{
+		if ((hd.particles.deathflags[i] & 0x00FF) == 0x0001)
+		{
+			if (config.resolve_encounters)
+			{
+				// set the encounter planet
+				ed.encounter_planet_id[i - hd.particles.n_alive] = static_cast<uint8_t>((hd.particles.deathflags[i] & 0xFF00) >> 8);
+
+				// clear the upper bits
+				hd.particles.deathflags[i] &= 0x00FF;
+			}
+			else
+			{
+				// If encounters are not being dealt with, kill the particle!
+				hd.particles.deathflags[i] |= 0x0080;
+			}
+		}
+	}
+
+	gather_indices = hd.particles.stable_partition_alive(prev_alive - diff, diff);
+	integrator.gather_particles(*gather_indices, prev_alive - diff, diff);
+
+	hd.particles.n_encounter = hd.particles.n_alive - (prev_alive - diff);
+
+	size_t encounter_start = hd.particles.n_alive;
+
+	add_job([encounter_start, diff, this]()
+		{
+			if (encounter_output)
+			{
+				for (size_t i = hd.particles.n_encounter; i < diff; i++)
+				{
+					*encounter_output << hd.particles.r[encounter_start + i] << std::endl;
+					*encounter_output << hd.particles.v[encounter_start + i] << std::endl;
+					*encounter_output << hd.particles.id[encounter_start + i] << " "
+						<< hd.particles.deathflags[encounter_start + i] << " "
+						<< hd.particles.deathtime[i] << " death"
+						<< std::endl;
+					*encounter_output << hd.planets.n_alive << std::endl;
+
+					*encounter_output << hd.planets.m[0] << std::endl;
+					*encounter_output << f64_3(0) << std::endl;
+					*encounter_output << f64_3(0) << std::endl;
+					*encounter_output << hd.planets.id[0] << std::endl;
+					for (size_t j = 1; j < hd.planets.n_alive; j++)
+					{
+						*encounter_output << hd.planets.m[j] << std::endl;
+						*encounter_output << hd.planets.r_log.slow[hd.particles.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+						*encounter_output << hd.planets.v_log.slow[hd.particles.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
+						*encounter_output << hd.planets.id[i] << std::endl;
+					}
+				}
+
+				*encounter_output << std::flush;
+			}
+		});
 }
 
 void Executor::resync()
 {
-	// There's nothing to resync if all the particles on the device are dead!
-	// Although dd.particles.n_alive can be out of sync with dd.particles.deathflags before
-	// resync() is called, this is safe:
-	// - The MVS kernel does not revive particles, so resync() will never INCREASE n_alive
-	// - dd.particles.n_alive is adjusted by the close encounter handler just BEFORE this call
-	if (dd.particle_phase_space().n_alive == 0) return;
-
 	auto& particles = dd.particle_phase_space();
 	size_t prev_alive = particles.n_alive;
 
@@ -293,8 +404,8 @@ void Executor::resync()
 		}
 	}
 
-	ed.gather_indices = hd.particles.stable_partition_alive(0, prev_alive);
-	integrator.gather_particles(*ed.gather_indices, 0, prev_alive);
+	auto gather_indices = hd.particles.stable_partition_alive(0, prev_alive);
+	integrator.gather_particles(*gather_indices, 0, prev_alive);
 
 	hd.particles.n_encounter = hd.particles.n_alive - particles.n_alive;
 
@@ -302,12 +413,9 @@ void Executor::resync()
 
 	add_job([encounter_start, diff, this]()
 		{
-			gather(ed.deathtime_index, *ed.gather_indices, 0, diff);
-			gather(ed.encounter_planet_id, *ed.gather_indices, 0, diff);
-
 			if (encounter_output)
 			{
-				for (size_t i = hd.particles.n_alive - hd.particles.n_encounter; i < diff; i++)
+				for (size_t i = hd.particles.n_encounter; i < diff; i++)
 				{
 					*encounter_output << hd.particles.r[encounter_start + i] << std::endl;
 					*encounter_output << hd.particles.v[encounter_start + i] << std::endl;
@@ -329,6 +437,8 @@ void Executor::resync()
 						*encounter_output << hd.planets.id[i] << std::endl;
 					}
 				}
+
+				*encounter_output << std::flush;
 			}
 		});
 }
@@ -345,8 +455,6 @@ void Executor::finish()
 
 	for (auto& i : work) i();
 	work.clear();
-
-	download_data();
 
 	output << "Simulation finished. t = " << t << ". n_particle = " << hd.particles.n_alive << std::endl;
 }

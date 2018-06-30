@@ -1,5 +1,6 @@
 .PHONY: all convert
 WFLAGS = -Wcast-align \
+-Wshadow \
 -Wcast-qual -Wconversion \
 -Wdisabled-optimization \
 -Wfloat-equal -Wformat=2 \

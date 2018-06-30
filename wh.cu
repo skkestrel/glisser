@@ -19,10 +19,16 @@ struct MVSKernel
 	const float64_t r2;
 	const float64_t* planet_rh;
 
-	MVSKernel(const DevicePlanetPhaseSpace& planets, const Dvf64_3& h0_log, const Dvf64& planet_rh, double r2, size_t tbsize, float64_t dt)
-		: planet_m(planets.m.data().get()), mu(planets.m[0]), planet_h0_log(h0_log.data().get()),
-		planet_r_log(planets.r_log.data().get()), planet_n(planets.n_alive), tbsize(tbsize), dt(dt),
-		r2(r2), planet_rh(planet_rh.data().get())
+	MVSKernel(const DevicePlanetPhaseSpace& planets, const Dvf64_3& h0_log, const Dvf64& _planet_rh, double _r2, size_t _tbsize, float64_t _dt) :
+		planet_m(planets.m.data().get()),
+		mu(planets.m[0]),
+		planet_h0_log(h0_log.data().get()),
+		planet_r_log(planets.r_log.data().get()),
+		planet_n(planets.n_alive),
+		tbsize(_tbsize),
+		dt(_dt),
+		r2(_r2),
+		planet_rh(_planet_rh.data().get())
 	{ }
 
 	__host__ __device__
@@ -67,7 +73,7 @@ struct MVSKernel
 		float64_t dM = this->dt * n_ - M_2PI * (int) (dt * n_ / M_2PI);
 
 		// remaining time to advance
-		float64_t dt = dM / n_;
+		float64_t _dt = dM / n_;
 
 		// call kepler equation solver with initial guess in dE already
 		float64_t dE = dM - esinEo + esinEo * cos(dM) + ecosEo * sin(dM);
@@ -76,7 +82,7 @@ struct MVSKernel
 
 		float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
 		float64_t f = 1.0 + a * (cosdE - 1.0) / dist;
-		float64_t g = dt + (sindE - dE) / n_;
+		float64_t g = _dt + (sindE - dE) / n_;
 		float64_t fdot = -n_ * sindE * a / (dist * fp);
 		float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
 
@@ -96,20 +102,20 @@ struct MVSKernel
 		uint32_t deathtime_index = 0;
 		f64_3 a = thrust::get<1>(args);
 
-		size_t tbsize = this->tbsize;
+		size_t _tbsize = this->tbsize;
 		const f64_3* h0_log = this->planet_h0_log;
 		const f64_3* r_log = this->planet_r_log;
 		const float64_t* m = this->planet_m;
 		const float64_t* rh = this->planet_rh;
-		float64_t r2 = this->r2;
-		float64_t dt = this->dt;
+		float64_t _r2 = this->r2;
+		float64_t _dt = this->dt;
 
-		for (uint32_t step = 0; step < static_cast<uint32_t>(tbsize); step++)
+		for (uint32_t step = 0; step < static_cast<uint32_t>(_tbsize); step++)
 		{
 			if (flags == 0)
 			{
 				// kick
-				v = v + a * (dt / 2);
+				v = v + a * (_dt / 2);
 
 				drift(r, v, flags);
 
@@ -122,7 +128,7 @@ struct MVSKernel
 
 					float64_t rad = dr.lensq();
 
-					if (rad < rh[i] * rh[i] * r2 * r2 && flags == 0)
+					if (rad < rh[i] * rh[i] * _r2 * _r2 && flags == 0)
 					{
 						flags = flags & 0x00FF;
 						flags = static_cast<uint16_t>(flags | (i << 8) | 0x0001);
@@ -135,7 +141,7 @@ struct MVSKernel
 				}
 
 				float64_t rad = r.lensq();
-				if (rad < rh[0] * rh[0] * r2 * r2)
+				if (rad < rh[0] * rh[0] * _r2 * _r2)
 				{
 					flags = flags & 0x00FF;
 					flags = flags | 0x0001;
@@ -146,7 +152,7 @@ struct MVSKernel
 				}
 
 
-				v = v + a * (dt / 2);
+				v = v + a * (_dt / 2);
 
 				deathtime_index = step + 1;
 			}
@@ -215,9 +221,6 @@ void WHCudaIntegrator::upload_data_cuda(cudaStream_t stream, size_t begin, size_
 
 void WHCudaIntegrator::integrate_particles_timeblock_cuda(cudaStream_t stream, size_t planet_data_id, const DevicePlanetPhaseSpace& pl, DeviceParticlePhaseSpace& pa)
 {
-	if (pa.n_alive > 0)
-	{
-		auto it = thrust::make_zip_iterator(thrust::make_tuple(pa.begin(), device_begin()));
-		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.encounter_r2, base.tbsize, base.dt));
-	}
+	auto it = thrust::make_zip_iterator(thrust::make_tuple(pa.begin(), device_begin()));
+	thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.encounter_r2, base.tbsize, base.dt));
 }

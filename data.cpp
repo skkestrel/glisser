@@ -25,6 +25,46 @@ size_t stable_partition_alive_indices(const std::vector<uint16_t>& flags, size_t
 	return val;
 }
 
+size_t stable_partition_unflagged_indices(const std::vector<uint16_t>& flags, size_t begin, size_t length, std::unique_ptr<std::vector<size_t>>* indices)
+{
+	auto new_indices = std::make_unique<std::vector<size_t>>(length);
+	std::iota(new_indices->begin(), new_indices->end(), 0);
+
+	auto val = std::stable_partition(new_indices->begin(), new_indices->end(), [begin, &flags](size_t index)
+			{ return (flags[index + begin] & 0x00FF) == 0; }) - new_indices->begin() + begin;
+
+	if (indices)
+	{
+		*indices = std::move(new_indices);
+	}
+
+	return val;
+}
+
+std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_unflagged(size_t begin, size_t length)
+{
+	if (length == static_cast<size_t>(-1))
+	{
+		length = n - begin;
+	}
+
+	std::unique_ptr<std::vector<size_t>> indices;
+	n_alive = stable_partition_unflagged_indices(deathflags, begin, length, &indices);
+	
+	gather(r, *indices, begin, length);
+	gather(v, *indices, begin, length);
+	gather(deathtime, *indices, begin, length);
+	gather(deathflags, *indices, begin, length);
+	gather(id, *indices, begin, length);
+
+	if (deathtime_index.size() > 0)
+	{
+		gather(deathtime_index, *indices, begin, length);
+	}
+
+	return indices;
+}
+
 std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_alive(size_t begin, size_t length)
 {
 	if (length == static_cast<size_t>(-1))
@@ -40,6 +80,11 @@ std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_al
 	gather(deathtime, *indices, begin, length);
 	gather(deathflags, *indices, begin, length);
 	gather(id, *indices, begin, length);
+
+	if (deathtime_index.size() > 0)
+	{
+		gather(deathtime_index, *indices, begin, length);
+	}
 
 	return indices;
 }
@@ -59,6 +104,10 @@ Configuration::Configuration()
 	print_every = 10;
 	energy_every = 1;
 	track_every = 0;
+	split_track_file = 0;
+
+	use_gpu = true;
+
 	dump_every = 1000;
 	max_particle = static_cast<size_t>(-1);
 	resolve_encounters = false;
@@ -69,8 +118,6 @@ Configuration::Configuration()
 	hybridout = "state.out";
 	readsplit = 0;
 	writesplit = 0;
-	dumpbinary = 1;
-	trackbinary = 1;
 	writebinary = 0;
 	readbinary = 0;
 	outfolder = "output/";
@@ -126,6 +173,8 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->wh_ce_r1 = std::stod(second);
 			else if (first == "WH-Encounter-R2")
 				out->wh_ce_r2 = std::stod(second);
+			else if (first == "Enable-GPU")
+				out->use_gpu = std::stoi(second) != 0;
 			else if (first == "Limit-Particle-Count")
 				out->max_particle = std::stoull(second);
 			else if (first == "Log-Interval")
@@ -134,12 +183,10 @@ bool read_configuration(std::istream& in, Configuration* out)
 				out->energy_every = std::stoull(second);
 			else if (first == "Track-Interval")
 				out->track_every = std::stoull(second);
+			else if (first == "Split-Track-File")
+				out->split_track_file = std::stoull(second);
 			else if (first == "Dump-Interval")
 				out->dump_every = std::stoull(second);
-			else if (first == "Write-Binary-Dump")
-				out->dumpbinary = std::stoi(second) != 0;
-			else if (first == "Write-Binary-Track")
-				out->trackbinary = std::stoi(second) != 0;
 			else if (first == "Resolve-Encounters")
 				out->resolve_encounters = std::stoi(second) != 0;
 			else if (first == "Write-Split-Output")
@@ -183,14 +230,6 @@ bool read_configuration(std::istream& in, Configuration* out)
 	{
 		std::cerr << "Warning: Cull-Radius was set but Resolve-Encounters was also set: Planets will not be culled with Cull-Radius!" << std::endl;
 	}
-	if (out->dump_every == 0 && out->dumpbinary)
-	{
-		std::cerr << "Warning: Dumping is disabled but Write-Binary-Dump was specified" << std::endl;
-	}
-	if (out->track_every == 0 && out->trackbinary)
-	{
-		std::cerr << "Warning: Tracking is disabled but Write-Binary-Track was specified" << std::endl;
-	}
 	if (out->readsplit && out->readbinary)
 	{
 		std::cerr << "Warning: Read-Split-Input was selected but Read-Binary-Input was also specified. Ignoring Read-Binary-Input" << std::endl;
@@ -231,13 +270,13 @@ void write_configuration(std::ostream& outstream, const Configuration& out)
 	outstream << "WH-Encounter-N2 " << out.wh_ce_n2 << std::endl;
 	outstream << "WH-Encounter-R1 " << out.wh_ce_r1 << std::endl;
 	outstream << "WH-Encounter-R2 " << out.wh_ce_r2 << std::endl;
+	outstream << "Enable-GPU " << out.use_gpu << std::endl;
 	outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 	outstream << "Log-Interval " << out.print_every << std::endl;
 	outstream << "Status-Interval " << out.energy_every << std::endl;
 	outstream << "Track-Interval " << out.track_every << std::endl;
+	outstream << "Split-Track-File " << out.split_track_file << std::endl;
 	outstream << "Dump-Interval " << out.dump_every << std::endl;
-	outstream << "Write-Binary-Track " << out.trackbinary << std::endl;
-	outstream << "Write-Binary-Dump " << out.dumpbinary << std::endl;
 	outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
 	outstream << "Write-Split-Output " << out.writesplit << std::endl;
 	outstream << "Write-Binary-Output " << out.writebinary << std::endl;
@@ -277,7 +316,7 @@ bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream&
 	icsin >> npart;
 	npart = std::min(npart, config.max_particle);
 
-	hd.particles = HostParticlePhaseSpace(npart);
+	hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
 
 	for (size_t i = 0; i < npart; i++)
 	{
@@ -342,13 +381,10 @@ bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& i
 	ss >> npart;
 	npart = std::min(npart, config.max_particle);
 
-	hd.particles = HostParticlePhaseSpace(npart);
+	hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
 
 	for (size_t i = 0; i < npart; i++)
 	{
-		std::istringstream ss;
-		std::string s;
-
 		std::getline(in, s);
 		ss = std::istringstream(s);
 		ss >> hd.particles.r[i].x >> hd.particles.r[i].y >> hd.particles.r[i].z;
@@ -385,7 +421,7 @@ bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::ist
 	read_binary(in, hd.particles.n);
 
 	hd.particles.n = std::min(hd.particles.n, config.max_particle);
-	hd.particles = HostParticlePhaseSpace(hd.particles.n);
+	hd.particles = HostParticlePhaseSpace(hd.particles.n, !config.use_gpu);
 
 	for (size_t i = 0; i < hd.particles.n; i++)
 	{
@@ -534,7 +570,7 @@ void save_data(const HostData& hd, const Configuration& config, const std::strin
 	{
 		std::ostringstream ss;
 
-		if ((dump && config.dumpbinary) || (!config.writesplit && config.writebinary))
+		if (dump || (!config.writesplit && config.writebinary))
 		{
 			std::ofstream out(outfile, std::ios_base::binary);
 			save_data_hybrid_binary(hd, config, out);

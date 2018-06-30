@@ -28,10 +28,21 @@ struct HostParticlePhaseSpace
 
 	Vu16 deathflags;
 	Vf32 deathtime;
-	Vu32 id; inline HostParticlePhaseSpace() { }
-	inline HostParticlePhaseSpace(size_t siz) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), deathflags(siz), deathtime(siz), id(siz) { }
+	Vu32 deathtime_index;
+
+	Vu32 id;
+
+	inline HostParticlePhaseSpace() { }
+	inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), deathflags(siz), deathtime(siz), id(siz)
+       	{ 
+		if (cpu_only)
+		{
+			deathtime_index = Vu32(siz);
+		}
+	}
 
 	std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
+	std::unique_ptr<std::vector<size_t>> stable_partition_unflagged(size_t begin = 0, size_t length = static_cast<size_t>(-1));
 };
 
 struct HostPlanetPhaseSpace
@@ -96,6 +107,9 @@ struct Configuration
 	size_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
 	double wh_ce_r1, wh_ce_r2;
 	size_t wh_ce_n1, wh_ce_n2;
+	size_t split_track_file;
+
+	bool use_gpu;
 
 	double cull_radius;
 

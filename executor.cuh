@@ -18,7 +18,7 @@ struct ExecutorData
 	std::unique_ptr<std::vector<size_t>> gather_indices;
 
 	ExecutorData();
-	ExecutorData(size_t size);
+	ExecutorData(size_t size, bool cpu_only = false);
 };
 
 struct Executor
@@ -50,12 +50,13 @@ struct Executor
 	void init();
 	void upload_data(size_t begin, size_t length);
 	void upload_planet_log();
-	void download_data();
+	void download_data(bool ignore_errors = false);
 
 	double time() const;
 	void loop(double* cputime, double* gputime);
 	void add_job(const std::function<void()>& job);
 	void resync();
+	void resync_cpu();
 	void finish();
 	void step_and_upload_planets();
 };

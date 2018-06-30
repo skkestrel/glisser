@@ -211,10 +211,10 @@ void WHIntegrator::nonhelio_acc_encounter_particle(const HostPlanetPhaseSpace& p
 		f64_3 dr = pl.r_log.get<false, old>()[pl.log_index_at<old>(timestep_index, i)]
 			- pl.r_log.get<false, old>()[pl.log_index_at<old>(timestep_index, central_planet_index)];
 		float64_t rsq = dr.lensq();
-		double inverse_helio_cubed = 1. / (std::sqrt(rsq) * rsq);
+		double _inverse_helio_cubed = 1. / (std::sqrt(rsq) * rsq);
 
 #pragma GCC warning "TODO"
-		particle_a[i] -= dr * pl.m[i] * inverse_helio_cubed;
+		particle_a[i] -= dr * pl.m[i] * _inverse_helio_cubed;
         }
 
 	for (size_t j = 0; j < old ? pl.n_alive_old : pl.n_alive; j++)
@@ -280,6 +280,7 @@ uint8_t WHIntegrator::helio_acc_particle(const HostPlanetPhaseSpace& pl, HostPar
 		{
 			if (detection > 0)
 			{
+				pa.deathflags[particle_index] = pa.deathflags[particle_index] & 0x00FF;
 				pa.deathflags[particle_index] = static_cast<uint16_t>(pa.deathflags[particle_index] | (j << 8) | 0x0001);
 			}
 		}
@@ -385,7 +386,7 @@ void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	}
 }
 
-void WHIntegrator::drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v) const
+void WHIntegrator::drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v)
 {
 	float64_t dist, vsq, vdotr;
 	dist = std::sqrt(r->lensq());
@@ -437,7 +438,7 @@ void WHIntegrator::drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v) c
 	}
 }
 
-void WHIntegrator::drift(float64_t t, const Vu8& mask, const Vf64& mu, Vf64_3& r, Vf64_3& v, size_t start, size_t n)
+void WHIntegrator::drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t n)
 {
 	for (size_t i = start; i < start + n; i++)
 	{
@@ -449,7 +450,7 @@ void WHIntegrator::drift(float64_t t, const Vu8& mask, const Vf64& mu, Vf64_3& r
 	for (size_t i = start; i < start + n; i++)
 	{
 		this->energy[i] *= 0.5;
-		this->energy[i] -= mu[i] / this->dist[i];
+		this->energy[i] -= this->mu[i] / this->dist[i];
 	}
 
 	for (size_t i = start; i < start + n; i++)
@@ -460,11 +461,13 @@ void WHIntegrator::drift(float64_t t, const Vu8& mask, const Vf64& mu, Vf64_3& r
 			std::ostringstream ss;
 			ss << "unbound orbit of planet " << i << " energy = " << this->energy[i] << std::endl;
 
+			/*
 			for (size_t j = start; j < start + n; j++)
 			{
 				ss << "p " << r[j].x << " " << r[j].y << " " << r[j].z << std::endl;
 				ss << "v " << v[j].x << " " << v[j].y << " " << v[j].z << std::endl;
 			}
+			*/
 			
 			throw std::runtime_error(ss.str());
 		}
@@ -474,8 +477,8 @@ void WHIntegrator::drift(float64_t t, const Vu8& mask, const Vf64& mu, Vf64_3& r
 			f64_3 v0 = v[i];
 
 			// maybe parallelize this
-			float64_t a = -0.5 * mu[i] / this->energy[i];
-			float64_t n_ = std::sqrt(mu[i] / (a * a * a));
+			float64_t a = -0.5 * this->mu[i] / this->energy[i];
+			float64_t n_ = std::sqrt(this->mu[i] / (a * a * a));
 			float64_t ecosEo = 1.0 - this->dist[i] / a;
 			float64_t esinEo = this->vdotr[i] / (n_ * a * a);
 			// float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
@@ -507,7 +510,7 @@ void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePh
 {
 	for (size_t i = begin; i < begin + length; i++)
 	{
-		this->mask[i] = !((pa.deathflags[i] & 0x0001) || (pa.deathflags[i] == 0));
+		this->mask[i] = pa.deathflags[i] != 0;
 		if (!this->mask[i]) pa.v[i] += particle_a[i] * (dt / 2);
 	}
 
@@ -517,14 +520,18 @@ void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePh
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(dt, this->mask, this->mu, pa.r, pa.v, begin, length);
+	drift(dt, pa.r, pa.v, begin, length);
 
 	// find the accelerations of the heliocentric velocities
 	helio_acc_particles<false, false>(pl, pa, begin, length, t, timestep_index);
 
 	for (size_t i = begin; i < begin + length; i++)
 	{
-		if (!this->mask[i]) pa.v[i] += particle_a[i] * (dt / 2);
+		if (!this->mask[i])
+		{
+			pa.v[i] += particle_a[i] * (dt / 2);
+			pa.deathtime_index[i] = static_cast<uint32_t>(timestep_index + 1);
+		}
 	}
 }
 
@@ -665,7 +672,7 @@ void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t ti
         }
 
 	// Drift all the particles along their Jacobi Kepler ellipses
-	drift(new_dt, this->mask, this->mu, this->planet_rj, this->planet_vj, 1, pl.n_alive - 1);
+	drift(new_dt, this->planet_rj, this->planet_vj, 1, pl.n_alive - 1);
 
 	// convert Jacobi vectors to helio. ones for acceleration calc 
 	jacobi_to_helio_planets(eta, planet_rj, planet_vj, pl);
@@ -680,16 +687,16 @@ void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t ti
 		helio_acc_planets<true>(pl, timestep_index);
 	}
 
-	auto& r_log = pl.r_log.slow;
-	auto& v_log = pl.v_log.slow;
+	Vf64_3* r_log = &pl.r_log.slow;
+	Vf64_3* v_log = &pl.v_log.slow;
 	if (resolve_encounters)
 	{
-		r_log = pl.r_log.log;
-		v_log = pl.v_log.log;
+		r_log = &pl.r_log.log;
+		v_log = &pl.v_log.log;
 	}
 
-	std::copy(pl.r.begin() + 1, pl.r.end(), r_log.begin() + (pl.n_alive - 1) * timestep_index);
-	std::copy(pl.v.begin() + 1, pl.v.end(), v_log.begin() + (pl.n_alive - 1) * timestep_index);
+	std::copy(pl.r.begin() + 1, pl.r.end(), r_log->begin() + (pl.n_alive - 1) * timestep_index);
+	std::copy(pl.v.begin() + 1, pl.v.end(), v_log->begin() + (pl.n_alive - 1) * timestep_index);
 
 	for (size_t i = 1; i < pl.n_alive; i++)
 	{

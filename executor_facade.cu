@@ -3,10 +3,10 @@
 #include "data.cuh"
 #include "executor.cuh"
 
-ExecutorFacade::ExecutorFacade(HostData& hd, const Configuration& config, std::ostream& out) : hd(hd), output(out)
+ExecutorFacade::ExecutorFacade(HostData& _hd, const Configuration& config, std::ostream& out) : hd(_hd), output(out)
 {
 	dd = std::make_unique<DeviceData>();
-	impl = std::make_unique<Executor>(hd, *dd.get(), config, out);
+	impl = std::make_unique<Executor>(_hd, *dd.get(), config, out);
 
 	t = &impl->t;
 	e_0 = &impl->e_0;
@@ -22,9 +22,9 @@ void ExecutorFacade::init()
 	impl->init();
 }
 
-void ExecutorFacade::download_data()
+void ExecutorFacade::download_data(bool ignore_errors)
 {
-	impl->download_data();
+	impl->download_data(ignore_errors);
 }
 
 double ExecutorFacade::time() const

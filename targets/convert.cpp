@@ -28,23 +28,19 @@ int main(int argv, char** argc)
 		{
 			momentum = true;
 		}
-
-		if (arg == "velocity")
+		else if (arg == "velocity")
 		{
 			momentum = false;
 		}
-
-		if (arg == "binary")
+		else if (arg == "binary")
 		{
 			binary = true;
 		}
-
-		if (arg == "ascii")
+		else if (arg == "ascii")
 		{
 			binary = false;
 		}
-
-		if (arg == "read")
+		else if (arg == "read")
 		{
 			config.hybridin = std::string(argc[i]);
 			config.readbinary = binary;
@@ -60,8 +56,7 @@ int main(int argv, char** argc)
 
 			i++;
 		}
-
-		if (arg == "read-split")
+		else if (arg == "read-split")
 		{
 			config.plin = std::string(argc[i]);
 			config.icsin = std::string(argc[i + 1]);
@@ -80,8 +75,7 @@ int main(int argv, char** argc)
 
 			i += 2;
 		}
-
-		if (arg == "write")
+		else if (arg == "write")
 		{
 			config.hybridout = std::string(argc[i]);
 			config.writebinary = binary;
@@ -92,18 +86,15 @@ int main(int argv, char** argc)
 
 			i++;
 		}
-
-		if (arg == "to-bary")
+		else if (arg == "to-bary")
 		{
 			to_bary(hd);
 		}
-
-		if (arg == "to-helio")
+		else if (arg == "to-helio")
 		{
 			to_helio(hd);
 		}
-
-		if (arg == "to-elements")
+		else if (arg == "to-elements")
 		{
 			double a, e, i, capom, om, f;
 			int esign;
@@ -161,6 +152,11 @@ int main(int argv, char** argc)
 				hd.particles.v[j].y = om;
 				hd.particles.v[j].z = f;
 			}
+		}
+		else
+		{
+			std::cout << "?" << std::endl;
+			return -1;
 		}
 	}
 }
