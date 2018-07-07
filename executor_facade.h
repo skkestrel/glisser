@@ -10,15 +10,14 @@ struct DeviceData;
 struct ExecutorFacade
 {
 	HostData& hd;
-	std::ostream& output;
-
-	float64_t* t;
-	float64_t* e_0;
-
-	std::ostream** encounter_output;
-
-	std::unique_ptr<Executor> impl;
 	std::unique_ptr<DeviceData> dd;
+	std::unique_ptr<Executor> impl;
+
+	float64_t& t;
+	float64_t& e_0;
+
+	std::ostream*& encounter_output;
+
 
 	ExecutorFacade(HostData& hd, const Configuration& config, std::ostream& out);
 	~ExecutorFacade();

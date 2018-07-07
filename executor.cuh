@@ -23,8 +23,6 @@ struct ExecutorData
 
 struct Executor
 {
-	const Configuration& config;
-
 	HostData& hd;
 	DeviceData& dd;
 	WHCudaIntegrator integrator;
@@ -39,6 +37,8 @@ struct Executor
 
 	std::ostream& output;
 	std::ostream* encounter_output;
+
+	const Configuration& config;
 
 	std::chrono::time_point<std::chrono::high_resolution_clock> starttime;
 

@@ -19,11 +19,17 @@
 #include <sys/stat.h>
 #include <csignal>
 
-#include "../executor_facade.h"
+#ifdef NO_CUDA
+	#include "../cpu_executor.h"
+#else
+	#include "../executor_facade.h"
+#endif
+
 #include "../data.h"
 #include "../wh.h"
 #include "../convert.h"
 #include "../util.h"
+
 
 volatile sig_atomic_t end_loop = 0;
 
@@ -58,13 +64,23 @@ int main(int argv, char** argc)
 
 	Configuration config_mut;
 	if (read_configuration(configfile, &config_mut)) return -1;
-	
+
 	const Configuration& config = config_mut;
 
 	{
 		std::ofstream configstream(joinpath(config.outfolder, "config.in"));
 		write_configuration(configstream, config);
 	}
+
+
+#ifdef NO_CUDA
+	if (config_mut.use_gpu)
+	{
+		std::cout << "Enable-GPU cannot be enabled when compiling without CUDA!" << std::endl;
+		return -1;
+	}
+#endif
+
 
 	Configuration out_config = config.output_config();
 
@@ -91,9 +107,14 @@ int main(int argv, char** argc)
 	tout << "Host uses little-endian ints? " << (is_int_little_endian() ? "yes" : "no") << std::endl;
 
 	HostData hd;
-	ExecutorFacade ex(hd, config, tout);
 
-	*ex.t = config.t_0;
+#ifdef NO_CUDA
+	CPUExecutor ex(hd, config, tout);
+#else
+	ExecutorFacade ex(hd, config, tout);
+#endif
+
+	ex.t = config.t_0;
 
 	if (load_data(hd, config)) return -1;
 
@@ -101,7 +122,7 @@ int main(int argv, char** argc)
 	std::tm tm = *std::localtime(&t);
 
 	std::ofstream encounterlog(joinpath(config.outfolder, "encounter.out"));
-	*ex.encounter_output = &encounterlog;
+	ex.encounter_output = &encounterlog;
 
 	std::ofstream timelog(joinpath(config.outfolder, "time.out"));
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
@@ -122,12 +143,19 @@ int main(int argv, char** argc)
 			trackout = std::ofstream(joinpath(config.outfolder, "track.out"), std::ios_base::binary);
 		}
 
-		while (*ex.t < config.t_f)
+		while (ex.t < config.t_f)
 		{
+#ifdef NO_CUDA
+			double cputimeout;
+		       	ex.loop(&cputimeout);
+
+			double timediff = cputimeout;
+#else
 			double cputimeout, gputimeout;
 		       	ex.loop(&cputimeout, &gputimeout);
 
 			double timediff = gputimeout - cputimeout;
+#endif
 
 			counter++;
 
@@ -143,7 +171,7 @@ int main(int argv, char** argc)
 					f64_3 l_;
 					calculate_planet_metrics(ex.hd.planets, &e_, &l_);
 					double elapsed = ex.time();
-					double total = elapsed * (config.t_f - config.t_0) / (*ex.t - config.t_0);
+					double total = elapsed * (config.t_f - config.t_0) / (ex.t - config.t_0);
 
 					if (output_energy)
 					{
@@ -155,9 +183,9 @@ int main(int argv, char** argc)
 					if (log_out)
 					{
 						tout << std::setprecision(4);
-						tout << "t=" << *ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
+						tout << "t=" << ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
 							<< total << "m total " << total - elapsed << "m remain)" << std::endl;
-						tout << "Error = " << (e_ - *ex.e_0) / *ex.e_0 * 100 << ", " <<
+						tout << "Error = " << (e_ - ex.e_0) / ex.e_0 * 100 << ", " <<
 							ex.hd.particles.n_alive << " particles remaining, " << ex.hd.particles.n_encounter << " in encounter" << std::endl;
 
 						tout << "GPU took " << std::setprecision(4) << timediff << " ms longer than CPU" << std::endl;
@@ -169,15 +197,17 @@ int main(int argv, char** argc)
 
 			if (dump || track)
 			{
+#ifndef NO_CUDA
 				ex.download_data();
+#endif
 
 				if (dump)
 				{
-					out_config.t_f = config.t_f - config.t_0 + *ex.t;
-					out_config.t_0 = *ex.t;
+					out_config.t_f = config.t_f - config.t_0 + ex.t;
+					out_config.t_0 = ex.t;
 					ex.add_job([&tout, &ex, &out_config, &config, &dump_num]()
 						{
-							tout << "Dumping to disk. t = " << *ex.t << std::endl;
+							tout << "Dumping to disk. t = " << ex.t << std::endl;
 							std::ostringstream ss;
 							ss << "dump/config." << dump_num << ".out";
 
@@ -203,7 +233,7 @@ int main(int argv, char** argc)
 
 					ex.add_job([&trackout, &ex, &config]()
 						{
-							write_binary(trackout, *ex.t);
+							write_binary(trackout, ex.t);
 							write_binary(trackout, ex.hd.planets.n_alive - 1);
 
 							for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
@@ -265,12 +295,14 @@ int main(int argv, char** argc)
 	}
 
 	ex.finish();
+#ifndef NO_CUDA
 	ex.download_data(true);
+#endif
 
 	tout << "Saving to disk." << std::endl;
 	save_data(hd, config, joinpath(config.outfolder, "state.out"));
-	out_config.t_f = config.t_f - config.t_0 + *ex.t;
-	out_config.t_0 = *ex.t;
+	out_config.t_f = config.t_f - config.t_0 + ex.t;
+	out_config.t_0 = ex.t;
 	std::ofstream configout(joinpath(config.outfolder, "config.out"));
 	write_configuration(configout, out_config);
 

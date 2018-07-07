@@ -41,6 +41,12 @@ Executor::Executor(HostData& _hd, DeviceData& _dd, const Configuration& _config,
 
 void Executor::init()
 {
+	if (!config.use_gpu)
+	{
+		output << "Executable was compiled with CUDA but USE_GPU was disabled!" << std::endl;
+		throw std::exception();
+	}
+
 	to_helio(hd);
 
 	integrator = WHCudaIntegrator(hd.planets, hd.particles, config);
@@ -74,7 +80,7 @@ void Executor::init()
 	memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
 	cudaStreamSynchronize(htd_stream);
 
-	if (config.use_gpu && hd.particles.n > 0)
+	if (hd.particles.n > 0)
 	{
 		upload_data(0, hd.particles.n);
 	}
@@ -105,7 +111,7 @@ void Executor::step_and_upload_planets()
 	// since the particles that survive close encounters can make it to the GPU at the end of this timestep
 	// and thus the next planet chunk will be required
 
-	if (config.use_gpu && (dd.particle_phase_space().n_alive > 0 || hd.particles.n_encounter > 0))
+	if (dd.particle_phase_space().n_alive > 0 || hd.particles.n_encounter > 0)
 	{
 		upload_planet_log();
 	}
@@ -134,11 +140,6 @@ void Executor::add_job(const std::function<void()>& job)
 
 void Executor::download_data(bool ignore_errors)
 {
-	if (!config.use_gpu)
-	{
-		return;
-	}
-
 	auto& particles = dd.particle_phase_space();
 
 	Vu32 prev_ids(hd.particles.id.begin(), hd.particles.id.end());
@@ -190,24 +191,17 @@ void Executor::loop(double* cputimeout, double* gputimeout)
 {
 	std::thread cpu_thread;
 	
-	if (config.use_gpu)
+	if (dd.particle_phase_space().n_alive > 0)
 	{
-		if (dd.particle_phase_space().n_alive > 0)
-		{
-			cudaEventRecord(start_event, main_stream);
-			integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space());
-			cudaEventRecord(gpu_finish_event, main_stream);
-		}
-	}
-	else
-	{
-		integrator.integrate_particles_timeblock(hd.planets, hd.particles, 0, hd.particles.n_alive - hd.particles.n_encounter, t);
-		// cpu_thread = std::thread([this]() { integrator.integrate_particles_timeblock(hd.planets, hd.particles, 0, hd.particles.n_alive - hd.particles.n_encounter, t); });
+		cudaEventRecord(start_event, main_stream);
+		integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space());
+		cudaEventRecord(gpu_finish_event, main_stream);
 	}
 
 	// The queued work should begin RIGHT after the CUDA call
 	for (auto& i : work) i();
 	work.clear();
+
 
 	size_t encounter_start = hd.particles.n_alive - hd.particles.n_encounter;
 	for (size_t i = encounter_start; i < hd.particles.n_alive; i++)
@@ -217,6 +211,7 @@ void Executor::loop(double* cputimeout, double* gputimeout)
 				t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i - encounter_start])
 			);
 	}
+
 	auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter);
 	integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter);
 	upload_data(encounter_start, hd.particles.n_encounter);
@@ -225,37 +220,27 @@ void Executor::loop(double* cputimeout, double* gputimeout)
 	// consider removing this? We can use hd.planets.*_log_old[-1] to replicate this functionality
 	hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
 
-	// The OLD logs are required by the close encounter handler
-
 	t += config.dt * static_cast<double>(config.tbsize);
 	step_and_upload_planets();
 
-	if (config.use_gpu)
+	if (dd.particle_phase_space().n_alive > 0)
 	{
-		if (dd.particle_phase_space().n_alive > 0)
-		{
-			cudaStreamSynchronize(htd_stream);
-			cudaEventRecord(cpu_finish_event, par_stream);
-			cudaEventSynchronize(gpu_finish_event);
+		cudaStreamSynchronize(htd_stream);
+		cudaEventRecord(cpu_finish_event, par_stream);
+		cudaEventSynchronize(gpu_finish_event);
 
-			float cputime, gputime;
-			cudaEventElapsedTime(&cputime, start_event, cpu_finish_event);
-			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
-			if (cputimeout) *cputimeout = cputime;
-			if (gputimeout) *gputimeout = gputime;
+		float cputime, gputime;
+		cudaEventElapsedTime(&cputime, start_event, cpu_finish_event);
+		cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
+		if (cputimeout) *cputimeout = cputime;
+		if (gputimeout) *gputimeout = gputime;
 
-			// There's nothing to resync if all the particles on the device are dead!
-			// Although dd.particles.n_alive can be out of sync with dd.particles.deathflags before
-			// resync() is called, this is safe:
-			// - The MVS kernel does not revive particles, so resync() will never INCREASE n_alive
-			// - dd.particles.n_alive is adjusted by the close encounter handler just BEFORE this call
-			resync();
-		}
-	}
-	else
-	{
-		// cpu_thread.join();
-		resync_cpu();
+		// There's nothing to resync if all the particles on the device are dead!
+		// Although dd.particles.n_alive can be out of sync with dd.particles.deathflags before
+		// resync() is called, this is safe:
+		// - The MVS kernel does not revive particles, so resync() will never INCREASE n_alive
+		// - dd.particles.n_alive is adjusted by the close encounter handler just BEFORE this call
+		resync();
 	}
 }
 
@@ -434,7 +419,7 @@ void Executor::resync()
 						*encounter_output << hd.planets.m[j] << std::endl;
 						*encounter_output << hd.planets.r_log.slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
 						*encounter_output << hd.planets.v_log.slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-						*encounter_output << hd.planets.id[i] << std::endl;
+						*encounter_output << hd.planets.id[j] << std::endl;
 					}
 				}
 

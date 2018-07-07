@@ -7,6 +7,9 @@
 #include <stdexcept>
 #include <iostream>
 
+
+#pragma GCC warning "Make this thread safe! Planets and particles need to have different sets of masks, mu, ..."
+
 const size_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-14;
 
@@ -508,6 +511,11 @@ void WHIntegrator::drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t
 
 void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index)
 {
+	if (pa.deathtime_index.empty())
+	{
+		throw std::invalid_argument("Deathtime index array not allocated");
+	}
+
 	for (size_t i = begin; i < begin + length; i++)
 	{
 		this->mask[i] = pa.deathflags[i] != 0;
@@ -540,6 +548,10 @@ size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpac
 {
 	size_t tfactor = encounter_n1 * encounter_n2;
 
+	std::cout << pa.r[particle_index] << std::endl;
+	std::cout << *planet_index << " " << (int) *encounter_level << std::endl;
+	std::cout << timestep_index << " " << tfactor << std::endl;
+
 	switch (*encounter_level)
 	{
 		default:
@@ -568,11 +580,11 @@ size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpac
 			pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
 
 			// Only lower the encounter level if we are aligned
-			if (detection > 1 || (timestep_index % tfactor == 0))
+			if (detection < 2 && ((timestep_index + 1) % tfactor == 0))
 			{
 				*encounter_level = detection;
+				*planet_index = (pa.deathflags[particle_index] & 0x00FF) >> 8;
 			}
-			*planet_index = (pa.deathflags[particle_index] & 0x00FF) >> 8;
 			*/
 
 			return encounter_n2;
@@ -591,12 +603,12 @@ size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpac
 			pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
 
 			// Only lower the encounter level if we are aligned
-			if (detection > 0 || (timestep_index % tfactor == 0))
+			if (detection < 1 && ((timestep_index + encounter_n2) % tfactor == 0))
 			{
 				*encounter_level = detection;
+				*planet_index = (pa.deathflags[particle_index] & 0x00FF) >> 8;
 			}
 
-			*planet_index = (pa.deathflags[particle_index] & 0x00FF) >> 8;
 			return encounter_n2;
 		}
 		case 0:
@@ -625,16 +637,20 @@ void WHIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpa
 
 	size_t tfactor = encounter_n1 * encounter_n2;
 
-	for (size_t i = particle_deathtime_index * tfactor; i < tbsize * tfactor; i++)
+	size_t i = particle_deathtime_index * tfactor;
+	while (i < tbsize * tfactor)
 	{
 		size_t adv = integrate_encounter_particle_step<true>(pl, pa, particle_index, i, &planet_index, &enc_level, t);
 		t += dt * static_cast<double>(adv) / static_cast<double>(tfactor);
+		i += adv;
 	}
 
-	for (size_t i = 0; i < tbsize * tfactor; i++)
+	i = 0;
+	while (i < tbsize * tfactor)
 	{
 		size_t adv = integrate_encounter_particle_step<false>(pl, pa, particle_index, i, &planet_index, &enc_level, t);
 		t += dt * static_cast<double>(adv) / static_cast<double>(tfactor);
+		i += adv;
 	}
 
 	// Clear all the encounter bits if the encounter is clear

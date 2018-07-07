@@ -3,14 +3,14 @@
 #include "data.cuh"
 #include "executor.cuh"
 
-ExecutorFacade::ExecutorFacade(HostData& _hd, const Configuration& config, std::ostream& out) : hd(_hd), output(out)
+ExecutorFacade::ExecutorFacade(HostData& _hd, const Configuration& config, std::ostream& out) :
+	hd(_hd),
+	dd(std::make_unique<DeviceData>()),
+	impl(std::make_unique<Executor>(_hd, *dd.get(), config, out)),
+	t(impl->t),
+	e_0(impl->e_0),
+	encounter_output(impl->encounter_output)
 {
-	dd = std::make_unique<DeviceData>();
-	impl = std::make_unique<Executor>(_hd, *dd.get(), config, out);
-
-	t = &impl->t;
-	e_0 = &impl->e_0;
-	encounter_output = &impl->encounter_output;
 }
 
 ExecutorFacade::~ExecutorFacade()
