@@ -12,22 +12,21 @@
 const size_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-14;
 
-size_t kepmd(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE)
+bool kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE)
 {
 	double f,fp, delta;
 
 	*sindE = std::sin( *dE);
 	*cosdE = std::cos( *dE);
 
-	size_t i;
-	for (i = 0; i < MAXKEP; i++)
+	for (uint32_t i = 0; i < MAXKEP; i++)
 	{
 		f = *dE - ecosEo * (*sindE) + esinEo * (1. - *cosdE) - dM;
 		fp = 1. - ecosEo * (*cosdE) + esinEo * (*sindE);
 		delta = -f / fp;
 		if (std::fabs(delta) < TOLKEP)
 		{
-			goto done;
+			return false;
 		}
 
 		*dE += delta;
@@ -35,13 +34,57 @@ size_t kepmd(double dM, double ecosEo, double esinEo, double* dE, double* sindE,
 		*cosdE = std::cos(*dE);
 	}
 
-	throw std::exception();
-
-done:
-	return i;
+	return true;
 }
 
-const double M_3PI_2 = 1.5 * M_PI;
+//  Subroutine for solving kepler's equation in difference form for an
+//  ellipse, given SMALL dm and SMALL eccentricity.  See DRIFT_DAN.F
+//  for the criteria.
+//  WARNING - BUILT FOR SPEED : DOES NOT CHECK HOW WELL THE ORIGINAL
+//  EQUATION IS SOLVED! (CAN DO THAT IN THE CALLING ROUTINE BY
+//  CHECKING HOW CLOSE (x - ec*s +es*(1.-c) - dm) IS TO ZERO.
+//
+//	Input:
+//	    dm		==> increment in mean anomaly M (real*8 scalar)
+//	    es,ec       ==> ecc. times sin and cos of E_0 (real*8 scalars)
+//
+//       Output:
+//            x          ==> solution to Kepler's difference eqn (real*8 scalar)
+//            s,c        ==> sin and cosine of x (real*8 scalars)
+//
+void kepmd(double dm, double es, double ec, double* x, double* s, double* c)
+{
+	const double A0 = 39916800.;
+	const double A1 = 6652800.;
+	const double A2 = 332640.;
+	const double A3 = 7920.;
+	const double A4 = 110.;
+
+	// calc initial guess for root
+	double fac1 = 1. / (1. - ec);
+	double q = fac1 * dm;
+	double fac2 = es * es * fac1 - ec / 3.;
+	*x = q * (1. - 0.5 * fac1 * q * (es - q * fac2));
+
+	// excellent approx. to sin and cos of x for small x.
+	double y = *x * *x;
+	*s = *x * (A0 - y * (A1 - y * (A2 - y * (A3 - y * (A4 - y))))) / A0;
+        *c = std::sqrt(1. - *s * *s);
+
+	// Compute better value for the root using quartic Newton method
+        double f = *x - ec * *s + es * (1. - *c) - dm;
+        double fp = 1. - ec * *c + es * *s;
+        double fpp = ec * *s + es * *c;
+        double fppp = ec * *c - es * *s;
+        double dx = -f / fp;
+        dx = -f / (fp + 0.5 * dx * fpp);
+        dx = -f / (fp + 0.5 * dx * fpp + 0.16666666666666666 * dx * dx * fppp);
+        *x = *x + dx;
+
+	y = *x * *x;
+	*s = *x * (A0 - y * (A1 - y * (A2 - y * (A3 - y * (A4 - y))))) / A0;
+        *c = std::sqrt(1. - *s * *s);
+}
 
 // Returns the real root of cubic often found in solving kepler
 // problem in universal variables.
@@ -696,6 +739,7 @@ void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	}
 }
 
+template<bool danby>
 bool WHIntegrator::drift_single(float64_t dt, float64_t mu, f64_3* r, f64_3* v)
 {
 	float64_t dist, vsq, vdotr;
@@ -719,27 +763,61 @@ bool WHIntegrator::drift_single(float64_t dt, float64_t mu, f64_3* r, f64_3* v)
 		// subtract off an integer multiple of complete orbits
 		float64_t dM = dt * n_ - M_2PI * (int) (dt * n_ / M_2PI);
 
-		if ((dM * dM > 0.16) || (esq > 0.36)) goto skip;
-
 		// remaining time to advance
 		dt = dM / n_;
 
-		// call kepler equation solver with initial guess in dE already
-		float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
-		float64_t sindE, cosdE;
-		kepmd(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
+		if (danby)
+		{
+			if ((dM * dM > 0.16) || (esq > 0.36)) goto skip;
 
-		float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
-		float64_t f = 1.0 + a * (cosdE - 1.0) / dist;
-		float64_t g = dt + (sindE - dE) / n_;
-		float64_t fdot = -n_ * sindE * a / (dist * fp);
-		float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
+			if (esq * dM * dM < 0.0016)
+			{
+				double xkep, s, c;
+				// call kepler equation solver with initial guess in dE already
+				kepmd(dM, ecosEo, esinEo, &xkep, &s, &c);
 
-		f64_3 r0 = *r;
-		f64_3 v0 = *v;
-		*r = r0 * f + v0 * g;
-		*v = r0 * fdot + v0 * gdot;
-		return false;
+				double fchk = xkep - ecosEo * s + esinEo * (1. - c) - dM;
+
+				if (fchk * fchk > DANBYB)
+				{
+					return true;
+				}
+
+				float64_t fp = 1.0 - ecosEo * c + esinEo * s;
+				float64_t f = 1.0 + a * (c - 1.0) / dist;
+				float64_t g = dt + (s - xkep) / n_;
+				float64_t fdot = -n_ * s * a / (dist * fp);
+				float64_t gdot = 1.0 + (c - 1.0) / fp;
+
+				f64_3 r0 = *r;
+				f64_3 v0 = *v;
+				*r = r0 * f + v0 * g;
+				*v = r0 * fdot + v0 * gdot;
+				return false;
+			}
+		}
+		else
+		{
+			// call kepler equation solver with initial guess in dE already
+			float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
+			float64_t sindE, cosdE;
+			if (kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE))
+			{
+				return true;
+			}
+
+			float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
+			float64_t f = 1.0 + a * (cosdE - 1.0) / dist;
+			float64_t g = dt + (sindE - dE) / n_;
+			float64_t fdot = -n_ * sindE * a / (dist * fp);
+			float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
+
+			f64_3 r0 = *r;
+			f64_3 v0 = *v;
+			*r = r0 * f + v0 * g;
+			*v = r0 * fdot + v0 * gdot;
+			return false;
+		}
 	}
 	
 skip:
@@ -815,7 +893,10 @@ void WHIntegrator::drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t
 			// call kepler equation solver with initial guess in dE already
 			float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
 			float64_t sindE, cosdE;
-			kepmd(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
+			if (kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE))
+			{
+				throw std::runtime_error("Unconverging kepler");
+			}
 
 			float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
 			float64_t f = 1.0 + a * (cosdE - 1.0) / this->dist[i];
@@ -917,7 +998,7 @@ size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpac
 			pa.v[particle_index] += particle_a[particle_index] * (little_dt / 2);
 
 			// Drift all the particles along their Jacobi Kepler ellipses
-			drift_single(little_dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
+			drift_single<true>(little_dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
 
 			// find the accelerations of the heliocentric velocities
 			uint8_t detection = helio_acc_particle<true, old>(pl, pa, particle_index, t, timestep_index);
@@ -938,7 +1019,7 @@ size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpac
 			pa.v[particle_index] += particle_a[particle_index] * (dt / 2);
 
 			// Drift all the particles along their Jacobi Kepler ellipses
-			drift_single(dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
+			drift_single<true>(dt, pl.m[0], &pa.r[particle_index], &pa.v[particle_index]);
 
 			// find the accelerations of the heliocentric velocities
 			uint8_t detection = helio_acc_particle<false, old>(pl, pa, particle_index, t, timestep_index / tfactor);

@@ -41,6 +41,7 @@ public:
 	void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t timestep_index);
 	void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index);
 
+	template<bool danby>
 	static bool drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v);
 	void drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t n);
 
