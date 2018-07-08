@@ -100,7 +100,11 @@ void CPUExecutor::loop(double* cputimeout)
 
 void CPUExecutor::resync()
 {
-	if (hd.particles.n_alive == 0) return;
+	if (hd.particles.n_alive == 0)
+	{
+		hd.particles.n_encounter = 0;
+		return;
+	}
 
 	size_t prev_alive = hd.particles.n_alive;
 

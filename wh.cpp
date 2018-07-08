@@ -7,13 +7,12 @@
 #include <stdexcept>
 #include <iostream>
 
-
 #pragma GCC warning "Make this thread safe! Planets and particles need to have different sets of masks, mu, ..."
 
 const size_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-14;
 
-size_t kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE)
+size_t kepmd(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE)
 {
 	double f,fp, delta;
 
@@ -40,6 +39,331 @@ size_t kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE,
 
 done:
 	return i;
+}
+
+const double M_3PI_2 = 1.5 * M_PI;
+
+/// Get sin and cosine for an angle
+void sincos(double angle, double* sinx, double* cosx)
+{
+	double x;
+	x = angle - static_cast<int>(angle / M_2PI) * M_2PI;
+
+	if (x < 0) x += M_2PI;
+
+	double sx = std::sin(x);
+	*sinx = sx;
+	*cosx = std::sqrt(1. - sx * sx);
+
+	if ((x > M_PI_2) && (x < M_3PI_2)) *cosx = -*cosx
+	return;
+}
+
+
+// Returns the real root of cubic often found in solving kepler
+// problem in universal variables.
+//
+//             Input:
+//                 dt            ==>  time step (real scalar)
+//                 r0            ==>  Distance between `Sun' and paritcle
+//                                     (real scalar)
+//                 mu            ==>  Reduced mass of system (real scalar)
+//                 alpha         ==>  Twice the binding energy (real scalar)
+//                 u             ==>  Vel. dot radial vector (real scalar)
+//             Output:
+//                 s             ==>  solution of cubic eqn for the  
+//                                    universal variable
+//                 iflg          ==>  success flag ( = 0 if O.K.) (integer)
+//
+bool kepu_p3solve(double dt, double r0, double mu, double a,pha, double u, double* s)
+{
+	double denom = (mu - alpha * r0) / 6.;
+	double a2 = 0.5 * u / denom;
+	double a1 = r0 / denom;
+	double a0 = -dt / denom;
+
+	double q = (a1 - a2 * a2 / 3.) / 3.;
+	double r = (a1 * a2 - 3. * a0) / 6. - (a2 * a2 * a2) / 27.;
+	double sq2 = q * q * q + r * r;
+
+	if (sq2 >= 0)
+	{
+		double sq = std::sqrt(sq2);
+		double p1, p2;
+
+		if (r + sq <= 0)
+		{
+			p1 = -std::pow(-r - sq, 1. / 3.);
+		}
+		else
+		{
+			p1 = std::pow(r + sq, 1. / 3.);
+		}
+
+		if (r - sq <= 0)
+		{
+			p2 = -std::pow(-r + sq, 1. / 3.);
+		}
+		else
+		{
+			p2 = std::pow(r - sq, 1. / 3.);
+		}
+
+		*s = p1 + p2 - a2 / 3.;
+		return false;
+	}
+	else
+	{
+		*s = 0;
+		return true;
+	}
+}
+
+
+// Initial guess for solving kepler's equation using universal variables.
+//
+//             Input:
+//                 dt            ==>  time step (real scalor)
+//                 r0            ==>  Distance between `Sun' and paritcle
+//                                     (real scalor)
+//                 mu            ==>  Reduced mass of system (real scalor)
+//                 alpha         ==>  energy (real scalor)
+//                 u             ==>  angular momentun  (real scalor)
+//             Output:
+//                 s             ==>  initial guess for the value of 
+//                                    universal variable
+void kepu_guess(double dt, double r0, double mu, double alpha, double u, double* s)
+{
+        if (alpha > 0)
+	{
+		// find initial guess for elliptic motion
+		if (dt / r0 <= 0.4)
+		{
+			*s = dt / r0 - (dt * dt * u) / (2. * r0 * r0 * r0);
+		}
+		else
+		{
+			double a = mu / alpha;
+			double en = std::sqrt(mu / (a * a * a));
+			double ec = 1.0 - r0 / a;
+			double es = u / (en * a * a);
+			double e = std::sqrt(ec * ec + es * es);
+			double y = en * dt - es;
+			double sy, cy;
+			sincos(y, &sy, &cy);
+			double sigma = es * cy + ec * sy > 0 ? 1 : -1;
+			double x = y + sigma * .85 * e;
+			*s = x / std::sqrt(alpha);
+		}
+	}
+	else
+	{
+		// find initial guess for hyperbolic motion.
+		if (kepu_p3solve(dt, r0, mu, alpha, u, s))
+		{
+			*s = dt / r0;
+		}
+	}
+}
+
+// subroutine for the calculation of stumpff functions
+// see Danby p.172  equations 6.9.15
+//
+//             Input:
+//                 x             ==>  argument
+//             Output:
+//                 c0,c1,c2,c3   ==>  c's from p171-172
+//                                       (real scalors)
+void kepu_stumpff(double x, double* c0, double* c1, double* c2, double* c3)
+{
+      uint32_t n = 0;
+      double xm = 0.1;
+      while (std::abs(x) >= xm)
+      {
+	      n++;
+	      x /= 4.;
+      }
+
+      // Huh?
+      *c2 = (1. - x * (1. - x * (1. - x * (1. - x * (1. - x * (1. - x / 182.) / 132.) / 90.) / 56.) / 30.) / 12.) / 2.;
+      *c3 = (1. - x * (1. - x * (1. - x * (1. - x * (1. - x * (1. - x / 210.) / 156.) / 110.) / 72.) / 42.) / 20.) / 6.;
+      *c1 = 1. - x * *c3;
+      *c0 = 1. - x * *c2;
+
+      if (n != 0)
+      {
+	      for (uint32_t i = 0; i < n; i++)
+	      {
+		      *c3 = (*c2 + *c0 * *c3)/4.;
+		      *c2 = *c1 * *c1 / 2.;
+		      *c1 = *c0 * *c1;
+		      *c0 = 2. * *c0 * *c0 - 1.;
+		      x *= 4;
+	      }
+      }
+}
+
+const double DANBYB = 1e-13;
+bool kepu_new(double s, double dt, double r0, double mu, double alpha, double u, double* fp, double* c1, double* c2, double* c3)
+{
+	for (uint8_t nc = 0; nc < 7; nc++)
+	{
+		double x = s * s * alpha;
+		double c0;
+		kepu_stumpff(x, &c0, c1, c2, c3);
+		*c1 = *c1 * s;
+		*c2 = *c2 * s * s;
+		*c3 = *c3 * s * s * s;
+		double f = r0 * *c1 + u * *c2 + mu * *c3 - dt;
+		*fp = r0 * c0 + u * *c1 + mu * *c2;
+		double fpp = (-r0 * alpha + mu) * *c1 + u * c0;
+		double fppp = (- r0 * alpha + mu) * c0 - u * alpha * *c1;
+		double ds = - f / fp;
+		ds = -f / (fp + ds * fpp / 2.);
+		ds = -f / (fp + ds * fpp / 2. + ds * ds * fppp / 6.);
+		s = s + ds;
+		double fdt = f/dt;
+
+		// quartic convergence
+		// newton's method succeeded
+		if (fdt * fdt < DANBYB * DANBYB)
+		{
+			return false;
+		}
+	}
+
+	// newton's method failed
+	return true;
+}
+
+// Returns the value of the function f of which we are trying to find the root
+// in universal variables.
+//
+//             Input:
+//                 dt            ==>  time step (real scalar)
+//                 r0            ==>  Distance between `Sun' and particle
+//                                     (real scalar)
+//                 mu            ==>  Reduced mass of system (real scalar)
+//                 alpha         ==>  Twice the binding energy (real scalar)
+//                 u             ==>  Vel. dot radial vector (real scalar)
+//                 s             ==>  Approx. root of f 
+//             Output:
+//                 f             ==>  function value
+//
+double kepu_fchk(double dt, double r0, double mu, double alpha, double u, double s)
+{
+	double c0, c1, c2, c3;
+
+	double x = s * s * alpha;
+	kepu_stumpff(x, &c0, &c1, &c2, &c3);
+	c1 = c1 * s;
+	c2 = c2 * s * s;
+	c3 = c3 * s * s * s;
+	return r0 * c1 + u * c2 + mu * c3 - dt;
+}
+
+
+// subroutine for solving kepler's equation in universal variables.
+// using LAGUERRE'S METHOD
+//
+//             Input:
+//                 s             ==>  inital value of universal variable
+//                 dt            ==>  time step (real scalor)
+//                 r0            ==>  Distance between `Sun' and paritcle
+//                                     (real scalor)
+//                 mu            ==>  Reduced mass of system (real scalor)
+//                 alpha         ==>  energy (real scalor)
+//                 u             ==>  angular momentun  (real scalor)
+//             Output:
+//                 s             ==>  final value of universal variable
+//                 fp            ==>  f' from p170  
+//                                       (real scalors)
+//                 c1,c2,c3      ==>  c's from p171-172
+//                                       (real scalors)
+//                 iflgn          ==>  =0 if converged; !=0 if not
+const uint32_t NLAG1 = 50;
+const uint32_t NLAG2 = 400;
+const uint32_t NTMP = NLAG2 + 1;
+bool kepu_lag(double s, double dt, double r0, double mu, double alpha, double u, double* fp, double* c1, double* c2, double* c3)
+{
+	uint32_t ncmax;
+
+	// To get close approch needed to take lots of iterations if alpha<0
+	if (alpha < 0.0)
+	{
+		ncmax = NLAG2;
+	}
+	else
+	{
+		// Huh? Is this supposed to be NLAG1?
+		// ncmax = NLAG1;
+		ncmax = NLAG2;
+	}
+
+	double ln = 5.0;
+	// start laguere's method
+	for (uint32_t nc = 0; nc <= ncmax; nc++)
+	{
+		double c0;
+		double x = s * s * alpha;
+		kepu_stumpff(x, &c0, c1, c2, c3);
+		*c1 = *c1 * s;
+		*c2 = *c2 * s * s;
+		*c3 = *c3 * s * s * s;
+		double f = r0 * *c1 + u * *c2 + mu * *c3 - dt;
+		*fp = r0 * c0 + u * *c1 + mu * *c2;
+		double fpp = (-40. * alpha + mu) * *c1 + u * c0;
+		double ds = -ln * f / (*fp + (*fp > 0 ? 1 : -1) * std::sqrt(std::abs((ln - 1.) * (ln - 1.) * *fp * *fp - (ln - 1.) * ln * f * fpp)));
+		s = s + ds;
+
+		double fdt = f / dt;
+
+		// quartic convergence
+		if (fdt * fdt < DANBYB * DANBYB)
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+// subroutine for solving kepler's equation using universal variables.
+//
+//             Input:
+//                 dt            ==>  time step (real scalor)
+//                 r0            ==>  Distance between `Sun' and paritcle
+//                                     (real scalor)
+//                 mu            ==>  Reduced mass of system (real scalor)
+//                 alpha         ==>  energy (real scalor)
+//                 u             ==>  angular momentun  (real scalor)
+//             Output:
+//                 fp            ==>  f' from p170  
+//                                       (real scalors)
+//                 c1,c2,c3      ==>  c's from p171-172
+//                                       (real scalors)
+//                 iflg          ==>  =0 if converged; !=0 if not
+bool kepu(double dt, double r0, double mu, double alpha, double u, double* fp, double* c1, double* c2, double* c3)
+{
+	double s;
+        kepu_guess(dt, r0, mu, alpha, u, &s);
+
+        double st = s;
+	// store initial guess for possible use later in
+	// laguerre's method, in case newton's method fails.
+
+	if (kepu_new(s, dt, r0, mu, alpha, u, fp, c1, c2, c3))
+	{
+		double fo = kepu_fchk(dt, r0, mu, alpha, u, st);
+		double fn = kepu_fchk(dt, r0, mu, alpha, u, s);
+		if (std::abs(fo) < std::abs(fn))
+		{
+			s = st;
+		}
+		return kepu_lag(s, dt, r0, mu, alpha, u, fp, c1, c2, c3);
+	}
+
+	return false;
 }
 
 void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64_3* l)
@@ -389,7 +713,7 @@ void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	}
 }
 
-void WHIntegrator::drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v)
+bool WHIntegrator::drift_single(float64_t dt, float64_t mu, f64_3* r, f64_3* v)
 {
 	float64_t dist, vsq, vdotr;
 	dist = std::sqrt(r->lensq());
@@ -402,43 +726,56 @@ void WHIntegrator::drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v)
 
 	if (energy >= 0)
 	{
-		// TODO
-		std::ostringstream ss;
-		ss << "unbound orbit of particle, energy = " << energy << std::endl;
-		throw std::runtime_error(ss.str());
-	}
-	else
-	{
-		f64_3 r0 = *r;
-		f64_3 v0 = *v;
-
 		// maybe parallelize this
 		float64_t a = -0.5 * mu / energy;
 		float64_t n_ = std::sqrt(mu / (a * a * a));
 		float64_t ecosEo = 1.0 - dist / a;
 		float64_t esinEo = vdotr / (n_ * a * a);
-		// float64_t e = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
+		float64_t esq = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
 
 		// subtract off an integer multiple of complete orbits
 		float64_t dM = t * n_ - M_2PI * (int) (t * n_ / M_2PI);
 
+		if ((dm * dm > 0.16) || (esq > 0.36)) goto skip;
+
 		// remaining time to advance
-		float64_t adv_dt = dM / n_;
+		dt = dM / n_;
 
 		// call kepler equation solver with initial guess in dE already
 		float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
 		float64_t sindE, cosdE;
-		kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
+		kepmd(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
 
 		float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
 		float64_t f = 1.0 + a * (cosdE - 1.0) / dist;
-		float64_t g = adv_dt + (sindE - dE) / n_;
+		float64_t g = dt + (sindE - dE) / n_;
 		float64_t fdot = -n_ * sindE * a / (dist * fp);
 		float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
 
+		f64_3 r0 = *r;
+		f64_3 v0 = *v;
 		*r = r0 * f + v0 * g;
 		*v = r0 * fdot + v0 * gdot;
+		return false;
 	}
+	
+skip:
+	double fp, c1, c2, c3;
+	if (kepu(dt, dist, mu, 2 * energy, vdotr, &fp, &c1, &c2, &c3))
+	{
+		return true;
+	}
+
+	double f = 1.0 - (mu / dist) * c2;
+	double g = dt - mu * c3;
+	double fdot = -(mu / (fp * dist)) * c1;
+	double gdot = 1. - (mu / fp) * c2;
+
+	f64_3 r0 = *r;
+	f64_3 v0 = *v;
+	*r = r0 * f + v0 * g;
+	*v = r0 * fdot + v0 * gdot;
+	return false;
 }
 
 void WHIntegrator::drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t n)
@@ -495,7 +832,7 @@ void WHIntegrator::drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t
 			// call kepler equation solver with initial guess in dE already
 			float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
 			float64_t sindE, cosdE;
-			kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
+			kepmd(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
 
 			float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
 			float64_t f = 1.0 + a * (cosdE - 1.0) / this->dist[i];
@@ -548,9 +885,11 @@ size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpac
 {
 	size_t tfactor = encounter_n1 * encounter_n2;
 
+	/*
 	std::cout << pa.r[particle_index] << std::endl;
 	std::cout << *planet_index << " " << (int) *encounter_level << std::endl;
 	std::cout << timestep_index << " " << tfactor << std::endl;
+	*/
 
 	switch (*encounter_level)
 	{
@@ -632,8 +971,23 @@ size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpac
 
 void WHIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index, double t)
 {
-	f64_3 dr = pa.r[particle_index] - pl.r_log.get<true, true>()[pl.log_index_at<true>(particle_deathtime_index, planet_index)];
-	uint8_t enc_level = WHIntegrator::detect_encounter(dr.lensq(), planet_rh[planet_index], encounter_r1, encounter_r2);
+	uint8_t enc_level;
+	if (particle_deathtime_index == 0)
+	{
+		// If deathtime index is 0 that means the particle
+		// was still in an encounter when it was sent to GPU -
+		// we don't keep planet logs from that far back so just
+		// set level to 2
+		enc_level = 2;
+	}
+	else
+	{
+		// Need to subtract 1 from deathtime index
+		// to get the planet's true position at time
+		// of death - index is always 1 ahead
+		f64_3 dr = pa.r[particle_index] - pl.r_log.get<true, true>()[pl.log_index_at<true>(particle_deathtime_index - 1, planet_index)];
+		enc_level = WHIntegrator::detect_encounter(dr.lensq(), planet_rh[planet_index], encounter_r1, encounter_r2);
+	}
 
 	size_t tfactor = encounter_n1 * encounter_n2;
 

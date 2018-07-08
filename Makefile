@@ -31,4 +31,4 @@ cpu:
 
 convert:
 	mkdir -p bin
-	g++ targets/convert.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -O3 -o bin/convert -fsanitize=address
+	g++ targets/convert.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/convert -fsanitize=address -O0

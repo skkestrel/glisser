@@ -22,7 +22,7 @@ int main(int argv, char** argc)
 
 	for (size_t i = 1; i < argv; i++)
 	{
-		std::string arg(argc[i - 1]);
+		std::string arg(argc[i]);
 
 		if (arg == "momentum")
 		{
@@ -42,7 +42,7 @@ int main(int argv, char** argc)
 		}
 		else if (arg == "read")
 		{
-			config.hybridin = std::string(argc[i]);
+			config.hybridin = std::string(argc[i + 1]);
 			config.readbinary = binary;
 			config.readmomenta = momentum;
 
@@ -58,8 +58,8 @@ int main(int argv, char** argc)
 		}
 		else if (arg == "read-split")
 		{
-			config.plin = std::string(argc[i]);
-			config.icsin = std::string(argc[i + 1]);
+			config.plin = std::string(argc[i + 1]);
+			config.icsin = std::string(argc[i + 2]);
 
 			config.readmomenta = momentum;
 			config.readbinary = false;
@@ -77,7 +77,7 @@ int main(int argv, char** argc)
 		}
 		else if (arg == "write")
 		{
-			config.hybridout = std::string(argc[i]);
+			config.hybridout = std::string(argc[i + 1]);
 			config.writebinary = binary;
 			config.writemomenta = momentum;
 
@@ -96,7 +96,7 @@ int main(int argv, char** argc)
 		}
 		else if (arg == "to-elements")
 		{
-			double a, e, i, capom, om, f;
+			double a, e, I, capom, om, f;
 			int esign;
 
 			double totalmass = 0;
@@ -109,11 +109,11 @@ int main(int argv, char** argc)
 			{
 				if (ishelio)
 				{
-					to_elements(hd.planets.m[j] + hd.planets.m[0], hd.planets.r[j], hd.planets.v[j], &esign, &a, &e, &i, &capom, &om, &f);
+					to_elements(hd.planets.m[j] + hd.planets.m[0], hd.planets.r[j], hd.planets.v[j], &esign, &a, &e, &I, &capom, &om, &f);
 				}
 				else
 				{
-					to_elements(totalmass, hd.planets.r[j], hd.planets.v[j], &esign, &a, &e, &i, &capom, &om, &f);
+					to_elements(totalmass, hd.planets.r[j], hd.planets.v[j], &esign, &a, &e, &I, &capom, &om, &f);
 				}
 
 				if (esign == 0)
@@ -123,7 +123,7 @@ int main(int argv, char** argc)
 
 				hd.planets.r[j].x = a;
 				hd.planets.r[j].y = e;
-				hd.planets.r[j].z = i;
+				hd.planets.r[j].z = I;
 				hd.planets.v[j].x = capom;
 				hd.planets.v[j].y = om;
 				hd.planets.v[j].z = f;
@@ -133,11 +133,11 @@ int main(int argv, char** argc)
 			{
 				if (ishelio)
 				{
-					to_elements(hd.planets.m[0], hd.particles.r[j], hd.particles.v[j], &esign, &a, &e, &i, &capom, &om, &f);
+					to_elements(hd.planets.m[0], hd.particles.r[j], hd.particles.v[j], &esign, &a, &e, &I, &capom, &om, &f);
 				}
 				else
 				{
-					to_elements(totalmass, hd.particles.r[j], hd.particles.v[j], &esign, &a, &e, &i, &capom, &om, &f);
+					to_elements(totalmass, hd.particles.r[j], hd.particles.v[j], &esign, &a, &e, &I, &capom, &om, &f);
 				}
 
 				if (esign == 0)
@@ -147,7 +147,7 @@ int main(int argv, char** argc)
 
 				hd.particles.r[j].x = a;
 				hd.particles.r[j].y = e;
-				hd.particles.r[j].z = i;
+				hd.particles.r[j].z = I;
 				hd.particles.v[j].x = capom;
 				hd.particles.v[j].y = om;
 				hd.particles.v[j].z = f;

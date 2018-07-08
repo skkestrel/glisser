@@ -159,6 +159,15 @@ int main(int argv, char** argc)
 
 			counter++;
 
+			ex.add_job([&ex]()
+				{
+					double aout, eout, iout, aj;
+					to_elements(ex.hd.planets.m[0] + ex.hd.planets.m[1], ex.hd.planets.r[1], ex.hd.planets.v[1], nullptr, &aj);
+					to_elements(ex.hd.planets.m[0], ex.hd.particles.r[0], ex.hd.particles.v[0], nullptr, &aout, &eout, &iout);
+					std::cout << aj / aout + 2 * std::sqrt((1 - eout * eout) * aout / aj) * std::cos(iout) << std::endl;
+				});
+
+			
 			ex.add_job([&timelog, &tout, &ex, &config, counter, timediff]()
 				{
 					bool output_energy = config.energy_every != 0 && (counter % config.energy_every == 0);
