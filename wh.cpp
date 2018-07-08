@@ -43,23 +43,6 @@ done:
 
 const double M_3PI_2 = 1.5 * M_PI;
 
-/// Get sin and cosine for an angle
-void sincos(double angle, double* sinx, double* cosx)
-{
-	double x;
-	x = angle - static_cast<int>(angle / M_2PI) * M_2PI;
-
-	if (x < 0) x += M_2PI;
-
-	double sx = std::sin(x);
-	*sinx = sx;
-	*cosx = std::sqrt(1. - sx * sx);
-
-	if ((x > M_PI_2) && (x < M_3PI_2)) *cosx = -*cosx
-	return;
-}
-
-
 // Returns the real root of cubic often found in solving kepler
 // problem in universal variables.
 //
@@ -75,7 +58,7 @@ void sincos(double angle, double* sinx, double* cosx)
 //                                    universal variable
 //                 iflg          ==>  success flag ( = 0 if O.K.) (integer)
 //
-bool kepu_p3solve(double dt, double r0, double mu, double a,pha, double u, double* s)
+bool kepu_p3solve(double dt, double r0, double mu, double alpha, double u, double* s)
 {
 	double denom = (mu - alpha * r0) / 6.;
 	double a2 = 0.5 * u / denom;
@@ -218,9 +201,9 @@ bool kepu_new(double s, double dt, double r0, double mu, double alpha, double u,
 		*fp = r0 * c0 + u * *c1 + mu * *c2;
 		double fpp = (-r0 * alpha + mu) * *c1 + u * c0;
 		double fppp = (- r0 * alpha + mu) * c0 - u * alpha * *c1;
-		double ds = - f / fp;
-		ds = -f / (fp + ds * fpp / 2.);
-		ds = -f / (fp + ds * fpp / 2. + ds * ds * fppp / 6.);
+		double ds = - f / *fp;
+		ds = -f / (*fp + ds * fpp / 2.);
+		ds = -f / (*fp + ds * fpp / 2. + ds * ds * fppp / 6.);
 		s = s + ds;
 		double fdt = f/dt;
 
@@ -734,9 +717,9 @@ bool WHIntegrator::drift_single(float64_t dt, float64_t mu, f64_3* r, f64_3* v)
 		float64_t esq = std::sqrt(ecosEo * ecosEo + esinEo * esinEo);
 
 		// subtract off an integer multiple of complete orbits
-		float64_t dM = t * n_ - M_2PI * (int) (t * n_ / M_2PI);
+		float64_t dM = dt * n_ - M_2PI * (int) (dt * n_ / M_2PI);
 
-		if ((dm * dm > 0.16) || (esq > 0.36)) goto skip;
+		if ((dM * dM > 0.16) || (esq > 0.36)) goto skip;
 
 		// remaining time to advance
 		dt = dM / n_;
