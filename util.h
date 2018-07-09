@@ -182,10 +182,9 @@ namespace util
 		: log(args...), old(args...), slow(args...), slow_old(args...)
 	{ }
 
-	inline std::string joinpath(const std::string& base, const std::string& file)
+	inline std::string joinpath(const std::string& base, const std::string& app)
 	{
-		return base + "/" + file;
+		return base + "/" + app;
 	}
-
 }
 }

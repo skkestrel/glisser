@@ -13,6 +13,7 @@
 
 using namespace sr::data;
 using namespace sr::convert;
+const double EPS = 1e-13;
 
 int main(int argv, char** argc)
 {
@@ -23,7 +24,7 @@ int main(int argv, char** argc)
 	bool binary = false;
 	bool momentum = false;
 
-	for (size_t i = 1; i < argv; i++)
+	for (int i = 1; i < argv; i++)
 	{
 		std::string arg(argc[i]);
 
@@ -51,7 +52,7 @@ int main(int argv, char** argc)
 
 			load_data(hd, config);
 
-			if (hd.planets.r[0].lensq() == 0 && hd.planets.r[0].lensq() == 0) ishelio = true;
+			if (hd.planets.r[0].lensq() < EPS && hd.planets.r[0].lensq() < EPS) ishelio = true;
 			else
 			{
 				to_bary(hd);
@@ -70,7 +71,7 @@ int main(int argv, char** argc)
 
 			load_data(hd, config);
 
-			if (hd.planets.r[0].lensq() == 0 && hd.planets.r[0].lensq() == 0) ishelio = true;
+			if (hd.planets.r[0].lensq() < EPS && hd.planets.r[0].lensq() < EPS) ishelio = true;
 			else
 			{
 				to_bary(hd);

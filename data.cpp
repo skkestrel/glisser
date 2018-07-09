@@ -113,7 +113,7 @@ namespace data
 		use_gpu = true;
 
 		dump_every = 1000;
-		max_particle = static_cast<size_t>(-1);
+		max_particle = static_cast<uint32_t>(-1);
 		resolve_encounters = false;
 		big_g = 1;
 		icsin = "";
@@ -313,7 +313,7 @@ namespace data
 
 		size_t npart;
 		icsin >> npart;
-		npart = std::min(npart, config.max_particle);
+		npart = std::min(npart, static_cast<size_t>(config.max_particle));
 
 		hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
 
@@ -378,8 +378,7 @@ namespace data
 		ss = std::istringstream(s);
 		size_t npart;
 		ss >> npart;
-		npart = std::min(npart, config.max_particle);
-
+		npart = std::min(npart, static_cast<size_t>(config.max_particle));
 		hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
 
 		for (size_t i = 0; i < npart; i++)
@@ -418,8 +417,7 @@ namespace data
 		}
 
 		read_binary(in, hd.particles.n);
-
-		hd.particles.n = std::min(hd.particles.n, config.max_particle);
+		hd.particles.n = std::min(hd.particles.n, static_cast<size_t>(config.max_particle));
 		hd.particles = HostParticlePhaseSpace(hd.particles.n, !config.use_gpu);
 
 		for (size_t i = 0; i < hd.particles.n; i++)
