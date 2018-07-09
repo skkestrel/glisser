@@ -109,7 +109,7 @@ Configuration::Configuration()
 	use_gpu = true;
 
 	dump_every = 1000;
-	max_particle = static_cast<size_t>(-1);
+	max_particle = static_cast<uint32_t>(-1);
 	resolve_encounters = false;
 	big_g = 1;
 	icsin = "";
@@ -314,7 +314,7 @@ bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream&
 
 	size_t npart;
 	icsin >> npart;
-	npart = std::min(npart, config.max_particle);
+	npart = std::min(npart, static_cast<size_t>(config.max_particle));
 
 	hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
 
@@ -379,7 +379,7 @@ bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& i
 	ss = std::istringstream(s);
 	size_t npart;
 	ss >> npart;
-	npart = std::min(npart, config.max_particle);
+	npart = std::min(npart, static_cast<size_t>(config.max_particle));
 
 	hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
 
@@ -420,7 +420,7 @@ bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::ist
 
 	read_binary(in, hd.particles.n);
 
-	hd.particles.n = std::min(hd.particles.n, config.max_particle);
+	hd.particles.n = std::min(hd.particles.n, static_cast<size_t>(config.max_particle));
 	hd.particles = HostParticlePhaseSpace(hd.particles.n, !config.use_gpu);
 
 	for (size_t i = 0; i < hd.particles.n; i++)
