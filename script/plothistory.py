@@ -1,6 +1,8 @@
 import sys
 import math
 import numpy as np
+import matplotlib
+matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 import struct
 import matplotlib.style as style
