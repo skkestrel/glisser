@@ -11,6 +11,9 @@
 #include "../convert.h"
 #include "../util.h"
 
+using namespace sr::data;
+using namespace sr::convert;
+
 int main(int argv, char** argc)
 {
 	Configuration config;

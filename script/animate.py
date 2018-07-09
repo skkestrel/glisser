@@ -11,6 +11,14 @@ import mpl_toolkits.mplot3d.axes3d as p3
 import sys
 import matplotlib.animation as animation
 
+start = 0
+interval = 20
+
+if len(sys.argv) > 2:
+    start = int(sys.argv[2])
+if len(sys.argv) > 3:
+    interval = int(sys.argv[3])
+
 with open(sys.argv[1]) as f:
 	x = []
 	xp = []
@@ -23,11 +31,12 @@ with open(sys.argv[1]) as f:
 
 data = [np.array(x).T, np.array(xp).T]
 
-def update_lines(num, dataLines, lines):
+def update_lines(num, dataLines, lines, txt):
     for line, data in zip(lines, dataLines):
         # NOTE: there is no .set_data() for 3 dim data...
-        line.set_data(data[0:2, max(num-5, 0):num])
-        line.set_3d_properties(data[2, max(num-5, 0):num])
+        line.set_data(data[0:2, max(num-10, 0):num])
+        line.set_3d_properties(data[2, max(num-10, 0):num])
+    txt.set_text("t = {0}".format(num))
     return lines
 
 # Attaching 3D axis to the figure
@@ -36,7 +45,7 @@ ax = p3.Axes3D(fig)
 
 # Creating fifty line objects.
 # NOTE: Can't pass empty arrays into 3d version of plot()
-lines = [ax.plot(dat[0, 0:1], dat[1, 0:1], dat[2, 0:1])[0] for dat in data]
+lines = [ax.plot(dat[0, 0:1], dat[1, 0:1], dat[2, 0:1], label="")[0] for dat in data]
 
 # Setting the axes properties
 ax.set_xlim3d([-10.0, 10.0])
@@ -50,8 +59,10 @@ ax.set_zlabel('Z')
 
 ax.set_title('3D Test')
 
+txt = ax.text(0, 0, 0.3, "")
+
 # Creating the Animation object
-line_ani = animation.FuncAnimation(fig, update_lines, data[0].shape[1], fargs=(data, lines),
-                                   interval=50, blit=False)
+line_ani = animation.FuncAnimation(fig, update_lines, range(start, data[0].shape[1]), fargs=(data, lines, txt),
+                                   interval=interval, blit=False)
 
 plt.show()

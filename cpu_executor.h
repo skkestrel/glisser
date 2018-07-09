@@ -5,33 +5,39 @@
 #include <functional>
 #include <ostream>
 
-struct CPUExecutor
+namespace sr
 {
-	HostData& hd;
-	WHIntegrator integrator;
+namespace exec
+{
+	struct CPUExecutor
+	{
+		sr::data::HostData& hd;
+		sr::wh::WHIntegrator integrator;
 
-	float64_t t;
-	float64_t e_0;
+		float64_t t;
+		float64_t e_0;
 
-	std::ostream& output;
-	std::ostream* encounter_output;
+		std::ostream& output;
+		std::ostream* encounter_output;
 
-	const Configuration& config;
+		const sr::data::Configuration& config;
 
-	std::chrono::time_point<std::chrono::high_resolution_clock> starttime;
+		std::chrono::time_point<std::chrono::high_resolution_clock> starttime;
 
-	std::vector<std::function<void()>> work;
+		std::vector<std::function<void()>> work;
 
-	CPUExecutor(const CPUExecutor&) = delete;
-	CPUExecutor(HostData& hd, const Configuration& config, std::ostream& out);
+		CPUExecutor(const CPUExecutor&) = delete;
+		CPUExecutor(sr::data::HostData& hd, const sr::data::Configuration& config, std::ostream& out);
 
-	void init();
+		void init();
 
-	double time() const;
-	void loop(double* cputime);
-	void add_job(const std::function<void()>& job);
+		double time() const;
+		void loop(double* cputime);
+		void add_job(const std::function<void()>& job);
 
-	void resync();
-	void finish();
-	void step_planets();
-};
+		void resync();
+		void finish();
+		void step_planets();
+	};
+}
+}

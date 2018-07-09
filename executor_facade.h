@@ -4,28 +4,38 @@
 #include <functional>
 #include <memory>
 
-struct Executor;
-struct DeviceData;
-
-struct ExecutorFacade
+namespace sr
 {
-	HostData& hd;
-	std::unique_ptr<DeviceData> dd;
-	std::unique_ptr<Executor> impl;
+	namespace data
+	{
+		struct DeviceData;
+	}
 
-	float64_t& t;
-	float64_t& e_0;
+	namespace exec
+	{
+		struct Executor;
 
-	std::ostream*& encounter_output;
+		struct ExecutorFacade
+		{
+			sr::data::HostData& hd;
+			std::unique_ptr<sr::data::DeviceData> dd;
+			std::unique_ptr<Executor> impl;
+
+			float64_t& t;
+			float64_t& e_0;
+
+			std::ostream*& encounter_output;
 
 
-	ExecutorFacade(HostData& hd, const Configuration& config, std::ostream& out);
-	~ExecutorFacade();
+			ExecutorFacade(sr::data::HostData& hd, const Configuration& config, std::ostream& out);
+			~ExecutorFacade();
 
-	void init();
-	void download_data(bool ignore_errors = false);
-	double time() const;
-	void loop(double* cputimeout, double* gputimeout);
-	void add_job(const std::function<void()>& job);
-	void finish();
-};
+			void init();
+			void download_data(bool ignore_errors = false);
+			double time() const;
+			void loop(double* cputimeout, double* gputimeout);
+			void add_job(const std::function<void()>& job);
+			void finish();
+		};
+	}
+}

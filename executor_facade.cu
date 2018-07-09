@@ -3,46 +3,52 @@
 #include "data.cuh"
 #include "executor.cuh"
 
-ExecutorFacade::ExecutorFacade(HostData& _hd, const Configuration& config, std::ostream& out) :
-	hd(_hd),
-	dd(std::make_unique<DeviceData>()),
-	impl(std::make_unique<Executor>(_hd, *dd.get(), config, out)),
-	t(impl->t),
-	e_0(impl->e_0),
-	encounter_output(impl->encounter_output)
+namespace sr
 {
-}
+namespace exec
+{
+	ExecutorFacade::ExecutorFacade(HostData& _hd, const Configuration& config, std::ostream& out) :
+		hd(_hd),
+		dd(std::make_unique<DeviceData>()),
+		impl(std::make_unique<Executor>(_hd, *dd.get(), config, out)),
+		t(impl->t),
+		e_0(impl->e_0),
+		encounter_output(impl->encounter_output)
+	{
+	}
 
-ExecutorFacade::~ExecutorFacade()
-{
-}
+	ExecutorFacade::~ExecutorFacade()
+	{
+	}
 
-void ExecutorFacade::init()
-{
-	impl->init();
-}
+	void ExecutorFacade::init()
+	{
+		impl->init();
+	}
 
-void ExecutorFacade::download_data(bool ignore_errors)
-{
-	impl->download_data(ignore_errors);
-}
+	void ExecutorFacade::download_data(bool ignore_errors)
+	{
+		impl->download_data(ignore_errors);
+	}
 
-double ExecutorFacade::time() const
-{
-	return impl->time();
-}
+	double ExecutorFacade::time() const
+	{
+		return impl->time();
+	}
 
-void ExecutorFacade::loop(double* cputimeout, double* gputimeout)
-{
-	impl->loop(cputimeout, gputimeout);
-}
+	void ExecutorFacade::loop(double* cputimeout, double* gputimeout)
+	{
+		impl->loop(cputimeout, gputimeout);
+	}
 
-void ExecutorFacade::finish()
-{
-	impl->finish();
-}
+	void ExecutorFacade::finish()
+	{
+		impl->finish();
+	}
 
-void ExecutorFacade::add_job(const std::function<void()>& job)
-{
-	impl->add_job(job);
+	void ExecutorFacade::add_job(const std::function<void()>& job)
+	{
+		impl->add_job(job);
+	}
+}
 }

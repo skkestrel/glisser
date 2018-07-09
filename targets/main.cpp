@@ -61,13 +61,13 @@ int main(int argv, char** argc)
 	
 	std::ifstream configfile(configin);
 
-	Configuration config_mut;
+	sr::data::Configuration config_mut;
 	if (read_configuration(configfile, &config_mut)) return -1;
 
-	const Configuration& config = config_mut;
+	const sr::data::Configuration& config = config_mut;
 
 	{
-		std::ofstream configstream(joinpath(config.outfolder, "config.in"));
+		std::ofstream configstream(sr::util::joinpath(config.outfolder, "config.in"));
 		write_configuration(configstream, config);
 	}
 
@@ -81,11 +81,11 @@ int main(int argv, char** argc)
 #endif
 
 
-	Configuration out_config = config.output_config();
+	sr::data::Configuration out_config = config.output_config();
 
 	mkdir(config.outfolder.c_str(), ACCESSPERMS);
 
-	if (!is_dir_empty(config.outfolder))
+	if (!sr::util::is_dir_empty(config.outfolder))
 	{
 		std::cout << "Output folder is not empty! Do you want to continue?" << std::endl;
 		std::cout << "Type \"Yes\" exactly as shown to continue: ";
@@ -96,22 +96,22 @@ int main(int argv, char** argc)
 		if (s != "Yes") return -1;
 	}
 
-	mkdir(joinpath(config.outfolder, "dump").c_str(), ACCESSPERMS);
-	mkdir(joinpath(config.outfolder, "tracks").c_str(), ACCESSPERMS);
+	mkdir(sr::util::joinpath(config.outfolder, "dump").c_str(), ACCESSPERMS);
+	mkdir(sr::util::joinpath(config.outfolder, "tracks").c_str(), ACCESSPERMS);
 
-	std::ofstream coutlog(joinpath(config.outfolder, "stdout"));
-	teestream tout(std::cout, coutlog);
+	std::ofstream coutlog(sr::util::joinpath(config.outfolder, "stdout"));
+	sr::util::teestream tout(std::cout, coutlog);
 
-	tout << "Host uses little-endian floats? " << (is_float_little_endian() ? "yes" : "no") << std::endl;
-	tout << "Host uses little-endian doubles? " << (is_double_little_endian() ? "yes" : "no") << std::endl;
-	tout << "Host uses little-endian ints? " << (is_int_little_endian() ? "yes" : "no") << std::endl;
+	tout << "Host uses little-endian floats? " << (sr::data::is_float_little_endian() ? "yes" : "no") << std::endl;
+	tout << "Host uses little-endian doubles? " << (sr::data::is_double_little_endian() ? "yes" : "no") << std::endl;
+	tout << "Host uses little-endian ints? " << (sr::data::is_int_little_endian() ? "yes" : "no") << std::endl;
 
-	HostData hd;
+	sr::data::HostData hd;
 
 #ifdef NO_CUDA
-	CPUExecutor ex(hd, config, tout);
+	sr::exec::CPUExecutor ex(hd, config, tout);
 #else
-	ExecutorFacade ex(hd, config, tout);
+	sr::exec::ExecutorFacade ex(hd, config, tout);
 #endif
 
 	ex.t = config.t_0;
@@ -121,10 +121,10 @@ int main(int argv, char** argc)
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
 
-	std::ofstream encounterlog(joinpath(config.outfolder, "encounter.out"));
+	std::ofstream encounterlog(sr::util::joinpath(config.outfolder, "encounter.out"));
 	ex.encounter_output = &encounterlog;
 
-	std::ofstream timelog(joinpath(config.outfolder, "time.out"));
+	std::ofstream timelog(sr::util::joinpath(config.outfolder, "time.out"));
 	timelog << "start " << std::put_time(&tm, "%c %Z") << std::endl;
 
 	ex.init();
@@ -142,7 +142,7 @@ int main(int argv, char** argc)
 
 	try
 	{
-		trackout = std::ofstream(joinpath(config.outfolder, "tracks/track.0.out"), std::ios_base::binary);
+		trackout = std::ofstream(sr::util::joinpath(config.outfolder, "tracks/track.0.out"), std::ios_base::binary);
 
 		while (ex.t < config.t_f)
 		{
@@ -170,7 +170,7 @@ int main(int argv, char** argc)
 
 					double e_;
 					f64_3 l_;
-					calculate_planet_metrics(ex.hd.planets, &e_, &l_);
+					sr::wh::calculate_planet_metrics(ex.hd.planets, &e_, &l_);
 					double elapsed = ex.time();
 					double total = elapsed * (config.t_f - config.t_0) / (ex.t - config.t_0);
 
@@ -212,12 +212,12 @@ int main(int argv, char** argc)
 							std::ostringstream ss;
 							ss << "dumps/config." << dump_num << ".out";
 
-							std::ofstream configout(joinpath(config.outfolder, ss.str()));
+							std::ofstream configout(sr::util::joinpath(config.outfolder, ss.str()));
 							write_configuration(configout, out_config);
 
 							ss = std::ostringstream();
 							ss << "dumps/state." << dump_num << ".out";
-							save_data(ex.hd, config, joinpath(config.outfolder, ss.str()), true);
+							save_data(ex.hd, config, sr::util::joinpath(config.outfolder, ss.str()), true);
 
 							dump_num++;
 						});
@@ -229,43 +229,43 @@ int main(int argv, char** argc)
 					{
 						std::ostringstream ss;
 						ss << "tracks/track." << track_num++ << ".out";
-						trackout = std::ofstream(joinpath(config.outfolder, ss.str()), std::ios_base::binary);
+						trackout = std::ofstream(sr::util::joinpath(config.outfolder, ss.str()), std::ios_base::binary);
 					}
 
 					ex.add_job([&trackout, &ex, &config]()
 						{
-							write_binary(trackout, ex.t);
-							write_binary(trackout, ex.hd.planets.n_alive - 1);
+							sr::data::write_binary(trackout, ex.t);
+							sr::data::write_binary(trackout, ex.hd.planets.n_alive - 1);
 
 							for (uint32_t i = 1; i < ex.hd.planets.n_alive; i++)
 							{
 								double a, e, in, capom, om, f;
-								to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
+								sr::convert::to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
 									nullptr, &a, &e, &in, &capom, &om, &f);
 
-								write_binary(trackout, static_cast<uint32_t>(ex.hd.planets.id[i]));
-								write_binary(trackout, static_cast<float>(a));
-								write_binary(trackout, static_cast<float>(e));
-								write_binary(trackout, static_cast<float>(in));
-								write_binary(trackout, static_cast<float>(capom));
-								write_binary(trackout, static_cast<float>(om));
-								write_binary(trackout, static_cast<float>(f));
+								sr::data::write_binary(trackout, static_cast<uint32_t>(ex.hd.planets.id[i]));
+								sr::data::write_binary(trackout, static_cast<float>(a));
+								sr::data::write_binary(trackout, static_cast<float>(e));
+								sr::data::write_binary(trackout, static_cast<float>(in));
+								sr::data::write_binary(trackout, static_cast<float>(capom));
+								sr::data::write_binary(trackout, static_cast<float>(om));
+								sr::data::write_binary(trackout, static_cast<float>(f));
 							}
 
-							write_binary(trackout, ex.hd.particles.n_alive);
+							sr::data::write_binary(trackout, ex.hd.particles.n_alive);
 							for (uint32_t i = 0; i < ex.hd.particles.n_alive; i++)
 							{
 								double a, e, in, capom, om, f;
-								to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
+								sr::convert::to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
 									nullptr, &a, &e, &in, &capom, &om, &f);
 
-								write_binary(trackout, static_cast<uint32_t>(ex.hd.particles.id[i]));
-								write_binary(trackout, static_cast<float>(a));
-								write_binary(trackout, static_cast<float>(e));
-								write_binary(trackout, static_cast<float>(in));
-								write_binary(trackout, static_cast<float>(capom));
-								write_binary(trackout, static_cast<float>(om));
-								write_binary(trackout, static_cast<float>(f));
+								sr::data::write_binary(trackout, static_cast<uint32_t>(ex.hd.particles.id[i]));
+								sr::data::write_binary(trackout, static_cast<float>(a));
+								sr::data::write_binary(trackout, static_cast<float>(e));
+								sr::data::write_binary(trackout, static_cast<float>(in));
+								sr::data::write_binary(trackout, static_cast<float>(capom));
+								sr::data::write_binary(trackout, static_cast<float>(om));
+								sr::data::write_binary(trackout, static_cast<float>(f));
 							}
 
 							trackout.flush();
@@ -299,10 +299,10 @@ int main(int argv, char** argc)
 #endif
 
 	tout << "Saving to disk." << std::endl;
-	save_data(hd, config, joinpath(config.outfolder, "state.out"));
+	save_data(hd, config, sr::util::joinpath(config.outfolder, "state.out"));
 	out_config.t_f = config.t_f - config.t_0 + ex.t;
 	out_config.t_0 = ex.t;
-	std::ofstream configout(joinpath(config.outfolder, "config.out"));
+	std::ofstream configout(sr::util::joinpath(config.outfolder, "config.out"));
 	write_configuration(configout, out_config);
 
 	t = std::time(nullptr);
