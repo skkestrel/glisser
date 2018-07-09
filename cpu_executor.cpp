@@ -10,12 +10,6 @@
 #include "types.h"
 #include "convert.h"
 
-CPUExecutorData::CPUExecutorData() { }
-CPUExecutorData::CPUExecutorData(size_t n)
-{
-	encounter_planet_id = std::vector<uint8_t>(n);
-} 
-
 CPUExecutor::CPUExecutor(HostData& _hd, const Configuration& _config, std::ostream& out)
 	: hd(_hd), output(out), config(_config) { }
 
@@ -79,7 +73,7 @@ void CPUExecutor::loop(double* cputimeout)
 	for (size_t i = encounter_start; i < hd.particles.n_alive; i++)
 	{
 		integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
-				hd.particles.deathtime_index[i], ed.encounter_planet_id[i - encounter_start],
+				hd.particles.deathtime_index[i],
 				t - config.dt * static_cast<double>(config.tbsize - hd.particles.deathtime_index[i])
 			);
 	}
@@ -113,19 +107,12 @@ void CPUExecutor::resync()
 
 	size_t diff = prev_alive - hd.particles.n_alive;
 
-	ed = CPUExecutorData(diff);
-
 	for (size_t i = hd.particles.n_alive; i < hd.particles.n_alive + diff; i++)
 	{
 		if ((hd.particles.deathflags[i] & 0x00FF) == 0x0001)
 		{
 			if (config.resolve_encounters)
 			{
-				// set the encounter planet
-				ed.encounter_planet_id[i - hd.particles.n_alive] = static_cast<uint8_t>((hd.particles.deathflags[i] & 0xFF00) >> 8);
-
-				// clear the upper bits
-				hd.particles.deathflags[i] &= 0x00FF;
 			}
 			else
 			{

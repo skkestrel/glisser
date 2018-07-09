@@ -43,6 +43,11 @@ struct HostParticlePhaseSpace
 
 	std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
 	std::unique_ptr<std::vector<size_t>> stable_partition_unflagged(size_t begin = 0, size_t length = static_cast<size_t>(-1));
+
+	inline static uint8_t encounter_planet(uint16_t deathflags)
+	{
+		return static_cast<uint8_t>((deathflags & 0xFF00) >> 8);
+	}
 };
 
 struct HostPlanetPhaseSpace

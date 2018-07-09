@@ -3,13 +3,27 @@
 #include "util.h"
 #include "integrator.h"
 
+#include <unordered_map>
+
+struct WHIntegratorEncounterContinuationContext
+{
+	std::unordered_map<uint32_t, uint8_t> id_to_enc_level;
+};
+
 class WHIntegrator : public Integrator
 {
 public:
-	Vf64 inverse_helio_cubed, inverse_jacobi_cubed;
-	Vf64 dist, energy, vdotr;
-	Vu8 mask;
-	Vf64 mu, eta;
+	WHIntegratorEncounterContinuationContext ecc;
+	Vf64 planet_inverse_helio_cubed, planet_inverse_jacobi_cubed;
+
+	Vf64 particle_dist, particle_energy, particle_vdotr;
+	Vf64 planet_dist, planet_energy, planet_vdotr;
+
+	Vu8 particle_mask;
+	Vu8 planet_mask;
+
+	Vf64 planet_mu, planet_eta;
+	Vf64 particle_mu;
 
 	Vf64_3 planet_rj, planet_vj;
 	Vf64_3 planet_a, particle_a;
@@ -33,17 +47,19 @@ public:
 	void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t) override;
 	void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length) override;
 
-	void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, size_t planet_index, double t) override;
+	void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t) override;
 
 	template<bool old>
-	size_t integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, size_t* planet_index, uint8_t* encounter_level, double t);
+	size_t integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, uint8_t* encounter_level, double t);
 
 	void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t timestep_index);
 	void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index);
 
 	template<bool danby>
 	static bool drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v);
-	void drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t n);
+
+	static bool drift_single_hp(float64_t t, float64_t mu, f64_3* r, f64_3* v);
+	static void drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t n, Vf64& dist, Vf64& energy, Vf64& vdotr, Vf64& mu, Vu8& mask);
 
 	template<bool old>
 	void nonhelio_acc_encounter_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t particle_index, float64_t time, size_t timestep_index, size_t central_planet_index);

@@ -88,8 +88,13 @@ int main(int argv, char** argc)
 
 	if (!is_dir_empty(config.outfolder))
 	{
-		std::cout << "Output folder is not empty!" << std::endl;
-		return -1;
+		std::cout << "Output folder is not empty! Do you want to continue?" << std::endl;
+		std::cout << "Type \"Yes\" exactly as shown to continue: ";
+	
+		std::string s;
+		std::getline(std::cin, s);
+
+		if (s != "Yes") return -1;
 	}
 
 	mkdir(joinpath(config.outfolder, "dump").c_str(), ACCESSPERMS);
@@ -135,9 +140,9 @@ int main(int argv, char** argc)
 	size_t track_counter = 0;
 
 	bool crashed = false;
+	std::ofstream trackout;
 	try
 	{
-		std::ofstream trackout;
 		if (config.track_every > 0 && config.split_track_file == 0)
 		{
 			trackout = std::ofstream(joinpath(config.outfolder, "track.out"), std::ios_base::binary);
@@ -161,10 +166,16 @@ int main(int argv, char** argc)
 
 			ex.add_job([&ex]()
 				{
+					/*
 					double aout, eout, iout, aj;
 					to_elements(ex.hd.planets.m[0] + ex.hd.planets.m[1], ex.hd.planets.r[1], ex.hd.planets.v[1], nullptr, &aj);
-					to_elements(ex.hd.planets.m[0], ex.hd.particles.r[0], ex.hd.particles.v[0], nullptr, &aout, &eout, &iout);
-					std::cout << aj / aout + 2 * std::sqrt((1 - eout * eout) * aout / aj) * std::cos(iout) << std::endl;
+
+					for (size_t k = 0; k < ex.hd.particles.n; k++)
+					{
+						to_elements(ex.hd.planets.m[0], ex.hd.particles.r[k], ex.hd.particles.v[k], nullptr, &aout, &eout, &iout);
+						std::cout << ex.hd.particles.id[k] << " " << aj / aout + 2 * std::sqrt((1 - eout * eout) * aout / aj) * std::cos(iout) << std::endl;
+					}
+					*/
 				});
 
 			

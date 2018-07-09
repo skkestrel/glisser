@@ -12,17 +12,12 @@
 #include "convert.h"
 
 ExecutorData::ExecutorData() { }
-ExecutorData::ExecutorData(size_t n, bool cpu_only)
+ExecutorData::ExecutorData(size_t n)
 {
-	if (!cpu_only)
-	{
-		r = v = std::vector<f64_3>(n);
-		deathflags = std::vector<uint16_t>(n);
-		id = std::vector<uint32_t>(n);
-		deathtime_index = std::vector<uint32_t>(n);
-	}
-
-	encounter_planet_id = std::vector<uint8_t>(n);
+	r = v = std::vector<f64_3>(n);
+	deathflags = std::vector<uint16_t>(n);
+	id = std::vector<uint32_t>(n);
+	deathtime_index = std::vector<uint32_t>(n);
 }
 
 struct DeviceParticleUnflaggedPredicate
@@ -207,7 +202,7 @@ void Executor::loop(double* cputimeout, double* gputimeout)
 	for (size_t i = encounter_start; i < hd.particles.n_alive; i++)
 	{
 		integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
-				ed.deathtime_index[i - encounter_start], ed.encounter_planet_id[i - encounter_start],
+				ed.deathtime_index[i - encounter_start],
 				t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i - encounter_start])
 			);
 	}
@@ -244,78 +239,6 @@ void Executor::loop(double* cputimeout, double* gputimeout)
 	}
 }
 
-void Executor::resync_cpu()
-{
-	if (hd.particles.n_alive == 0) return;
-
-	size_t prev_alive = hd.particles.n_alive;
-
-	auto gather_indices = hd.particles.stable_partition_unflagged(0, prev_alive);
-	integrator.gather_particles(*gather_indices, 0, prev_alive);
-
-	size_t diff = prev_alive - hd.particles.n_alive;
-
-	ed = ExecutorData(diff);
-
-	for (size_t i = hd.particles.n_alive; i < hd.particles.n_alive + diff; i++)
-	{
-		if ((hd.particles.deathflags[i] & 0x00FF) == 0x0001)
-		{
-			if (config.resolve_encounters)
-			{
-				// set the encounter planet
-				ed.encounter_planet_id[i - hd.particles.n_alive] = static_cast<uint8_t>((hd.particles.deathflags[i] & 0xFF00) >> 8);
-
-				// clear the upper bits
-				hd.particles.deathflags[i] &= 0x00FF;
-			}
-			else
-			{
-				// If encounters are not being dealt with, kill the particle!
-				hd.particles.deathflags[i] |= 0x0080;
-			}
-		}
-	}
-
-	gather_indices = hd.particles.stable_partition_alive(prev_alive - diff, diff);
-	integrator.gather_particles(*gather_indices, prev_alive - diff, diff);
-
-	hd.particles.n_encounter = hd.particles.n_alive - (prev_alive - diff);
-
-	size_t encounter_start = hd.particles.n_alive;
-
-	add_job([encounter_start, diff, this]()
-		{
-			if (encounter_output)
-			{
-				for (size_t i = hd.particles.n_encounter; i < diff; i++)
-				{
-					*encounter_output << hd.particles.r[encounter_start + i] << std::endl;
-					*encounter_output << hd.particles.v[encounter_start + i] << std::endl;
-					*encounter_output << hd.particles.id[encounter_start + i] << " "
-						<< hd.particles.deathflags[encounter_start + i] << " "
-						<< hd.particles.deathtime[i] << " death"
-						<< std::endl;
-					*encounter_output << hd.planets.n_alive << std::endl;
-
-					*encounter_output << hd.planets.m[0] << std::endl;
-					*encounter_output << f64_3(0) << std::endl;
-					*encounter_output << f64_3(0) << std::endl;
-					*encounter_output << hd.planets.id[0] << std::endl;
-					for (size_t j = 1; j < hd.planets.n_alive; j++)
-					{
-						*encounter_output << hd.planets.m[j] << std::endl;
-						*encounter_output << hd.planets.r_log.slow[hd.particles.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-						*encounter_output << hd.planets.v_log.slow[hd.particles.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-						*encounter_output << hd.planets.id[i] << std::endl;
-					}
-				}
-
-				*encounter_output << std::flush;
-			}
-		});
-}
-
 void Executor::resync()
 {
 	auto& particles = dd.particle_phase_space();
@@ -347,11 +270,6 @@ void Executor::resync()
 		{
 			if (config.resolve_encounters)
 			{
-				// set the encounter planet
-				ed.encounter_planet_id[i] = static_cast<uint8_t>((ed.deathflags[i] & 0xFF00) >> 8);
-
-				// clear the upper bits
-				ed.deathflags[i] &= 0x00FF;
 			}
 			else
 			{
@@ -366,7 +284,6 @@ void Executor::resync()
 	gather(ed.r, *ed_indices, 0, diff);
 	gather(ed.v, *ed_indices, 0, diff);
 	gather(ed.id, *ed_indices, 0, diff);
-	gather(ed.encounter_planet_id, *ed_indices, 0, diff);
 	gather(ed.deathflags, *ed_indices, 0, diff);
 	gather(ed.deathtime_index, *ed_indices, 0, diff);
 

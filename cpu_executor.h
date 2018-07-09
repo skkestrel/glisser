@@ -5,20 +5,10 @@
 #include <functional>
 #include <ostream>
 
-struct CPUExecutorData
-{
-	std::vector<uint8_t> encounter_planet_id;
-
-	CPUExecutorData();
-	CPUExecutorData(size_t size);
-};
-
 struct CPUExecutor
 {
 	HostData& hd;
 	WHIntegrator integrator;
-
-	CPUExecutorData ed;
 
 	float64_t t;
 	float64_t e_0;
