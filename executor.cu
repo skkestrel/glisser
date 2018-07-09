@@ -15,6 +15,11 @@ namespace sr
 {
 namespace exec
 {
+	using namespace sr::wh;
+	using namespace sr::util;
+	using namespace sr::convert;
+	using namespace sr::data;
+
 	ExecutorData::ExecutorData() { }
 	ExecutorData::ExecutorData(size_t n)
 	{
@@ -215,7 +220,7 @@ namespace exec
 		upload_data(encounter_start, hd.particles.n_encounter);
 
 		// Fill deathtime index with 0 so that the continuation will work
-		thrust::fill(htd_stream, dd.particles.deathtime_index.begin() + encounter_start,
+		thrust::fill(thrust::cuda::par.on(htd_stream), dd.particles.deathtime_index.begin() + encounter_start,
 				dd.particles.deathtime_index.begin() + encounter_start + hd.particles.n_encounter, 0);
 
 		// The snapshot contains the planet states at the end of the previous timestep - 

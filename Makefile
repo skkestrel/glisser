@@ -21,14 +21,14 @@ WFLAGS = -Wcast-align \
 
 default:
 	mkdir -p bin
-	nvcc targets/main.cpp *.cpp *.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o bin/sr -O0
+	nvcc targets/main.cpp *.cpp *.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o bin/sr -O3
 
 
 #-fsanitize=address
 cpu:
 	mkdir -p bin
-	g++ targets/main.cpp *.cpp -g -DNO_CUDA --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/sr_cpu -O0
+	g++ targets/main.cpp *.cpp -g -DNO_CUDA --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/sr_cpu -O3
 
 convert:
 	mkdir -p bin
-	g++ targets/convert.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/convert -fsanitize=address -O0
+	g++ targets/convert.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/convert -fsanitize=address -O3

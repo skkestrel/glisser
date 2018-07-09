@@ -24,7 +24,7 @@ namespace std
 		{
 			throw std::out_of_range("stou");
 		}
-		return result;
+		return static_cast<unsigned>(result);
 	}
 }
 

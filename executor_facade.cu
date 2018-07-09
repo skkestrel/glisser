@@ -7,6 +7,8 @@ namespace sr
 {
 namespace exec
 {
+	using namespace sr::data;
+
 	ExecutorFacade::ExecutorFacade(HostData& _hd, const Configuration& config, std::ostream& out) :
 		hd(_hd),
 		dd(std::make_unique<DeviceData>()),

@@ -27,7 +27,7 @@ namespace sr
 			std::ostream*& encounter_output;
 
 
-			ExecutorFacade(sr::data::HostData& hd, const Configuration& config, std::ostream& out);
+			ExecutorFacade(sr::data::HostData& hd, const sr::data::Configuration& config, std::ostream& out);
 			~ExecutorFacade();
 
 			void init();
