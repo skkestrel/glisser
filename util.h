@@ -164,3 +164,16 @@ template<typename... Args>
 inline LogQuartet<Vector>::LogQuartet(Args... args)
 	: log(args...), old(args...), slow(args...), slow_old(args...)
 { }
+
+namespace std
+{
+	inline unsigned stou(std::string const & str, size_t * idx = 0, int base = 10)
+	{
+		unsigned long result = std::stoul(str, idx, base);
+		if (result > std::numeric_limits<unsigned>::max())
+		{
+			throw std::out_of_range("stou");
+		}
+		return result;
+	}
+}

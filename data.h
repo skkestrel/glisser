@@ -109,10 +109,10 @@ struct HostData
 struct Configuration
 {
 	double t_0, t_f, dt, big_g;
-	size_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
+	uint32_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
 	double wh_ce_r1, wh_ce_r2;
-	size_t wh_ce_n1, wh_ce_n2;
-	size_t split_track_file;
+	uint32_t wh_ce_n1, wh_ce_n2;
+	uint32_t split_track_file;
 
 	bool use_gpu;
 
@@ -123,7 +123,7 @@ struct Configuration
 	std::string icsin, plin, hybridin, hybridout;
 	std::string outfolder;
 
-	inline size_t fast_timestep_factor() const
+	inline uint32_t fast_timestep_factor() const
 	{
 		return resolve_encounters ? (wh_ce_n1 * wh_ce_n2) : 1;
 	}

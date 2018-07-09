@@ -7,8 +7,20 @@
 #include <stdexcept>
 #include <iostream>
 
-const size_t MAXKEP = 10;
+const uint32_t MAXKEP = 10;
 const float64_t TOLKEP = 1E-14;
+
+void print_tiss(const HostPlanetPhaseSpace& pl, const HostParticlePhaseSpace& pa)
+{
+	double aout, eout, iout, aj;
+	to_elements(pl.m[0] + pl.m[1], pl.r[1], pl.v[1], nullptr, &aj);
+
+	for (uint32_t k = 0; k < pa.n; k++)
+	{
+		to_elements(pl.m[0], pa.r[k], pa.v[k], nullptr, &aout, &eout, &iout);
+		std::cerr << pa.id[k] << " " << aj / aout + 2 * std::sqrt((1 - eout * eout) * aout / aj) * std::cos(iout) << std::endl;
+	}
+}
 
 bool kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE)
 {
@@ -969,12 +981,18 @@ void WHIntegrator::drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t
 
 void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index)
 {
-	// std::cerr << pa.id[0] << " " << t << " " << pa.r[0] << " " << pa.v[0] << std::endl;
-
 	for (size_t i = begin; i < begin + length; i++)
 	{
 		this->particle_mask[i] = pa.deathflags[i] != 0;
-		if (!this->particle_mask[i]) pa.v[i] += this->particle_a[i] * (dt / 2);
+
+		if (!this->particle_mask[i])
+		{
+			pa.v[i] += this->particle_a[i] * (dt / 2);
+
+			std::cerr << pa.id[0] << " " << t << " " << pa.r[0] << " " << pa.v[0] << " " << std::endl;
+			std::cerr << "pl1 " << t << " " << pl.r_log.slow[pl.log_index_at<false>(timestep_index, 1)] << std::endl;
+			// print_tiss(pl, pa);
+		}
 	}
 
 	// Drift all the particles along their Jacobi Kepler ellipses
@@ -998,11 +1016,12 @@ size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpac
 {
 	size_t tfactor = encounter_n1 * encounter_n2;
 
-	/*
 	std::cerr << pa.id[particle_index] << " " << t << " " << pa.r[particle_index] << " " << pa.v[particle_index] << " ";
 	std::cerr << (int) *encounter_level << " ";
 	std::cerr << timestep_index << " " << tfactor << std::endl;
-	*/
+	std::cerr << "pl1 " << t << " " << pl.r_log.get<false, old>()[pl.log_index_at<old>(timestep_index, 1)] << std::endl;
+
+	// print_tiss(pl, pa);
 
 	switch (*encounter_level)
 	{

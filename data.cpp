@@ -160,15 +160,15 @@ bool read_configuration(std::istream& in, Configuration* out)
 			else if (first == "Final-Time")
 				out->t_f = std::stod(second);
 			else if (first == "Time-Block-Size")
-				out->tbsize = std::stoul(second);
+				out->tbsize = std::stou(second);
 			else if (first == "Big-G")
 				out->big_g = std::stod(second);
 			else if (first == "Cull-Radius")
 				out->cull_radius = std::stod(second);
 			else if (first == "WH-Encounter-N1")
-				out->wh_ce_n1 = std::stoull(second);
+				out->wh_ce_n1 = std::stou(second);
 			else if (first == "WH-Encounter-N2")
-				out->wh_ce_n2 = std::stoull(second);
+				out->wh_ce_n2 = std::stou(second);
 			else if (first == "WH-Encounter-R1")
 				out->wh_ce_r1 = std::stod(second);
 			else if (first == "WH-Encounter-R2")
@@ -176,17 +176,17 @@ bool read_configuration(std::istream& in, Configuration* out)
 			else if (first == "Enable-GPU")
 				out->use_gpu = std::stoi(second) != 0;
 			else if (first == "Limit-Particle-Count")
-				out->max_particle = std::stoull(second);
+				out->max_particle = std::stou(second);
 			else if (first == "Log-Interval")
-				out->print_every = std::stoull(second);
+				out->print_every = std::stou(second);
 			else if (first == "Status-Interval")
-				out->energy_every = std::stoull(second);
+				out->energy_every = std::stou(second);
 			else if (first == "Track-Interval")
-				out->track_every = std::stoull(second);
+				out->track_every = std::stou(second);
 			else if (first == "Split-Track-File")
-				out->split_track_file = std::stoull(second);
+				out->split_track_file = std::stou(second);
 			else if (first == "Dump-Interval")
-				out->dump_every = std::stoull(second);
+				out->dump_every = std::stou(second);
 			else if (first == "Resolve-Encounters")
 				out->resolve_encounters = std::stoi(second) != 0;
 			else if (first == "Write-Split-Output")

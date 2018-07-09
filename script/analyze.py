@@ -130,6 +130,7 @@ with open(sys.argv[2]) as p:
 		xyz = list([float(i) for i in p.readline().strip().split()])
 		vxyz = list([float(i) for i in p.readline().strip().split()])
 		p.readline()
+
 		initial[i, 0] = xyz[0]
 		initial[i, 1] = xyz[1]
 		initial[i, 2] = xyz[2]

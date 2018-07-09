@@ -13,6 +13,7 @@
 #include <string>
 #include <ctime>
 #include <thread>
+#include <cmath>
 #include <iomanip>
 
 #include <execinfo.h>
@@ -42,8 +43,6 @@ void term(int signum)
 int main(int argv, char** argc)
 {
 	std::ios_base::sync_with_stdio(false);
-	signal(SIGTERM, term);
-	signal(SIGINT, term);
 
 	if (sizeof(double) != 8)
 	{
@@ -134,13 +133,17 @@ int main(int argv, char** argc)
 
 	ex.init();
 
-	size_t counter = 0;
-	size_t dump_num = 0;
+	uint32_t counter = 0;
+	uint32_t dump_num = 0;
 
-	size_t track_counter = 0;
+	uint32_t track_counter = 0;
 
 	bool crashed = false;
 	std::ofstream trackout;
+
+	signal(SIGTERM, term);
+	signal(SIGINT, term);
+
 	try
 	{
 		if (config.track_every > 0 && config.split_track_file == 0)
@@ -164,21 +167,6 @@ int main(int argv, char** argc)
 
 			counter++;
 
-			ex.add_job([&ex]()
-				{
-					/*
-					double aout, eout, iout, aj;
-					to_elements(ex.hd.planets.m[0] + ex.hd.planets.m[1], ex.hd.planets.r[1], ex.hd.planets.v[1], nullptr, &aj);
-
-					for (size_t k = 0; k < ex.hd.particles.n; k++)
-					{
-						to_elements(ex.hd.planets.m[0], ex.hd.particles.r[k], ex.hd.particles.v[k], nullptr, &aout, &eout, &iout);
-						std::cout << ex.hd.particles.id[k] << " " << aj / aout + 2 * std::sqrt((1 - eout * eout) * aout / aj) * std::cos(iout) << std::endl;
-					}
-					*/
-				});
-
-			
 			ex.add_job([&timelog, &tout, &ex, &config, counter, timediff]()
 				{
 					bool output_energy = config.energy_every != 0 && (counter % config.energy_every == 0);
@@ -256,7 +244,7 @@ int main(int argv, char** argc)
 							write_binary(trackout, ex.t);
 							write_binary(trackout, ex.hd.planets.n_alive - 1);
 
-							for (size_t i = 1; i < ex.hd.planets.n_alive; i++)
+							for (uint32_t i = 1; i < ex.hd.planets.n_alive; i++)
 							{
 								double a, e, in, capom, om, f;
 								to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
@@ -272,7 +260,7 @@ int main(int argv, char** argc)
 							}
 
 							write_binary(trackout, ex.hd.particles.n_alive);
-							for (size_t i = 0; i < ex.hd.particles.n_alive; i++)
+							for (uint32_t i = 0; i < ex.hd.particles.n_alive; i++)
 							{
 								double a, e, in, capom, om, f;
 								to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
@@ -306,7 +294,7 @@ int main(int argv, char** argc)
 	{
 		void* array[50];
 		size_t size = backtrace(array, 50);
-		backtrace_symbols_fd(array, static_cast<int>(size), 2);
+		backtrace_symbols_fd(array, static_cast<int>(size), 1);
 
 		tout << "Exception caught: " << std::endl;
 		tout << e.what() << std::endl;
