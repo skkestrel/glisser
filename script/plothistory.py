@@ -1,4 +1,5 @@
 import sys
+import os
 import math
 import numpy as np
 import matplotlib
@@ -12,7 +13,7 @@ import matplotlib.style as style
 style.use('ggplot')
 
 times = []
-particlewatch = [int(sys.argv[i + 6]) for i in range(len(sys.argv) - 6)]
+particlewatch = [int(sys.argv[i + 3]) for i in range(len(sys.argv) - 3)]
 particles = [[] for i in range(len(particlewatch) * 6)]
 
 def bsearch(f, npa, partnum):
@@ -23,11 +24,11 @@ def bsearch(f, npa, partnum):
     while left <= right:
         mid = left + (right - left) // 2
         f.seek(base + mid * 28, 0)
-        Id, a, e, i, O, o, f = struct.unpack('=I6f', f.read(28))
+        Id, a, e, i, O, o, F = struct.unpack('=I6f', f.read(28))
 
         if Id == partnum:
             f.seek(base, 0)
-            return Id, a, e, i, O, o, f
+            return Id, a, e, i, O, o, F
         elif Id > partnum:
             right = mid - 1
         else:
@@ -42,51 +43,58 @@ if len(sys.argv) > 2:
 
 planets = None
 
-with open(sys.argv[1], 'rb') as f:
-    read = f.read(16)
-    counter = 0
-    while len(read) == 16:
-        time, npl = struct.unpack('=dQ', read)
+filenum = 0
+counter = 0
+while True:
+    try:
+        with open(os.path.join(sys.argv[1], "track.{0}.out".format(filenum)), 'rb') as f:
+            filenum += 1
+            read = f.read(16)
 
-        if not planets:
-            planets = list([[] for i in range(npl * 6)])
+            while len(read) == 16:
+                time, npl = struct.unpack('=dQ', read)
 
-        if (counter % take_every) == 0:
-            times.append(time)
+                if not planets:
+                    planets = list([[] for i in range(npl * 6)])
 
-        for i in range(npl):
-            a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))[1:]
+                if (counter % take_every) == 0:
+                    times.append(time)
 
-            if (counter % take_every) == 0:
-                planets[6*i].append(a)
-                planets[6*i+1].append(e)
-                planets[6*i+2].append(I)
-                planets[6*i+3].append(O)
-                planets[6*i+4].append(o)
-                planets[6*i+5].append(F)
-        npa, = struct.unpack('=Q', f.read(8))
+                for i in range(npl):
+                    a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))[1:]
 
-        if (counter % take_every) == 0:
-            for index, partnum in enumerate(particlewatch):
-                part = bsearch(f, npa, partnum)
-                if part:
-                    particles[6*index].append(part[1])
-                    particles[6*index+1].append(part[2])
-                    particles[6*index+2].append(part[6])
-                    particles[6*index+6].append(part[4])
-                    particles[6*index+4].append(part[5])
-                    particles[6*index+5].append(part[6])
-                else:
-                    particles[6*index].append(math.nan)
-                    particles[6*index+1].append(math.nan)
-                    particles[6*index+2].append(math.nan)
-                    particles[6*index+6].append(math.nan)
-                    particles[6*index+4].append(math.nan)
-                    particles[6*index+5].append(math.nan)
+                    if (counter % take_every) == 0:
+                        planets[6*i].append(a)
+                        planets[6*i+1].append(e)
+                        planets[6*i+2].append(I)
+                        planets[6*i+3].append(O)
+                        planets[6*i+4].append(o)
+                        planets[6*i+5].append(F)
+                npa, = struct.unpack('=Q', f.read(8))
 
-        f.seek(npa * 28, 1)
-        read = f.read(16)
-        counter = counter + 1;
+                if (counter % take_every) == 0:
+                    for index, partnum in enumerate(particlewatch):
+                        part = bsearch(f, npa, partnum)
+                        if part:
+                            particles[6*index].append(part[1])
+                            particles[6*index+1].append(part[2])
+                            particles[6*index+2].append(part[3])
+                            particles[6*index+3].append(part[4])
+                            particles[6*index+4].append(part[5])
+                            particles[6*index+5].append(part[6])
+                        else:
+                            particles[6*index].append(math.nan)
+                            particles[6*index+1].append(math.nan)
+                            particles[6*index+2].append(math.nan)
+                            particles[6*index+3].append(math.nan)
+                            particles[6*index+4].append(math.nan)
+                            particles[6*index+5].append(math.nan)
+
+                f.seek(npa * 28, 1)
+                read = f.read(16)
+                counter = counter + 1;
+    except IOError:
+        break
 
 times = np.array(times)
 
@@ -106,7 +114,6 @@ elif times[-1] > 365e3:
 else:
     stimes = times
     timelabel = "Time (yr)"
-
 plt.xlabel(timelabel)
 
 for i in range(npl):

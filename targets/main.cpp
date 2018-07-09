@@ -97,11 +97,7 @@ int main(int argv, char** argc)
 	}
 
 	mkdir(joinpath(config.outfolder, "dump").c_str(), ACCESSPERMS);
-
-	if (config.split_track_file > 0)
-	{
-		mkdir(joinpath(config.outfolder, "tracks").c_str(), ACCESSPERMS);
-	}
+	mkdir(joinpath(config.outfolder, "tracks").c_str(), ACCESSPERMS);
 
 	std::ofstream coutlog(joinpath(config.outfolder, "stdout"));
 	teestream tout(std::cout, coutlog);
@@ -136,20 +132,17 @@ int main(int argv, char** argc)
 	uint32_t counter = 0;
 	uint32_t dump_num = 0;
 
-	uint32_t track_counter = 0;
-
 	bool crashed = false;
 	std::ofstream trackout;
 
 	signal(SIGTERM, term);
 	signal(SIGINT, term);
 
+	uint32_t track_num = 1;
+
 	try
 	{
-		if (config.track_every > 0 && config.split_track_file == 0)
-		{
-			trackout = std::ofstream(joinpath(config.outfolder, "track.out"), std::ios_base::binary);
-		}
+		trackout = std::ofstream(joinpath(config.outfolder, "tracks/track.0.out"), std::ios_base::binary);
 
 		while (ex.t < config.t_f)
 		{
@@ -217,13 +210,13 @@ int main(int argv, char** argc)
 						{
 							tout << "Dumping to disk. t = " << ex.t << std::endl;
 							std::ostringstream ss;
-							ss << "dump/config." << dump_num << ".out";
+							ss << "dumps/config." << dump_num << ".out";
 
 							std::ofstream configout(joinpath(config.outfolder, ss.str()));
 							write_configuration(configout, out_config);
 
 							ss = std::ostringstream();
-							ss << "dump/state." << dump_num << ".out";
+							ss << "dumps/state." << dump_num << ".out";
 							save_data(ex.hd, config, joinpath(config.outfolder, ss.str()), true);
 
 							dump_num++;
@@ -232,10 +225,10 @@ int main(int argv, char** argc)
 
 				if (track)
 				{
-					if (config.split_track_file > 0 && (track_counter % config.split_track_file) == 0)
+					if (config.split_track_file > 0 && trackout.tellp() > config.split_track_file)
 					{
 						std::ostringstream ss;
-						ss << "tracks/track." << track_counter / config.split_track_file << ".out";
+						ss << "tracks/track." << track_num++ << ".out";
 						trackout = std::ofstream(joinpath(config.outfolder, ss.str()), std::ios_base::binary);
 					}
 
@@ -277,8 +270,6 @@ int main(int argv, char** argc)
 
 							trackout.flush();
 						});
-
-					track_counter++;
 				}
 			}
 
