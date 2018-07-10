@@ -28,7 +28,7 @@ namespace wh
 		}
 	}
 
-	bool kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE)
+	bool kepeq(double dM, double esinEo, double ecosEo, double* dE, double* sindE, double* cosdE, uint32_t* iterations)
 	{
 		double f,fp, delta;
 
@@ -42,6 +42,7 @@ namespace wh
 			delta = -f / fp;
 			if (std::fabs(delta) < TOLKEP)
 			{
+				*iterations = i;
 				return false;
 			}
 
@@ -821,16 +822,9 @@ namespace wh
 			{
 				if ((dM * dM > 0.16) || (esq > 0.36) || (esq * dM * dM > 0.0016)) goto hyperbolic;
 
-				float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
-				float64_t sindE, cosdE;
-
 #pragma GCC warning "Why is kepmd not satisfactory?"
-				/* This kepmd function does not have very good accuracy!
 				double dE, sindE, cosdE;
-				kepmd(dM, ecosEo, esinEo, &xkep, &s, &c);
-				*/
-
-				kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE);
+				kepmd(dM, esinEo, ecosEo, &dE, &sindE, &cosdE);
 
 				double fchk = dE - ecosEo * sindE + esinEo * (1. - cosdE) - dM;
 				if (fchk * fchk > DANBYB)
@@ -855,7 +849,9 @@ namespace wh
 				// call kepler equation solver with initial guess in dE already
 				float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
 				float64_t sindE, cosdE;
-				if (kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE))
+
+				uint32_t its;
+				if (kepeq(dM, esinEo, ecosEo, &dE, &sindE, &cosdE, &its))
 				{
 					return true;
 				}
@@ -876,7 +872,7 @@ namespace wh
 		
 	hyperbolic:
 		double fp, c1, c2, c3;
-		if (kepu(dt, dist, mu, 2 * energy, vdotr, &fp, &c1, &c2, &c3))
+		if (kepu(dt, dist, mu, -2 * energy, vdotr, &fp, &c1, &c2, &c3))
 		{
 			return true;
 		}
@@ -967,7 +963,9 @@ namespace wh
 				// call kepler equation solver with initial guess in dE already
 				float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
 				float64_t sindE, cosdE;
-				if (kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE))
+
+				uint32_t its;
+				if (kepeq(dM, esinEo, ecosEo, &dE, &sindE, &cosdE, &its))
 				{
 					throw std::runtime_error("Unconverging kepler");
 				}
@@ -994,9 +992,11 @@ namespace wh
 			{
 				pa.v[i] += this->particle_a[i] * (dt / 2);
 
+				/*
 				std::cerr << pa.id[0] << " " << t << " " << pa.r[0] << " " << pa.v[0] << " " << std::endl;
 				std::cerr << "pl1 " << t << " " << pl.r_log.slow[pl.log_index_at<false>(timestep_index, 1)] << std::endl;
-				// print_tiss(pl, pa);
+				print_tiss(pl, pa);
+				*/
 			}
 		}
 
@@ -1021,12 +1021,13 @@ namespace wh
 	{
 		size_t tfactor = encounter_n1 * encounter_n2;
 
+		/*
 		std::cerr << pa.id[particle_index] << " " << t << " " << pa.r[particle_index] << " " << pa.v[particle_index] << " ";
 		std::cerr << (int) *encounter_level << " ";
 		std::cerr << timestep_index << " " << tfactor << std::endl;
 		std::cerr << "pl1 " << t << " " << pl.r_log.get<false, old>()[pl.log_index_at<old>(timestep_index, 1)] << std::endl;
-
-		// print_tiss(pl, pa);
+		print_tiss(pl, pa);
+		*/
 
 		switch (*encounter_level)
 		{

@@ -11,7 +11,7 @@ namespace wh
 {
 	using namespace sr::data;
 
-	bool kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE);
+	bool kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE, uint32_t* iterations);
 	void kepmd(double dm, double es, double ec, double* x, double* s, double* c);
 	bool kepu(double dt, double r0, double mu, double alpha, double u, double* fp, double* c1, double* c2, double* c3);
 

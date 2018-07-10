@@ -20,14 +20,17 @@ if len(sys.argv) > 3:
     interval = int(sys.argv[3])
 
 with open(sys.argv[1]) as f:
-	x = []
-	xp = []
-	for line in f:
-		vals = line.strip().split()
-		if (vals[0] == "pl1"):
-			xp.append((float(vals[2]), float(vals[3]), float(vals[4])))
-		else:
-			x.append((float(vals[2]), float(vals[3]), float(vals[4])))
+    x = []
+    xp = []
+    for line in f:
+        vals = line.strip().split()
+        if (len(vals) < 5):
+            print(line)
+
+        if (vals[0] == "pl1"):
+            xp.append((float(vals[2]), float(vals[3]), float(vals[4])))
+        else:
+            x.append((float(vals[2]), float(vals[3]), float(vals[4])))
 
 data = [np.array(x).T, np.array(xp).T]
 
