@@ -24,21 +24,41 @@ namespace data
 	/// 0x04 Kepler didn't converge
 	/// 0x02 Out of bounds
 	/// 0x01 Particle is in close encounter
-
-	struct HostParticlePhaseSpace
+	
+	struct HostParticleSnapshot
 	{
-		size_t n, n_alive, n_encounter;
+		size_t n, n_alive;
 
 		Vf64_3 r, v;
+		Vu32 id;
+		inline HostParticleSnapshot() { }
+		inline HostParticleSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_) { }
+	};
+
+	struct HostPlanetSnapshot
+	{
+		size_t n, n_alive;
+
+		Vf64_3 r, v;
+		Vu32 id;
+		Vf64 m;
+
+		inline HostPlanetSnapshot() { }
+		inline HostPlanetSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_), m(n_) { }
+	};
+
+
+	struct HostParticlePhaseSpace : public HostParticleSnapshot
+	{
+		size_t n_encounter;
 
 		Vu16 deathflags;
 		Vf32 deathtime;
+
 		Vu32 deathtime_index;
 
-		Vu32 id;
-
 		inline HostParticlePhaseSpace() { }
-		inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : n(siz), n_alive(siz), n_encounter(0), r(siz), v(siz), deathflags(siz), deathtime(siz), id(siz)
+		inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : HostParticleSnapshot(siz), n_encounter(0), deathflags(siz), deathtime(siz)
 		{ 
 			if (cpu_only)
 			{
@@ -53,25 +73,43 @@ namespace data
 		{
 			return static_cast<uint8_t>((deathflags & 0xFF00) >> 8);
 		}
+
+		inline HostParticleSnapshot make_snapshot() const
+		{
+			HostParticleSnapshot s;
+			s.n = n;
+			s.n_alive = n_alive;
+			s.r = Vf64_3(r);
+			s.v = Vf64_3(v);
+			s.id = Vu32(id);
+			return s;
+		}
 	};
 
-	struct HostPlanetPhaseSpace
+	struct HostPlanetPhaseSpace : public HostPlanetSnapshot
 	{
-		size_t n, n_alive, n_alive_old;
-		Vf64 m;
-		Vf64_3 r, v;
-
+		size_t n_alive_old;
 		sr::util::LogQuartet<Vf64_3> r_log;
 		sr::util::LogQuartet<Vf64_3> v_log;
 
-		Vu32 id;
-
 		inline HostPlanetPhaseSpace() { }
-		inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor):
-			n(siz), n_alive(siz), n_alive_old(siz), m(siz), r(siz), v(siz), id(siz)
+		inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor) :
+			HostPlanetSnapshot(siz), n_alive_old(siz)
 		{
-			r_log = sr::util::LogQuartet<Vf64_3>((n - 1) * tb_size, ce_factor);
-			v_log = sr::util::LogQuartet<Vf64_3>((n - 1) * tb_size, ce_factor);
+			r_log = sr::util::LogQuartet<Vf64_3>(((n - 1) * tb_size), ce_factor);
+			v_log = sr::util::LogQuartet<Vf64_3>(((n - 1) * tb_size), ce_factor);
+		}
+
+		inline HostPlanetSnapshot make_snapshot() const
+		{
+			HostPlanetSnapshot s;
+			s.n = n;
+			s.n_alive = n_alive;
+			s.r = Vf64_3(r);
+			s.v = Vf64_3(v);
+			s.m = Vf64(m);
+			s.id = Vu32(id);
+			return s;
 		}
 
 		inline void swap_old()
@@ -87,19 +125,6 @@ namespace data
 		{
 			return timestep * ((old ? n_alive : n_alive_old) - 1) + planet_id - 1;
 		}
-	};
-
-	struct HostPlanetSnapshot
-	{
-		size_t n, n_alive;
-
-		Vf64 m;
-		Vf64_3 r, v;
-		Vu32 id;
-
-		inline HostPlanetSnapshot() { }
-		inline HostPlanetSnapshot(const HostPlanetPhaseSpace& o) :
-			n(o.n), n_alive(o.n_alive), m(o.m), r(o.r), v(o.v), id(o.id) { }
 	};
 
 	struct HostData
@@ -302,5 +327,8 @@ namespace data
 
 	bool read_configuration(std::istream& in, Configuration* out);
 	void write_configuration(std::ostream& in, const Configuration& config);
+
+	void save_elements(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time);
+	void load_elements(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time);
 }
 }

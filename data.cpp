@@ -1,5 +1,6 @@
 #include "data.h"
 #include "util.h"
+#include "convert.h"
 
 #include <iostream>
 #include <fstream>
@@ -401,36 +402,38 @@ namespace data
 
 	bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::istream& in)
 	{
-		read_binary(in, hd.planets.n);
+		uint64_t templl;
+		read_binary<uint64_t>(in, templl);
+		hd.planets.n = static_cast<size_t>(templl);
 		hd.planets = HostPlanetPhaseSpace(hd.planets.n, config.tbsize, config.fast_timestep_factor());
 
 		for (size_t i = 0; i < hd.planets.n; i++)
 		{
-			read_binary(in, hd.planets.id[i]);
-			read_binary(in, hd.planets.m[i]);
-			read_binary(in, hd.planets.r[i].x);
-			read_binary(in, hd.planets.r[i].y);
-			read_binary(in, hd.planets.r[i].z);
-			read_binary(in, hd.planets.v[i].x);
-			read_binary(in, hd.planets.v[i].y);
-			read_binary(in, hd.planets.v[i].z);
+			read_binary<uint32_t>(in, hd.planets.id[i]);
+			read_binary<double>(in, hd.planets.m[i]);
+			read_binary<double>(in, hd.planets.r[i].x);
+			read_binary<double>(in, hd.planets.r[i].y);
+			read_binary<double>(in, hd.planets.r[i].z);
+			read_binary<double>(in, hd.planets.v[i].x);
+			read_binary<double>(in, hd.planets.v[i].y);
+			read_binary<double>(in, hd.planets.v[i].z);
 		}
 
-		read_binary(in, hd.particles.n);
-		hd.particles.n = std::min(hd.particles.n, static_cast<size_t>(config.max_particle));
+		read_binary<uint64_t>(in, templl);
+		hd.particles.n = std::min(static_cast<size_t>(templl), static_cast<size_t>(config.max_particle));
 		hd.particles = HostParticlePhaseSpace(hd.particles.n, !config.use_gpu);
 
 		for (size_t i = 0; i < hd.particles.n; i++)
 		{
-			read_binary(in, hd.particles.id[i]);
-			read_binary(in, hd.particles.r[i].x);
-			read_binary(in, hd.particles.r[i].y);
-			read_binary(in, hd.particles.r[i].z);
-			read_binary(in, hd.particles.v[i].x);
-			read_binary(in, hd.particles.v[i].y);
-			read_binary(in, hd.particles.v[i].z);
-			read_binary(in, hd.particles.deathflags[i]);
-			read_binary(in, hd.particles.deathtime[i]);
+			read_binary<uint32_t>(in, hd.particles.id[i]);
+			read_binary<double>(in, hd.particles.r[i].x);
+			read_binary<double>(in, hd.particles.r[i].y);
+			read_binary<double>(in, hd.particles.r[i].z);
+			read_binary<double>(in, hd.particles.v[i].x);
+			read_binary<double>(in, hd.particles.v[i].y);
+			read_binary<double>(in, hd.particles.v[i].z);
+			read_binary<uint16_t>(in, hd.particles.deathflags[i]);
+			read_binary<float>(in, hd.particles.deathtime[i]);
 		}
 
 		return !in;
@@ -480,7 +483,7 @@ namespace data
 	void save_data_hybrid_binary(const HostData& hd, const Configuration& config, std::ostream& out)
 	{
 		(void) config;
-		write_binary(out, hd.planets.n_alive);
+		write_binary(out, static_cast<uint64_t>(hd.planets.n_alive));
 		for (size_t i = 0; i < hd.planets.n_alive; i++)
 		{
 			double m = hd.planets_snapshot.m[i];
@@ -496,7 +499,7 @@ namespace data
 			write_binary(out, hd.planets_snapshot.v[i].z * m);
 		}
 
-		write_binary(out, hd.particles.n);
+		write_binary(out, static_cast<uint64_t>(hd.particles.n));
 		for (size_t i = 0; i < hd.particles.n; i++)
 		{
 			write_binary(out, hd.particles.id[i]);
@@ -582,6 +585,95 @@ namespace data
 		{
 			std::ofstream ploutfile(sr::util::joinpath(config.outfolder, "pl.out")), icsoutfile(sr::util::joinpath(config.outfolder, "ics.out"));
 			save_data_nohybrid(hd, config, ploutfile, icsoutfile);
+		}
+	}
+
+	void save_elements(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time)
+	{
+		sr::data::write_binary(trackout, static_cast<double>(time));
+		sr::data::write_binary(trackout, static_cast<uint64_t>(pl.n_alive - 1));
+
+		for (uint32_t i = 1; i < pl.n_alive; i++)
+		{
+			double a, e, in, capom, om, f;
+			sr::convert::to_elements(pl.m[i] + pl.m[0], pl.r[i], pl.v[i],
+					nullptr, &a, &e, &in, &capom, &om, &f);
+
+			sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
+			sr::data::write_binary(trackout, static_cast<float>(a));
+			sr::data::write_binary(trackout, static_cast<float>(e));
+			sr::data::write_binary(trackout, static_cast<float>(in));
+			sr::data::write_binary(trackout, static_cast<float>(capom));
+			sr::data::write_binary(trackout, static_cast<float>(om));
+			sr::data::write_binary(trackout, static_cast<float>(f));
+		}
+
+		sr::data::write_binary(trackout, static_cast<uint64_t>(pa.n_alive));
+		for (uint32_t i = 0; i < pa.n_alive; i++)
+		{
+			double a, e, in, capom, om, f;
+			sr::convert::to_elements(pl.m[0], pa.r[i], pa.v[i],
+					nullptr, &a, &e, &in, &capom, &om, &f);
+
+			sr::data::write_binary(trackout, static_cast<uint32_t>(pa.id[i]));
+			sr::data::write_binary(trackout, static_cast<float>(a));
+			sr::data::write_binary(trackout, static_cast<float>(e));
+			sr::data::write_binary(trackout, static_cast<float>(in));
+			sr::data::write_binary(trackout, static_cast<float>(capom));
+			sr::data::write_binary(trackout, static_cast<float>(om));
+			sr::data::write_binary(trackout, static_cast<float>(f));
+		}
+
+		trackout.flush();
+	}
+
+	void load_elements(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time)
+	{
+		sr::data::read_binary<double>(trackin, time);
+
+		uint64_t templl;
+		sr::data::read_binary<uint64_t>(trackin, templl);
+		pl.n = pl.n_alive = static_cast<size_t>(templl) + 1;
+
+		for (uint32_t i = 1; i < pl.n_alive; i++)
+		{
+			sr::data::read_binary<uint32_t>(trackin, pl.id[i]);
+
+			float tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pl.r[i].x = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pl.r[i].y = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pl.r[i].z = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pl.v[i].x = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pl.v[i].y = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pl.v[i].z = tempfloat;
+		}
+
+		sr::data::read_binary(trackin, templl);
+		pa.n = pa.n_alive = static_cast<size_t>(templl);
+
+		for (uint32_t i = 0; i < pa.n_alive; i++)
+		{
+			sr::data::read_binary<uint32_t>(trackin, pa.id[i]);
+
+			float tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pa.r[i].x = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pa.r[i].y = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pa.r[i].z = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pa.v[i].x = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pa.v[i].y = tempfloat;
+			sr::data::read_binary<float>(trackin, tempfloat);
+			pa.v[i].z = tempfloat;
 		}
 	}
 }

@@ -144,6 +144,8 @@ namespace util
 		Vector slow;
 		Vector slow_old;
 
+		inline LogQuartet() { }
+
 		inline LogQuartet(size_t slow_size, size_t speed_factor)
 		{
 			slow = slow_old = Vector(slow_size);
@@ -160,9 +162,6 @@ namespace util
 			std::swap(slow, slow_old);
 		}
 
-		template<typename... Args>
-		LogQuartet(Args... args);
-
 		template<bool slow, bool old>
 		inline Vector& get()
 		{
@@ -175,12 +174,6 @@ namespace util
 			return detail::Selector<const LogQuartet<Vector>*, const Vector&, slow, old>::get(this);
 		}
 	};
-
-	template<typename Vector>
-	template<typename... Args>
-	inline LogQuartet<Vector>::LogQuartet(Args... args)
-		: log(args...), old(args...), slow(args...), slow_old(args...)
-	{ }
 
 	inline std::string joinpath(const std::string& base, const std::string& app)
 	{

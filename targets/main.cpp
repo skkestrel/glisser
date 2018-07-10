@@ -234,8 +234,8 @@ int main(int argv, char** argc)
 
 					ex.add_job([&trackout, &ex, &config]()
 						{
-							sr::data::write_binary(trackout, ex.t);
-							sr::data::write_binary(trackout, ex.hd.planets.n_alive - 1);
+							sr::data::write_binary(trackout, static_cast<double>(ex.t));
+							sr::data::write_binary(trackout, static_cast<uint64_t>(ex.hd.planets.n_alive - 1));
 
 							for (uint32_t i = 1; i < ex.hd.planets.n_alive; i++)
 							{
@@ -252,7 +252,7 @@ int main(int argv, char** argc)
 								sr::data::write_binary(trackout, static_cast<float>(f));
 							}
 
-							sr::data::write_binary(trackout, ex.hd.particles.n_alive);
+							sr::data::write_binary(trackout, static_cast<uint64_t>(ex.hd.particles.n_alive));
 							for (uint32_t i = 0; i < ex.hd.particles.n_alive; i++)
 							{
 								double a, e, in, capom, om, f;
