@@ -36,3 +36,7 @@ convert:
 prune-track:
 	mkdir -p bin
 	g++ targets/prune_track.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/prune-track -fsanitize=address -O3
+
+filter-state:
+	mkdir -p bin
+	g++ targets/filter_state.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/filter-state -fsanitize=address -O3

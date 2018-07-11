@@ -150,6 +150,66 @@ namespace convert
 		}
 	}
 
+	void from_elements(double mu, double a, double e, double i, double capom, double om, double f, f64_3* r_, f64_3* v)
+	{
+		using namespace std;
+
+		double& x = r_->x;
+		double& y = r_->y;
+		double& z = r_->z;
+		double& vx = v->x;
+		double& vy = v->y;
+		double& vz = v->z;
+
+		double prec;
+		double u, r, xhat, yhat, zhat;
+		double h, hx, hy, hz;
+		double thx, thy, thz;		/* components of theta hat */
+		double thdot,  rdot;
+
+		/* user must set this */
+		prec = 1.0e-13;
+
+		/* compute the r unit vector */
+		u = om + f;
+		xhat = cos(u)*cos(capom) - cos(i)*sin(capom)*sin(u);
+		yhat = cos(u)*sin(capom) + cos(i)*cos(capom)*sin(u);
+		zhat = sin(i)*sin(u);
+
+		/* compute components of the specific angular momentum vector. Note
+		   this is a unit vector, with magnitude in the variable h (below) 
+		*/
+		hx = sin(capom)*sin(i);
+		hy = -cos(capom)*sin(i);
+		hz = cos(i);
+
+		/* compute the radius vector and magnitude of h */
+		if( fabs( e - 1.0 ) > prec) {
+		  r = a * (1.0 - e*e) / (1.0 + e*cos(f));
+		  h = sqrt( mu*a*(1.0 - e*e) );
+		} else {
+		  h = sqrt( 2.0*mu*a );		/* a holds q for parabolic */  
+		  r = a/( cos(f/2.0)*cos(f/2.0) );
+		}
+		/* This provides the position vector */
+		x = r * xhat;
+		y = r * yhat;
+		z = r * zhat;
+
+		/* compute the components of the unit vector theta hat */
+		thx = hy * zhat - hz * yhat;
+		thy = hz * xhat - hx * zhat;
+		thz = hx * yhat - hy * xhat;
+
+		/* obtain the velocity vector's components and calculate v */
+		thdot =  h/(r*r);
+		rdot  =  e*mu*sin(f)/h;
+
+		vx = r * thdot * thx + rdot * xhat; 
+		vy = r * thdot * thy + rdot * yhat; 
+		vz = r * thdot * thz + rdot * zhat; 
+	}
+
 	void to_elements(double mu, f64_3 r, f64_3 v, int* esignout, double* aout, double* eout, double* iout, double* capomout, double* omout, double* fout)
 	{
 		using namespace std;

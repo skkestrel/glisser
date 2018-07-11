@@ -17,6 +17,8 @@ namespace convert
 	void find_barycenter(const Vf64_3& r, const Vf64_3& v, const Vf64& m, size_t n, f64_3& r_out, f64_3& v_out);
 	void to_bary(HostData& hd);
 	void to_helio(HostData& hd);
+
+	void from_elements(double mu, double a, double e, double i, double capom, double om, double f, f64_3* r, f64_3* v);
 	void to_elements(double mu, f64_3 r, f64_3 v, int* esign = nullptr, double* a = nullptr, double* e = nullptr, double* i = nullptr, double* capom = nullptr, double* om = nullptr, double* f = nullptr);
 }
 }

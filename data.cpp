@@ -136,7 +136,7 @@ namespace data
 		return *this;
 	}
 
-	bool read_configuration(std::istream& in, Configuration* out)
+	void read_configuration(std::istream& in, Configuration* out)
 	{
 		size_t linenum = 0;
 		std::string line;
@@ -149,8 +149,9 @@ namespace data
 			size_t split = line.find(' ');
 			if (split == std::string::npos)
 			{
-				std::cerr << "Unrecognized line " << linenum << std::endl;
-				return true;
+				std::ostringstream ss;
+				ss << "Unrecognized line " << linenum << ": " << line;
+				throw std::runtime_error(ss.str());
 			}
 
 			std::string first = line.substr(0, split);
@@ -221,8 +222,9 @@ namespace data
 			}
 			catch (std::invalid_argument)
 			{
-				std::cerr << "Unrecognized line " << linenum << std::endl;
-				return true;
+				std::ostringstream ss;
+				ss << "Could not parse line " << linenum << ": " << line;
+				throw std::runtime_error(ss.str());
 			}
 		}
 
@@ -246,21 +248,16 @@ namespace data
 
 		if (!out->writesplit && out->hybridout == "")
 		{
-			std::cerr << "Error: Output-File was not specified" << std::endl;
-			return true;
+			throw std::runtime_error("Error: Output-File was not specified");
 		}
 		if (!out->writesplit && out->hybridin == "")
 		{
-			std::cerr << "Error: Input-File was not specified" << std::endl;
-			return true;
+			throw std::runtime_error("Error: Input-File was not specified");
 		}
 		if (out->readsplit && (out->plin == "" || out->icsin == ""))
 		{
-			std::cerr << "Error: Read-Split-Input was selected but Particle-Input-File or Planet-Input-File were not specified" << std::endl;
-			return true;
+			throw std::runtime_error("Error: Read-Split-Input was selected but Particle-Input-File or Planet-Input-File were not specified");
 		}
-
-		return false;
 	}
 
 	void write_configuration(std::ostream& outstream, const Configuration& out)
@@ -444,19 +441,39 @@ namespace data
 		bool ret;
 		if (config.readsplit)
 		{
+			if (!sr::util::does_file_exist(config.plin))
+			{
+				std::ostringstream ss;
+				ss << "Planet input file " << config.plin << " does not exist";
+				throw std::runtime_error(ss.str());
+			}
+			if (!sr::util::does_file_exist(config.icsin))
+			{
+				std::ostringstream ss;
+				ss << "Particle input file " << config.icsin << " does not exist";
+				throw std::runtime_error(ss.str());
+			}
+			
 			std::ifstream plinfile(config.plin), icsinfile(config.icsin);
 			ret = load_data_nohybrid(hd, config, plinfile, icsinfile);
 		}
 		else
 		{
+			if (!sr::util::does_file_exist(config.hybridin))
+			{
+				std::ostringstream ss;
+				ss << "Input file " << config.hybridin << " does not exist";
+				throw std::runtime_error(ss.str());
+			}
+
 			if (config.readbinary)
 			{
+
 				std::ifstream in(config.hybridin, std::ios_base::binary);
 				ret = load_data_hybrid_binary(hd, config, in);
 			}
 			else
 			{
-				
 				std::ifstream in(config.hybridin);
 				ret = load_data_hybrid(hd, config, in);
 			}
@@ -588,92 +605,140 @@ namespace data
 		}
 	}
 
-	void save_elements(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time)
+	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements)
 	{
 		sr::data::write_binary(trackout, static_cast<double>(time));
 		sr::data::write_binary(trackout, static_cast<uint64_t>(pl.n_alive - 1));
 
 		for (uint32_t i = 1; i < pl.n_alive; i++)
 		{
-			double a, e, in, capom, om, f;
-			sr::convert::to_elements(pl.m[i] + pl.m[0], pl.r[i], pl.v[i],
+			if (to_elements)
+			{
+				double a, e, in, capom, om, f;
+				sr::convert::to_elements(pl.m[i] + pl.m[0], pl.r[i], pl.v[i],
 					nullptr, &a, &e, &in, &capom, &om, &f);
 
-			sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
-			sr::data::write_binary(trackout, static_cast<float>(a));
-			sr::data::write_binary(trackout, static_cast<float>(e));
-			sr::data::write_binary(trackout, static_cast<float>(in));
-			sr::data::write_binary(trackout, static_cast<float>(capom));
-			sr::data::write_binary(trackout, static_cast<float>(om));
-			sr::data::write_binary(trackout, static_cast<float>(f));
+				sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
+				sr::data::write_binary(trackout, static_cast<float>(a));
+				sr::data::write_binary(trackout, static_cast<float>(e));
+				sr::data::write_binary(trackout, static_cast<float>(in));
+				sr::data::write_binary(trackout, static_cast<float>(capom));
+				sr::data::write_binary(trackout, static_cast<float>(om));
+				sr::data::write_binary(trackout, static_cast<float>(f));
+			}
+			else
+			{
+				sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
+				sr::data::write_binary(trackout, static_cast<float>(pl.r[i].x));
+				sr::data::write_binary(trackout, static_cast<float>(pl.r[i].y));
+				sr::data::write_binary(trackout, static_cast<float>(pl.r[i].z));
+				sr::data::write_binary(trackout, static_cast<float>(pl.v[i].x));
+				sr::data::write_binary(trackout, static_cast<float>(pl.v[i].y));
+				sr::data::write_binary(trackout, static_cast<float>(pl.v[i].z));
+			}
 		}
 
 		sr::data::write_binary(trackout, static_cast<uint64_t>(pa.n_alive));
 		for (uint32_t i = 0; i < pa.n_alive; i++)
 		{
-			double a, e, in, capom, om, f;
-			sr::convert::to_elements(pl.m[0], pa.r[i], pa.v[i],
-					nullptr, &a, &e, &in, &capom, &om, &f);
+			if (to_elements)
+			{
+				double a, e, in, capom, om, f;
+				sr::convert::to_elements(pl.m[0], pa.r[i], pa.v[i],
+						nullptr, &a, &e, &in, &capom, &om, &f);
 
-			sr::data::write_binary(trackout, static_cast<uint32_t>(pa.id[i]));
-			sr::data::write_binary(trackout, static_cast<float>(a));
-			sr::data::write_binary(trackout, static_cast<float>(e));
-			sr::data::write_binary(trackout, static_cast<float>(in));
-			sr::data::write_binary(trackout, static_cast<float>(capom));
-			sr::data::write_binary(trackout, static_cast<float>(om));
-			sr::data::write_binary(trackout, static_cast<float>(f));
+				sr::data::write_binary(trackout, static_cast<uint32_t>(pa.id[i]));
+				sr::data::write_binary(trackout, static_cast<float>(a));
+				sr::data::write_binary(trackout, static_cast<float>(e));
+				sr::data::write_binary(trackout, static_cast<float>(in));
+				sr::data::write_binary(trackout, static_cast<float>(capom));
+				sr::data::write_binary(trackout, static_cast<float>(om));
+				sr::data::write_binary(trackout, static_cast<float>(f));
+			}
+			else
+			{
+				sr::data::write_binary(trackout, static_cast<uint32_t>(pa.id[i]));
+				sr::data::write_binary(trackout, static_cast<float>(pa.r[i].x));
+				sr::data::write_binary(trackout, static_cast<float>(pa.r[i].y));
+				sr::data::write_binary(trackout, static_cast<float>(pa.r[i].z));
+				sr::data::write_binary(trackout, static_cast<float>(pa.v[i].x));
+				sr::data::write_binary(trackout, static_cast<float>(pa.v[i].y));
+				sr::data::write_binary(trackout, static_cast<float>(pa.v[i].z));
+			}
 		}
 
 		trackout.flush();
 	}
 
-	void load_elements(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time)
+	void load_binary_track(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time, bool skipplanets, bool skipparticles)
 	{
 		sr::data::read_binary<double>(trackin, time);
 
 		uint64_t templl;
 		sr::data::read_binary<uint64_t>(trackin, templl);
-		pl.n = pl.n_alive = static_cast<size_t>(templl) + 1;
 
-		for (uint32_t i = 1; i < pl.n_alive; i++)
+		if (skipplanets)
 		{
-			sr::data::read_binary<uint32_t>(trackin, pl.id[i]);
+			pl.n = static_cast<size_t>(templl);
+			pl.n_alive = static_cast<size_t>(templl);
 
-			float tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pl.r[i].x = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pl.r[i].y = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pl.r[i].z = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pl.v[i].x = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pl.v[i].y = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pl.v[i].z = tempfloat;
+			trackin.seekg(TRACK_PLANET_STRIDE * pl.n, std::ios_base::cur);
+		}
+		else
+		{
+			pl = HostPlanetSnapshot(templl + 1);
+			
+			for (uint32_t i = 1; i < pl.n_alive; i++)
+			{
+				sr::data::read_binary<uint32_t>(trackin, pl.id[i]);
+
+				float tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pl.r[i].x = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pl.r[i].y = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pl.r[i].z = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pl.v[i].x = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pl.v[i].y = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pl.v[i].z = tempfloat;
+			}
 		}
 
 		sr::data::read_binary(trackin, templl);
-		pa.n = pa.n_alive = static_cast<size_t>(templl);
 
-		for (uint32_t i = 0; i < pa.n_alive; i++)
+		if (skipparticles)
 		{
-			sr::data::read_binary<uint32_t>(trackin, pa.id[i]);
+			pa.n = static_cast<size_t>(templl);
+			pa.n_alive = static_cast<size_t>(templl);
 
-			float tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pa.r[i].x = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pa.r[i].y = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pa.r[i].z = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pa.v[i].x = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pa.v[i].y = tempfloat;
-			sr::data::read_binary<float>(trackin, tempfloat);
-			pa.v[i].z = tempfloat;
+			trackin.seekg(TRACK_PARTICLE_STRIDE * pa.n, std::ios_base::cur);
+		}
+		else
+		{
+			pa = HostParticleSnapshot(templl);
+
+			for (uint32_t i = 0; i < pa.n_alive; i++)
+			{
+				sr::data::read_binary<uint32_t>(trackin, pa.id[i]);
+
+				float tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pa.r[i].x = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pa.r[i].y = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pa.r[i].z = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pa.v[i].x = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pa.v[i].y = tempfloat;
+				sr::data::read_binary<float>(trackin, tempfloat);
+				pa.v[i].z = tempfloat;
+			}
 		}
 	}
 }

@@ -88,7 +88,7 @@ namespace exec
 
 		// The snapshot contains the planet states at the end of the previous timestep - 
 		// consider removing this? We can use hd.planets.*_log_old[-1] to replicate this functionality
-		hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
+		hd.planets_snapshot = hd.planets.make_snapshot();
 
 		t += config.dt * static_cast<double>(config.tbsize);
 		step_planets();

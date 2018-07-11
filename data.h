@@ -325,10 +325,13 @@ namespace data
 
 	void save_data(const HostData& hd, const Configuration& config, const std::string& outfile, bool dump=false);
 
-	bool read_configuration(std::istream& in, Configuration* out);
+	void read_configuration(std::istream& in, Configuration* out);
 	void write_configuration(std::ostream& in, const Configuration& config);
 
-	void save_elements(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time);
-	void load_elements(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time);
+	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements);
+	void load_binary_track(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time, bool skipplanets, bool skipparticles);
+
+	const size_t TRACK_PARTICLE_STRIDE = 28;
+	const size_t TRACK_PLANET_STRIDE = 28;
 }
 }

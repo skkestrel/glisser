@@ -62,7 +62,17 @@ int main(int argv, char** argc)
 	std::ifstream configfile(configin);
 
 	sr::data::Configuration config_mut;
-	if (read_configuration(configfile, &config_mut)) return -1;
+
+	try
+	{
+		read_configuration(configfile, &config_mut);
+	}
+	catch (std::exception& e)
+	{
+		std::cerr << "Could not read configuration." << std::endl;
+		std::cerr << e.what() << std::endl;
+		return -1;
+	}
 
 	const sr::data::Configuration& config = config_mut;
 
@@ -234,41 +244,7 @@ int main(int argv, char** argc)
 
 					ex.add_job([&trackout, &ex, &config]()
 						{
-							sr::data::write_binary(trackout, static_cast<double>(ex.t));
-							sr::data::write_binary(trackout, static_cast<uint64_t>(ex.hd.planets.n_alive - 1));
-
-							for (uint32_t i = 1; i < ex.hd.planets.n_alive; i++)
-							{
-								double a, e, in, capom, om, f;
-								sr::convert::to_elements(ex.hd.planets.m[i] + ex.hd.planets.m[0], ex.hd.planets.r[i], ex.hd.planets.v[i],
-									nullptr, &a, &e, &in, &capom, &om, &f);
-
-								sr::data::write_binary(trackout, static_cast<uint32_t>(ex.hd.planets.id[i]));
-								sr::data::write_binary(trackout, static_cast<float>(a));
-								sr::data::write_binary(trackout, static_cast<float>(e));
-								sr::data::write_binary(trackout, static_cast<float>(in));
-								sr::data::write_binary(trackout, static_cast<float>(capom));
-								sr::data::write_binary(trackout, static_cast<float>(om));
-								sr::data::write_binary(trackout, static_cast<float>(f));
-							}
-
-							sr::data::write_binary(trackout, static_cast<uint64_t>(ex.hd.particles.n_alive));
-							for (uint32_t i = 0; i < ex.hd.particles.n_alive; i++)
-							{
-								double a, e, in, capom, om, f;
-								sr::convert::to_elements(ex.hd.planets.m[0], ex.hd.particles.r[i], ex.hd.particles.v[i],
-									nullptr, &a, &e, &in, &capom, &om, &f);
-
-								sr::data::write_binary(trackout, static_cast<uint32_t>(ex.hd.particles.id[i]));
-								sr::data::write_binary(trackout, static_cast<float>(a));
-								sr::data::write_binary(trackout, static_cast<float>(e));
-								sr::data::write_binary(trackout, static_cast<float>(in));
-								sr::data::write_binary(trackout, static_cast<float>(capom));
-								sr::data::write_binary(trackout, static_cast<float>(om));
-								sr::data::write_binary(trackout, static_cast<float>(f));
-							}
-
-							trackout.flush();
+							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, ex.hd.particles.make_snapshot(), ex.t, true);
 						});
 				}
 			}
