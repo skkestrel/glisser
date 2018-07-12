@@ -143,7 +143,6 @@ elif final[:, 8].max() > 0:
     plt.figure()
     plt.title('survival time given initial conditions')
     util.logHist(initial[alive, 1], final[alive, 6] / 365.25e6, 1)
-    plt.colorbar()
     plt.xlabel('e')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
@@ -151,7 +150,6 @@ elif final[:, 8].max() > 0:
     plt.figure()
     plt.title('survival time given initial conditions')
     util.logHist(initial[alive, 0], final[alive, 6] / 365.25e6, 1)
-    plt.colorbar()
     plt.xlabel('a (AU)')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
@@ -159,7 +157,6 @@ elif final[:, 8].max() > 0:
     plt.figure()
     plt.title('survival time given initial conditions')
     util.logHist(initial[alive, 2] / math.pi * 180, final[alive, 6] / 365.25e6, 1)
-    plt.colorbar()
     plt.xlabel('i (deg)')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
@@ -181,8 +178,6 @@ plt.ylabel('e')
 plot_orbits()
 
 
-
-
 plt.figure()
 alive = final[:, 8] == 0
 plt.title('surviving particle final states')
@@ -200,6 +195,3 @@ plt.ylabel('i (deg)')
 
 
 plt.show()
-
-
-
