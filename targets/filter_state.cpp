@@ -210,7 +210,7 @@ int main(int argc, char** argv)
 			}
 		}
 
-		std::cout << "ID      |   A       E       I       Om      om      F" << std::endl;
+		std::cout << "ID      |   a        e        i        Om       om       f" << std::endl;
 		std::cout << std::setfill(' ');
 
 		int num = 0;
@@ -221,16 +221,21 @@ int main(int argc, char** argv)
 			sr::convert::to_elements(hd.planets.m[0], hd.particles.r[i], hd.particles.v[i], &esign, &A, &E, &I, &CAPOM, &OM, &F);
 
 			std::cout << std::setw(7) << hd.particles.id[i] << " | ";
-			std::cout << std::setfill(' ') << std::setw(8) << std::fixed << std::setprecision(3)
-				<< std::setw(8) << A << std::setw(8) << E << std::setw(8) << I
-				<< std::setw(8) << CAPOM << std::setw(8) << OM << std::setw(8) << F << std::endl;
+			std::cout << std::setfill(' ') << std::setw(9) << std::fixed << std::setprecision(4)
+				<< std::setw(9) << A << std::setw(9) << E << std::setw(9) << I
+				<< std::setw(9) << CAPOM << std::setw(9) << OM << std::setw(9) << F << std::endl;
 			num++;
 
 			if (num % 10 == 0 && num != 0)
 			{
-				std::cout << candidates.size() - num << " left (" << candidates.size() << " total) (press enter)";
-				std::string s;
-				std::getline(std::cin, s);
+				std::cout << candidates.size() - num << " left (" << candidates.size() << " total) (press return or q) ";
+				int ch = '\0';
+				while (ch != '\n' && ch != 'q')
+				{
+					ch = std::getchar();
+				}
+
+				if (ch == 'q') return 0;
 			}
 		}
 	}
