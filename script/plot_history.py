@@ -1,3 +1,21 @@
+"""plot_history.py
+
+Usage:
+    plot_history.py [options] <path>
+
+Options:
+    -h, --help                     Show this screen.
+    -w <list>, --watch <list>  Plot the comma-separated list of particles, or "all"
+    -P, --no-planets               Don't plot planets.
+    -s <n>, --skip <n>             Take every n time steps [default: 1]
+    -t <t>, --tmax <t>             Take only up to given time
+    --plot-angles                  ..
+    --plot-aei                     ..
+    --plot-ftrect                  ..
+    --plot-qQ                      ..
+    --plot-e-smooth                ..
+"""
+
 import sys
 import os
 import math
@@ -7,13 +25,26 @@ matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 import struct
 import matplotlib.style as style
+import docopt
 
+args = docopt.docopt(__doc__)
 
-
+print(args)
 style.use('ggplot')
 
 times = []
-particlewatch = [int(sys.argv[i + 3]) for i in range(len(sys.argv) - 3)]
+
+if args["--watch"]:
+    if args["--watch"] == "all":
+        particlewatch = []
+        particlewatch_rev = {}
+        take_all_particles = True
+    else:
+        take_all_particles = False
+        particlewatch = [int(x) for x in args["--watch"].split(',')]
+else:
+    particlewatch = []
+
 particles = [[] for i in range(len(particlewatch) * 6)]
 
 def bsearch(f, npa, partnum):
@@ -37,73 +68,125 @@ def bsearch(f, npa, partnum):
     f.seek(base, 0)
     return None
 
-take_every = 1
-if len(sys.argv) > 2:
-    take_every = int(sys.argv[2])
+take_every = int(args["--skip"])
 
 planets = None
+skip_planets = bool(args["--no-planets"])
+if skip_planets:
+    planets = []
 
 filenum = 0
 counter = 0
 while True:
     try:
-        with open(os.path.join(sys.argv[1], "track.{0}.out".format(filenum)), 'rb') as f:
+        if os.path.isfile(args["<path>"]):
+            filename = args["<path>"]
+        else:
+            filename = os.path.join(args["<path>"], "track.{0}.out".format(filenum))
+
+        with open(filename, 'rb') as f:
             filenum += 1
             read = f.read(16)
 
             while len(read) == 16:
                 time, npl = struct.unpack('=dQ', read)
 
-                if not planets:
+                if not planets and not skip_planets:
                     planets = list([[] for i in range(npl * 6)])
+
+                if args["--tmax"] and time > float(args["--tmax"]):
+                    raise IOError() # dirty, but just break out
 
                 if (counter % take_every) == 0:
                     times.append(time)
 
-                for i in range(npl):
-                    a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))[1:]
+                if (counter % take_every) == 0 and not skip_planets:
+                    for i in range(npl):
+                        a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))[1:]
 
-                    if (counter % take_every) == 0:
                         planets[6*i].append(a)
                         planets[6*i+1].append(e)
                         planets[6*i+2].append(I)
                         planets[6*i+3].append(O)
                         planets[6*i+4].append(o)
                         planets[6*i+5].append(F)
+                else:
+                    f.seek(npl * 28, 1)
+
                 npa, = struct.unpack('=Q', f.read(8))
 
                 if (counter % take_every) == 0:
-                    for index, partnum in enumerate(particlewatch):
-                        part = bsearch(f, npa, partnum)
-                        if part:
-                            particles[6*index].append(part[1])
-                            particles[6*index+1].append(part[2])
-                            particles[6*index+2].append(part[3])
-                            particles[6*index+3].append(part[4])
-                            particles[6*index+4].append(part[5])
-                            particles[6*index+5].append(part[6])
+                    if take_all_particles:
+                        if len(particlewatch) == 0:
+                            firstrun = True
                         else:
-                            particles[6*index].append(math.nan)
-                            particles[6*index+1].append(math.nan)
-                            particles[6*index+2].append(math.nan)
-                            particles[6*index+3].append(math.nan)
-                            particles[6*index+4].append(math.nan)
-                            particles[6*index+5].append(math.nan)
+                            firstrun = False
 
-                f.seek(npa * 28, 1)
+                        foundparticles = set()
+
+                        for i in range(npa):
+                            pid, a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))
+
+                            if firstrun:
+                                particlewatch_rev[pid] = len(particlewatch)
+                                particlewatch.append(pid)
+                                for j in range(6):
+                                    particles.append([])
+
+                            foundparticles.add(pid)
+                            ind = particlewatch_rev[pid]
+
+
+                            particles[6*ind].append(a)
+                            particles[6*ind+1].append(e)
+                            particles[6*ind+2].append(I)
+                            particles[6*ind+3].append(O)
+                            particles[6*ind+4].append(o)
+                            particles[6*ind+5].append(F)
+
+                        for i in set(particlewatch) - foundparticles:
+                            ind = particlewatch_rev[i]
+
+                            particles[6*ind].append(math.nan)
+                            particles[6*ind+1].append(math.nan)
+                            particles[6*ind+2].append(math.nan)
+                            particles[6*ind+3].append(math.nan)
+                            particles[6*ind+4].append(math.nan)
+                            particles[6*ind+5].append(math.nan)
+
+                    else:
+                        for index, partnum in enumerate(particlewatch):
+                            part = bsearch(f, npa, partnum)
+                            if part:
+                                particles[6*index].append(part[1])
+                                particles[6*index+1].append(part[2])
+                                particles[6*index+2].append(part[3])
+                                particles[6*index+3].append(part[4])
+                                particles[6*index+4].append(part[5])
+                                particles[6*index+5].append(part[6])
+                            else:
+                                particles[6*index].append(math.nan)
+                                particles[6*index+1].append(math.nan)
+                                particles[6*index+2].append(math.nan)
+                                particles[6*index+3].append(math.nan)
+                                particles[6*index+4].append(math.nan)
+                                particles[6*index+5].append(math.nan)
+                        f.seek(npa * 28, 1)
+
                 read = f.read(16)
                 counter = counter + 1;
+        if os.path.isfile(args["<path>"]):
+            break
     except IOError:
         break
 
-times = np.array(times)
 
+
+times = np.array(times)
 planets = np.array(planets)
 particles = np.array(particles)
+
 cc = plt.rcParams['axes.prop_cycle'].by_key()['color']
-
-
-plt.figure()
 
 if times[-1] > 365e6:
     stimes = times / 365e6
@@ -114,74 +197,101 @@ elif times[-1] > 365e3:
 else:
     stimes = times
     timelabel = "Time (yr)"
-plt.xlabel(timelabel)
 
-for i in range(npl):
-    c = cc[(i) % len(cc)]
-    plt.plot(stimes, planets[6*i], c=c)
-    plt.plot(stimes, planets[6*i] * (1. - planets[6*i+1] ), c=c)
-    plt.plot(stimes, planets[6*i] * (1. + planets[6*i+1] ), c=c)
-    plt.plot([], [], c=cc[i%len(cc)], label="Planet {0}".format(i+1))
-for i in range(len(particlewatch)):
-    c = cc[(i+npl) % len(cc)]
-    nnull = particles[6*i] != math.nan
+if skip_planets:
+    npl = 0
 
-    plt.plot(stimes[nnull], particles[6*i][nnull], c=c)
-    plt.plot(stimes[nnull], (particles[6*i] * ( 1. - particles[6*i+1]) )[nnull], c=c)
-    plt.plot(stimes[nnull], (particles[6*i] * ( 1. + particles[6*i+1]) )[nnull], c=c)
-    plt.plot([], [], c=c, label="Particle {0}".format(particlewatch[i]))
+def do_for(callback):
+    for i in range(npl):
+        c = cc[i % len(cc)]
+        callback(planets[6*i:6*i+6], c, i+1, True)
+    for i in range(len(particlewatch)):
+        c = cc[(i+npl) % len(cc)]
+        callback(particles[6*i:6*i+6], c, particlewatch[i], False)
 
-plt.title(sys.argv[1])
-plt.legend()
+if args["--plot-qQ"]:
+    plt.figure()
+    def plot_qQ(data, c, ind, is_planet):
+        plt.plot(stimes, data[0], c=c)
+        plt.plot(stimes, data[0] * (1. - data[1]), c=c)
+        plt.plot(stimes, data[0] * (1. + data[1]), c=c)
+        if is_planet:
+            plt.plot([], [], c=c, label="Planet {0}".format(ind))
+        else:
+            plt.plot([], [], c=c, label="Particle {0}".format(ind))
 
-fig, axes = plt.subplots(2, 1, sharex=True)
-for i in range(npl):
-    c = cc[(i) % len(cc)]
-    axes[0].plot(taxis[1:half], np.abs(np.fft.fft(planets[6*i+2] * np.sin(planets[6*i+3]))[1:half]), c=c)
-    axes[1].plot(taxis[1:half], np.abs(np.fft.fft(planets[6*i+1] * np.sin(planets[6*i+4] + planets[6*i+3]))[1:half]), c=c)
-    axes[0].plot([], [], c=cc[i%len(cc)], label="Planet {0}".format(i+1))
-axes[0].set_title("p")
-axes[0].set_yscale("log")
-axes[0].set_xscale("log")
-axes[1].set_title("h")
-axes[1].set_xscale("log")
-axes[1].set_yscale("log")
-axes[1].set_xlabel("arcsec / yr")
-axes[0].legend()
+    do_for(plot_qQ)
+    plt.title(sys.argv[1])
+    plt.xlabel(timelabel)
+    plt.ylabel("a, q, Q (AU)")
+    plt.legend()
 
-'''
-fig, axes = plt.subplots(3, 1, sharex=True)
-for i in range(npl):
-    c = cc[(i) % len(cc)]
-    axes[0].plot(stimes, planets[6*i]-planets[6*i].mean(), c=c)
-    axes[1].plot(stimes, planets[6*i+1], c=c)
-    axes[2].plot(stimes, planets[6*i+2], c=c)
-    axes[0].plot([], [], c=cc[i%len(cc)], label="planet {0}".format(i+1))
-axes[0].set_title("δa")
-axes[1].set_title("e")
-axes[2].set_title("i")
-axes[2].set_xlabel(timelabel)
-axes[0].legend()
+dt = times[1] - times[0]
+taxis = np.fft.fftfreq(len(times), dt / 365) * 360 * 3600
+half = len(times) // 2
 
-def moving_average(a, n=3) :
-    ret = np.cumsum(a, dtype=float)
-    ret[n:] = ret[n:] - ret[:-n]
-    return ret[n - 1:] / n
-fig, axes = plt.subplots(1, 1, sharex=True)
-for i in range(npl):
-    c = cc[(i) % len(cc)]
-    axes.plot(stimes[9:], moving_average(planets[6*i+1], 10), c=c)
-    axes.plot([], [], c=cc[i%len(cc)], label="planet {0}".format(i+1))
-axes.set_title("e")
-axes.set_xlabel(timelabel)
-axes.legend()
+if args["--plot-ftrect"]:
+    fig, axes = plt.subplots(2, 1, sharex=True)
 
-'''
+    def plot_hp(data, c, ind, is_planet):
+        axes[0].plot(taxis[1:half], np.abs(np.fft.fft(data[2] * np.sin(data[3]))[1:half]), c=c)
+        axes[1].plot(taxis[1:half], np.abs(np.fft.fft(data[1] * np.sin(data[4] + data[3]))[1:half]), c=c)
+        if is_planet:
+            axes[0].plot([], [], c=c, label="Planet {0}".format(ind))
+        else:
+            axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
-fig, axes = plt.subplots(3, 1, sharex=True)
-for i in range(npl):
-    F = planets[6*i+5].copy()
 
+    do_for(plot_hp)
+    axes[0].legend()
+    axes[0].set_title("p")
+    axes[0].set_yscale("log")
+    axes[0].set_xscale("log")
+    axes[1].set_title("h")
+    axes[1].set_xscale("log")
+    axes[1].set_yscale("log")
+    axes[1].set_xlabel("arcsec / yr")
+    axes[0].legend()
+
+if args["--plot-aei"]:
+    fig, axes = plt.subplots(3, 1, sharex=True)
+
+    def plot_aei(data, c, ind, is_planet):
+        axes[0].plot(stimes, data[0] - data[0].mean(), c=c)
+        axes[1].plot(stimes, data[1], c=c)
+        axes[2].plot(stimes, data[2], c=c)
+        if is_planet:
+            axes[0].plot([], [], c=c, label="Planet {0}".format(ind))
+        else:
+            axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
+
+    axes[0].set_title("δa")
+    axes[1].set_title("e")
+    axes[2].set_title("i")
+    axes[2].set_xlabel(timelabel)
+    axes[0].legend()
+
+if args["--plot-e-smooth"]:
+    def moving_average(a, n=3):
+        ret = np.cumsum(a, dtype=float)
+        ret[n:] = ret[n:] - ret[:-n]
+        return ret[n - 1:] / n
+    fig, axes = plt.subplots(1, 1, sharex=True)
+
+    def plot_aei(data, c, ind, is_planet):
+        axes.plot(stimes[9:], moving_average(data[1], 10), c=c)
+
+        if is_planet:
+            axes.plot([], [], c=c, label="Particle {0}".format(ind))
+        else:
+            axes.plot([], [], c=c, label="Particle {0}".format(ind))
+
+    axes.set_title("e")
+    axes.set_xlabel(timelabel)
+    axes.legend()
+
+if args["--plot-angles"]:
+    fig, axes = plt.subplots(3, 1, sharex=True)
     def normalize(x):
         X = x.copy()
 
@@ -197,17 +307,19 @@ for i in range(npl):
         import scipy
         return np.gradient(X, dt / 365.25)
 
-    c = cc[(i) % len(cc)]
-    axes[0].plot(stimes, normalize(planets[6*i+3]), c=c)
-    axes[1].plot(stimes, normalize(planets[6*i+3]+planets[6*i+4]), c=c)
-    axes[2].plot(stimes, normalize(planets[6*i+5]), c=c)
-    axes[0].plot([], [], c=cc[i%len(cc)], label="planet {0}".format(i+1))
+    def plot_angles(data, c, ind, is_planet):
+        axes[0].plot(stimes, normalize(data[3]), c=c)
+        axes[1].plot(stimes, normalize(data[3]+data[4]), c=c)
+        axes[2].plot(stimes, normalize(data[5]), c=c)
+        if is_planet:
+            axes[0].plot([], [], c=c, label="Planet {0}".format(ind))
+        else:
+            axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
-axes[0].set_title("dΩ/dt (rad/yr)")
-axes[1].set_title("d(Ω+ω)/dt")
-axes[2].set_title("df/dt")
-axes[2].set_xlabel(timelabel)
-axes[0].legend()
-
+    axes[0].set_title("dΩ/dt (rad/yr)")
+    axes[1].set_title("d(Ω+ω)/dt")
+    axes[2].set_title("df/dt")
+    axes[2].set_xlabel(timelabel)
+    axes[0].legend()
 
 plt.show()
