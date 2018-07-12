@@ -3,9 +3,10 @@
 SRC_DIR = src
 BIN_DIR = bin
 OBJ_DIR = obj
+TARGETS_DIR = targets
 DOCOPT_DIR = docopt
 SRC_FILES = $(wildcard $(SRC_DIR)/*.cpp)
-OBJ_FILES = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES)) $(DOCOPT_DIR)/docopt.o
+OBJ_FILES = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES)) $(OBJ_DIR)/docopt/docopt.o
 
 WFLAGS = -Wcast-align -Wshadow -Wcast-qual -Wconversion -Wdisabled-optimization \
 -Wfloat-equal -Wformat=2 -Wformat-nonliteral -Wformat-security -Wformat-y2k \
@@ -16,48 +17,47 @@ WFLAGS = -Wcast-align -Wshadow -Wcast-qual -Wconversion -Wdisabled-optimization 
 
 CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -fsanitize=address -O3 -DNO_CUDA
 
-
 LDFLAGS = -lasan
 
+sr:
+	@mkdir -p $(BIN_DIR)
+	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/sr -O3
+
 clean:
-	rm $(OBJ_DIR)/*
-	rm $(BIN_DIR)/*
+	rm -r $(OBJ_DIR)/* 
+	rm -r $(BIN_DIR)/*
 
-default:
-	mkdir -p $(BIN_DIR)
-	nvcc targets/main.cpp *.cpp *.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/sr -O3
-
-$(OBJ_DIR)/docopt.o:
-	@mkdir -p obj
-	@g++ $(DOCOPT_DIR)/docopt.cpp $(CPPFLAGS) -c -o $(OBJ_DIR)/docopt.o
-	$(info CPP $(DOCOPT_DIR)/docopt.cpp)
+$(OBJ_DIR)/docopt/docopt.o: $(DOCOPT_DIR)/docopt.cpp
+	@mkdir -p $(OBJ_DIR)
+	@mkdir -p $(OBJ_DIR)/docopt
+	$(info CPP $(OBJ_DIR)/docopt/docopt.o)
+	@g++ $(DOCOPT_DIR)/docopt.cpp $(CPPFLAGS) -c -o $(OBJ_DIR)/docopt/docopt.o
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p obj
+	$(info CPP $@)
 	@g++ $(CPPFLAGS) -c -o $@ $<
-	$(info CPP $<)
+
+define make-target =
+@mkdir -p $(BIN_DIR)
+@mkdir -p $(OBJ_DIR)/targets
+$(info CPP $(OBJ_DIR)/targets/$1.o)
+@g++ $(TARGETS_DIR)/$1.cpp $(CPPFLAGS) -c -o $(OBJ_DIR)/targets/$1.o
+$(info LD $(BIN_DIR)/$2)
+@g++ $(OBJ_DIR)/targets/$1.o $(OBJ_FILES) $(LDFLAGS) -o $(BIN_DIR)/$2
+endef
 
 cpu: $(OBJ_FILES)
-	@mkdir -p $(BIN_DIR)
-	@g++ targets/main.cpp $(OBJ_FILES) $(CPPFLAGS) $(LDFLAGS) -o $(BIN_DIR)/sr_cpu
-	$(info LD $(BIN_DIR)/sr_cpu)
+	$(call make-target,main,sr_cpu)
 
 convert-state: $(OBJ_FILES)
-	@mkdir -p $(BIN_DIR)
-	@g++ targets/convert_state.cpp $(OBJ_FILES) $(LDFLAGS) $(CPPFLAGS) -o $(BIN_DIR)/convert-state
-	$(info LD $(BIN_DIR)/convert-state)
-
-prune-track: $(OBJ_FILES)
-	@mkdir -p $(BIN_DIR)
-	@g++ targets/prune_track.cpp $(OBJ_FILES) $(LDFLAGS) $(CPPFLAGS) -o $(BIN_DIR)/prune-track
-	$(info LD $(BIN_DIR)/prune-track)
+	$(call make-target,convert_state,convert-state)
 
 filter-state: $(OBJ_FILES)
-	@mkdir -p $(BIN_DIR)
-	@g++ targets/filter_state.cpp $(OBJ_FILES) $(LDFLAGS) $(CPPFLAGS) -o $(BIN_DIR)/filter-state
-	$(info LD $(BIN_DIR)/filter-state)
+	$(call make-target,filter_state,filter-state)
+
+prune-track: $(OBJ_FILES)
+	$(call make-target,prune_track,prune-track)
 
 find-max-e: $(OBJ_FILES)
-	@mkdir -p $(BIN_DIR)
-	@g++ targets/find_max_e.cpp $(OBJ_FILES) $(LDFLAGS) $(CPPFLAGS) -o $(BIN_DIR)/find-max-e
-	$(info LD $(BIN_DIR)/find-max-e)
+	$(call make-target,find_max_e,find-max-e)
