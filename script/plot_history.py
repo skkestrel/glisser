@@ -29,7 +29,6 @@ import docopt
 
 args = docopt.docopt(__doc__)
 
-print(args)
 style.use('ggplot')
 
 times = []
@@ -227,15 +226,18 @@ if args["--plot-qQ"]:
     plt.legend()
 
 dt = times[1] - times[0]
-taxis = np.fft.fftfreq(len(times), dt / 365) * 360 * 3600
-half = len(times) // 2
 
 if args["--plot-ftrect"]:
     fig, axes = plt.subplots(2, 1, sharex=True)
 
     def plot_hp(data, c, ind, is_planet):
-        axes[0].plot(taxis[1:half], np.abs(np.fft.fft(data[2] * np.sin(data[3]))[1:half]), c=c)
-        axes[1].plot(taxis[1:half], np.abs(np.fft.fft(data[1] * np.sin(data[4] + data[3]))[1:half]), c=c)
+        notnan = np.logical_not(np.isnan(data[0]))
+
+        taxis = np.fft.fftfreq(len(times[notnan]), dt / 365) * 360 * 3600
+        half = len(times[notnan]) // 2
+
+        axes[0].plot(taxis[1:half], np.abs(np.fft.fft(data[2, notnan] * np.sin(data[3, notnan]))[1:half]), c=c)
+        axes[1].plot(taxis[1:half], np.abs(np.fft.fft(data[1, notnan] * np.sin(data[4, notnan] + data[3, notnan]))[1:half]), c=c)
         if is_planet:
             axes[0].plot([], [], c=c, label="Planet {0}".format(ind))
         else:
