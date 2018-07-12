@@ -694,7 +694,7 @@ namespace data
 		}
 		else
 		{
-			pl = HostPlanetSnapshot(templl + 1);
+			pl = HostPlanetSnapshot(static_cast<size_t>(templl + 1));
 			
 			for (uint32_t i = 1; i < pl.n_alive; i++)
 			{
@@ -728,7 +728,7 @@ namespace data
 		}
 		else
 		{
-			pa = HostParticleSnapshot(templl);
+			pa = HostParticleSnapshot(static_cast<size_t>(templl));
 
 			for (uint32_t i = 0; i < pa.n_alive; i++)
 			{

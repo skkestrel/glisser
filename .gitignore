@@ -5,3 +5,4 @@
 !data/*.in
 script/__pycache__
 bin
+obj

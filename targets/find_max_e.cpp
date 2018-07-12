@@ -1,9 +1,9 @@
-#include "../data.h"
-#include "../util.h"
+#include "../src/data.h"
+#include "../src/util.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-#include "../cxxopts.h"
+#include "../src/cxxopts.h"
 #pragma GCC diagnostic pop
 
 #include <iostream>

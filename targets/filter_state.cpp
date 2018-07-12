@@ -8,13 +8,13 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-#include "../cxxopts.h"
+#include "../src/cxxopts.h"
 #pragma GCC diagnostic pop
 
-#include "../data.h"
-#include "../wh.h"
-#include "../convert.h"
-#include "../util.h"
+#include "../src/data.h"
+#include "../src/wh.h"
+#include "../src/convert.h"
+#include "../src/util.h"
 
 struct Criterion
 {

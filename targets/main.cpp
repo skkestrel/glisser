@@ -20,15 +20,15 @@
 #include <csignal>
 
 #ifdef NO_CUDA
-	#include "../cpu_executor.h"
+	#include "../src/cpu_executor.h"
 #else
-	#include "../executor_facade.h"
+	#include "../src/executor_facade.h"
 #endif
 
-#include "../data.h"
-#include "../wh.h"
-#include "../convert.h"
-#include "../util.h"
+#include "../src/data.h"
+#include "../src/wh.h"
+#include "../src/convert.h"
+#include "../src/util.h"
 
 
 volatile sig_atomic_t end_loop = 0;

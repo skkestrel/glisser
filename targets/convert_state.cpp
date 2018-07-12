@@ -6,14 +6,14 @@
 #include <thread>
 #include <iomanip>
 
-#include "../data.h"
-#include "../wh.h"
-#include "../convert.h"
-#include "../util.h"
+#include "../src/data.h"
+#include "../src/wh.h"
+#include "../src/convert.h"
+#include "../src/util.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-#include "../cxxopts.h"
+#include "../src/cxxopts.h"
 #pragma GCC diagnostic pop
 
 using namespace sr::data;
@@ -46,7 +46,7 @@ int main(int argc, char** argv)
 		std::vector<std::string> commands = result["commands"]
 			.as<std::vector<std::string>>();
 
-		for (int i = 0; i < commands.size(); i++)
+		for (size_t i = 0; i < commands.size(); i++)
 		{
 			const std::string& arg = commands[i];
 

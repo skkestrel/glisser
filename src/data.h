@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <istream>
 #include <ostream>
+#include <functional>
 #include "util.h"
 #include "types.h"
 
