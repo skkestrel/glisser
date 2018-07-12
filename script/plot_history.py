@@ -80,8 +80,11 @@ while True:
     try:
         if os.path.isfile(args["<path>"]):
             filename = args["<path>"]
-        else:
+        elif os.path.isdir(args["<path>"]):
             filename = os.path.join(args["<path>"], "track.{0}.out".format(filenum))
+        else:
+            print("File does not exist")
+            sys.exit(-1)
 
         with open(filename, 'rb') as f:
             filenum += 1
@@ -171,6 +174,8 @@ while True:
                                 particles[6*index+4].append(math.nan)
                                 particles[6*index+5].append(math.nan)
                         f.seek(npa * 28, 1)
+                else:
+                    f.seek(npa * 28, 1)
 
                 read = f.read(16)
                 counter = counter + 1;
@@ -232,6 +237,8 @@ if args["--plot-ftrect"]:
 
     def plot_hp(data, c, ind, is_planet):
         notnan = np.logical_not(np.isnan(data[0]))
+        if not np.any(notnan):
+            return
 
         taxis = np.fft.fftfreq(len(times[notnan]), dt / 365) * 360 * 3600
         half = len(times[notnan]) // 2
