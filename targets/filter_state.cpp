@@ -30,6 +30,7 @@ int main(int argc, char** argv)
 	options.add_options()
 		("i,input", "Input file", cxxopts::value<std::string>())
 		("I,initial", "Initial state input file", cxxopts::value<std::string>())
+		("u,union", "Take union of criteria instead of intersection")
 		("b,binary", "Read binary input")
 		("B,barycentric", "Calculate barycentric elements")
 		("criteria", "Criteria (eg. a>25)", cxxopts::value<std::vector<std::string>>());
@@ -39,6 +40,8 @@ int main(int argc, char** argv)
 	try
 	{
 		auto result = options.parse(argc, argv);
+
+		bool use_union = result.count("u") > 0;
 
 		if (result.count("i") == 0)
 		{
@@ -144,7 +147,8 @@ int main(int argc, char** argv)
 				sr::convert::to_elements(hd_init.planets.m[0], hd_init.particles.r[i], hd_init.particles.v[i], &esign_I, &A_I, &E_I, &I_I, &CAPOM_I, &OM_I, &F_I);
 			}
 
-			bool ok = true;
+			bool ok = !use_union;
+
 			for (const auto& crit : criteria)
 			{
 				double val;
@@ -154,6 +158,7 @@ int main(int argc, char** argv)
 				else if (crit.variable == "O") val = CAPOM;
 				else if (crit.variable == "o") val = OM;
 				else if (crit.variable == "f") val = F;
+				else if (crit.variable == "id") val = static_cast<double>(hd.particles.id[i]);
 				else if (crit.variable == "a_i") val = A_I;
 				else if (crit.variable == "e_i") val = E_I;
 				else if (crit.variable == "i_i") val = I_I;
@@ -173,20 +178,30 @@ int main(int argc, char** argv)
 					throw cxxopts::OptionException(ss.str());
 				}
 
+				bool newbool;
 				if (crit.comparison == 1)
 				{
-					ok = ok && (val > crit.konst);
+					newbool = (val > crit.konst);
 				}
 				else if (crit.comparison == -1)
 				{
-					ok = ok && (val < crit.konst);
+					newbool = (val < crit.konst);
 				}
 				else if (crit.comparison == 0)
 				{
-					ok = ok && std::abs(val - crit.konst) < EPS;
+					newbool = std::abs(val - crit.konst) < EPS;
 				}
 
-				if (!ok) break;
+				if (use_union)
+				{
+					ok = ok || newbool;
+					if (ok) break;
+				}
+				else
+				{
+					ok = ok && newbool;
+					if (!ok) break;
+				}
 			}
 
 			if (ok)
