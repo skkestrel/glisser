@@ -3,4 +3,5 @@
 *.in
 !data/*.out
 !data/*.in
+script/__pycache__
 bin
