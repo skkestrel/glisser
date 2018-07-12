@@ -17,7 +17,6 @@
 #include <iomanip>
 
 #include <execinfo.h>
-#include <sys/stat.h>
 #include <csignal>
 
 #ifdef NO_CUDA
@@ -93,7 +92,7 @@ int main(int argv, char** argc)
 
 	sr::data::Configuration out_config = config.output_config();
 
-	mkdir(config.outfolder.c_str(), ACCESSPERMS);
+	sr::util::make_dir(config.outfolder);
 
 	if (!sr::util::is_dir_empty(config.outfolder))
 	{
@@ -106,8 +105,8 @@ int main(int argv, char** argc)
 		if (s != "Yes") return -1;
 	}
 
-	mkdir(sr::util::joinpath(config.outfolder, "dump").c_str(), ACCESSPERMS);
-	mkdir(sr::util::joinpath(config.outfolder, "tracks").c_str(), ACCESSPERMS);
+	sr::util::make_dir(sr::util::joinpath(config.outfolder, "dump"));
+	sr::util::make_dir(sr::util::joinpath(config.outfolder, "tracks"));
 
 	std::ofstream coutlog(sr::util::joinpath(config.outfolder, "stdout"));
 	sr::util::teestream tout(std::cout, coutlog);

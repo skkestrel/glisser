@@ -68,6 +68,8 @@ namespace data
 
 		std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
 		std::unique_ptr<std::vector<size_t>> stable_partition_unflagged(size_t begin = 0, size_t length = static_cast<size_t>(-1));
+		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
+		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
 
 		inline static uint8_t encounter_planet(uint16_t deathflags)
 		{
@@ -161,6 +163,16 @@ namespace data
 		Configuration();
 
 		Configuration output_config() const;
+		inline static Configuration create_dummy()
+		{
+			Configuration config;
+			config.resolve_encounters = false;
+			config.tbsize = 0;
+			config.wh_ce_n1 = 0;
+			config.wh_ce_n2 = 0;
+
+			return config;
+		}
 	};
 
 	template<typename T>
@@ -295,6 +307,14 @@ namespace data
 	}
 
 	template<typename T>
+	inline T read_binary(std::istream& i)
+	{
+		T t;
+		i.read(reinterpret_cast<char*>(&t), sizeof(T));
+		return to_little_endian(t);
+	}
+
+	template<typename T>
 	inline void read_binary(std::istream& i, T& t)
 	{
 		i.read(reinterpret_cast<char*>(&t), sizeof(T));
@@ -330,6 +350,11 @@ namespace data
 
 	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements);
 	void load_binary_track(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time, bool skipplanets, bool skipparticles);
+	void process_track(std::istream& input, bool takeallparticles, const std::vector<uint32_t>& particle_filter, bool removeplanets,
+		const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback);
+
+	void read_tracks(const std::string& path, bool takeallparticles, const std::vector<uint32_t>& particle_filter, bool removeplanets,
+		const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback);
 
 	const size_t TRACK_PARTICLE_STRIDE = 28;
 	const size_t TRACK_PLANET_STRIDE = 28;

@@ -22,11 +22,7 @@ namespace data
 		auto val = std::stable_partition(new_indices->begin(), new_indices->end(), [begin, &flags](size_t index)
 				{ return (flags[index + begin] & 0x00FE) == 0; }) - new_indices->begin() + begin;
 
-		if (indices)
-		{
-			*indices = std::move(new_indices);
-		}
-
+		*indices = std::move(new_indices);
 		return val;
 	}
 
@@ -38,12 +34,22 @@ namespace data
 		auto val = std::stable_partition(new_indices->begin(), new_indices->end(), [begin, &flags](size_t index)
 				{ return (flags[index + begin] & 0x00FF) == 0; }) - new_indices->begin() + begin;
 
-		if (indices)
-		{
-			*indices = std::move(new_indices);
-		}
-
+		*indices = std::move(new_indices);
 		return val;
+	}
+
+	void HostParticlePhaseSpace::gather(const std::vector<size_t>& indices, size_t begin, size_t length)
+	{
+		sr::data::gather(r, indices, begin, length);
+		sr::data::gather(v, indices, begin, length);
+		sr::data::gather(deathtime, indices, begin, length);
+		sr::data::gather(deathflags, indices, begin, length);
+		sr::data::gather(id, indices, begin, length);
+
+		if (deathtime_index.size() > 0)
+		{
+			sr::data::gather(deathtime_index, indices, begin, length);
+		}
 	}
 
 	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_unflagged(size_t begin, size_t length)
@@ -56,16 +62,7 @@ namespace data
 		std::unique_ptr<std::vector<size_t>> indices;
 		n_alive = stable_partition_unflagged_indices(deathflags, begin, length, &indices);
 		
-		gather(r, *indices, begin, length);
-		gather(v, *indices, begin, length);
-		gather(deathtime, *indices, begin, length);
-		gather(deathflags, *indices, begin, length);
-		gather(id, *indices, begin, length);
-
-		if (deathtime_index.size() > 0)
-		{
-			gather(deathtime_index, *indices, begin, length);
-		}
+		this->gather(*indices, begin, length);
 
 		return indices;
 	}
@@ -80,18 +77,27 @@ namespace data
 		std::unique_ptr<std::vector<size_t>> indices;
 		n_alive = stable_partition_alive_indices(deathflags, begin, length, &indices);
 		
-		gather(r, *indices, begin, length);
-		gather(v, *indices, begin, length);
-		gather(deathtime, *indices, begin, length);
-		gather(deathflags, *indices, begin, length);
-		gather(id, *indices, begin, length);
-
-		if (deathtime_index.size() > 0)
-		{
-			gather(deathtime_index, *indices, begin, length);
-		}
+		this->gather(*indices, begin, length);
 
 		return indices;
+	}
+
+	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::sort_by_id(size_t begin, size_t length)
+	{
+		if (length == static_cast<size_t>(-1))
+		{
+			length = n - begin;
+		}
+
+		auto new_indices = std::make_unique<std::vector<size_t>>(length);
+
+		std::iota(new_indices->begin(), new_indices->end(), 0);
+		std::sort(new_indices->begin(), new_indices->end(), [begin, this](size_t a, size_t b)
+				{ return id[a + begin] < id[b + begin]; });
+
+		this->gather(*new_indices, 0, n);
+
+		return new_indices;
 	}
 
 	Configuration::Configuration()
@@ -677,6 +683,8 @@ namespace data
 		uint64_t templl;
 		sr::data::read_binary<uint64_t>(trackin, templl);
 
+		if (!trackin) return;
+
 		if (skipplanets)
 		{
 			pl.n = static_cast<size_t>(templl);
@@ -709,6 +717,7 @@ namespace data
 		}
 
 		sr::data::read_binary(trackin, templl);
+		if (!trackin) return;
 
 		if (skipparticles)
 		{
@@ -739,6 +748,132 @@ namespace data
 				sr::data::read_binary<float>(trackin, tempfloat);
 				pa.v[i].z = tempfloat;
 			}
+		}
+	}
+
+	size_t bsearch_track(std::istream& f, size_t npa, uint32_t partnum, size_t stride)
+	{
+		int64_t base = f.tellg();
+		int64_t left = 0;
+		int64_t right = npa - 1;
+
+		size_t its = 0;
+		while (left <= right)
+		{
+			its++;
+			int64_t mid = left + (right - left) / 2;
+			f.seekg(base + mid * stride);
+
+			uint32_t id;
+			sr::data::read_binary<uint32_t>(f, id);
+			if (id == partnum)
+			{
+				return its;
+			}
+			else if (id > partnum)
+			{
+				right = mid - 1;
+			}
+			else
+			{
+				left = mid + 1;
+			}
+		}
+
+		return 0;
+	}
+
+	void process_track(std::istream& input, bool takeallparticles, const std::vector<uint32_t>& particles, bool killplanets, const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback)
+	{
+		while (true)
+		{
+			double time;
+			HostParticleSnapshot paout;
+			HostPlanetSnapshot pl;
+
+			load_binary_track(input, pl, paout, time, killplanets, !takeallparticles);
+
+			if (!input) break;
+
+			if (!takeallparticles)
+			{
+				input.seekg(-TRACK_PARTICLE_STRIDE * paout.n, std::ios_base::cur);
+
+				for (size_t j = 0; j < particles.size(); j++)
+				{
+					int64_t position = input.tellg();
+					size_t result = bsearch_track(input, paout.n, particles[j], TRACK_PARTICLE_STRIDE);
+
+					if (result)
+					{
+						paout.r.resize(paout.r.size() + 1);
+						paout.v.resize(paout.v.size() + 1);
+						paout.id.resize(paout.id.size() + 1);
+
+						paout.r[paout.r.size() - 1].x = sr::data::read_binary<float>(input);
+						paout.r[paout.r.size() - 1].y = sr::data::read_binary<float>(input);
+						paout.r[paout.r.size() - 1].z = sr::data::read_binary<float>(input);
+						paout.v[paout.r.size() - 1].x = sr::data::read_binary<float>(input);
+						paout.v[paout.r.size() - 1].y = sr::data::read_binary<float>(input);
+						paout.v[paout.r.size() - 1].z = sr::data::read_binary<float>(input);
+
+						paout.id[paout.id.size() - 1] = particles[j];
+					}
+
+					input.seekg(position);
+				}
+
+				input.seekg(TRACK_PARTICLE_STRIDE * paout.n, std::ios_base::cur);
+				paout.n_alive = paout.n = paout.r.size();
+			}
+
+			callback(pl, paout, time);
+		}
+	}
+
+	void read_tracks(const std::string& path, bool takeallparticles, const std::vector<uint32_t>& particle_filter, bool removeplanets,
+		const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback)
+	{
+		sr::util::PathType pathtype = sr::util::get_path_type(path);
+
+		if (pathtype == sr::util::PathType::Directory)
+		{
+			for (size_t i = 0; true; i++)
+			{
+				std::ostringstream ss;
+				ss << path;
+				if (path[path.size() - 1] != '/') ss << '/';
+				ss << "track." << i << ".out";
+
+				std::cout << "Reading " << ss.str() << std::endl;
+
+				if (!sr::util::does_file_exist(ss.str()))
+				{
+					if (i == 0)
+					{
+						throw std::runtime_error("Directory not contain track files");
+					}
+					else
+					{
+						std::cout << i << " files read" << std::endl;
+						return;
+					}
+				}
+
+				std::ifstream input(ss.str(), std::ios_base::binary);
+
+				process_track(input, takeallparticles, particle_filter, removeplanets, callback);
+			}
+		}
+		else if (pathtype == sr::util::PathType::File)
+		{
+			std::ifstream input(path, std::ios_base::binary);
+
+			process_track(input, takeallparticles, particle_filter, removeplanets, callback);
+		}
+		else
+		{
+			throw std::runtime_error("Path does not exist");
 		}
 	}
 }

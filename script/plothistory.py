@@ -134,35 +134,6 @@ for i in range(len(particlewatch)):
 plt.title(sys.argv[1])
 plt.legend()
 
-
-
-
-fig, axes = plt.subplots(3, 1, sharex=True)
-dt = times[1] - times[0]
-taxis = np.fft.fftfreq(len(times), dt / 365) * 360 * 3600
-half = len(times) // 2
-
-for i in range(npl):
-    c = cc[(i) % len(cc)]
-    axes[0].plot(taxis[1:half], np.abs(np.fft.fft(planets[6*i] - planets[6*i].mean())[1:half]), c=c)
-    axes[1].plot(taxis[1:half], np.abs(np.fft.fft(planets[6*i+1] - planets[6*i+1].mean())[1:half]), c=c)
-    axes[2].plot(taxis[1:half], np.abs(np.fft.fft(planets[6*i+2] - planets[6*i+2].mean())[1:half]), c=c)
-    axes[0].plot([], [], c=cc[i%len(cc)], label="Planet {0}".format(i+1))
-axes[0].set_title("a")
-axes[0].set_yscale("log")
-axes[0].set_xscale("log")
-axes[1].set_title("e")
-axes[1].set_xscale("log")
-axes[1].set_yscale("log")
-axes[2].set_title("i")
-axes[2].set_xscale("log")
-axes[2].set_yscale("log")
-axes[2].set_xlabel("arcsec / yr")
-axes[0].legend()
-
-
-
-
 fig, axes = plt.subplots(2, 1, sharex=True)
 for i in range(npl):
     c = cc[(i) % len(cc)]
@@ -178,9 +149,7 @@ axes[1].set_yscale("log")
 axes[1].set_xlabel("arcsec / yr")
 axes[0].legend()
 
-
-
-
+'''
 fig, axes = plt.subplots(3, 1, sharex=True)
 for i in range(npl):
     c = cc[(i) % len(cc)]
@@ -193,8 +162,6 @@ axes[1].set_title("e")
 axes[2].set_title("i")
 axes[2].set_xlabel(timelabel)
 axes[0].legend()
-
-
 
 def moving_average(a, n=3) :
     ret = np.cumsum(a, dtype=float)
@@ -209,9 +176,7 @@ axes.set_title("e")
 axes.set_xlabel(timelabel)
 axes.legend()
 
-
-
-
+'''
 
 fig, axes = plt.subplots(3, 1, sharex=True)
 for i in range(npl):

@@ -1,8 +1,8 @@
 #pragma once
 #include <streambuf>
-#include <dirent.h>
-#include <unistd.h>
 #include <algorithm>
+#include <ostream>
+#include <memory>
 
 #if __cplusplus < 201404L
 namespace std
@@ -32,24 +32,18 @@ namespace sr
 {
 namespace util
 {
-	inline bool does_file_exist(const std::string& filename)
+	enum class PathType
 	{
-		return access(filename.c_str(), F_OK) != -1;
-	}
+		File,
+		Directory,
+		DoesNotExist,
+		Other
+	};
 
-
-	inline bool is_dir_empty(const std::string& dirname)
-	{
-		int n = 0;
-		DIR *dir = opendir(dirname.c_str());
-		if (!dir) return 1;
-		while (readdir(dir))
-		{
-			if (++n > 2) break;
-		}
-		closedir(dir);
-		return n <= 2;
-	}
+	PathType get_path_type(const std::string& path);
+	bool does_file_exist(const std::string& filename);
+	bool is_dir_empty(const std::string& dirname);
+	void make_dir(const std::string& path);
 
 	class teebuf : public std::streambuf
 	{
@@ -98,7 +92,6 @@ namespace util
 	};
 
 	inline teestream::teestream(std::ostream& o1, std::ostream& o2) : std::ostream(&tbuf), tbuf(o1.rdbuf(), o2.rdbuf()) { }
-
 
 	namespace detail
 	{

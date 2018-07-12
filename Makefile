@@ -40,3 +40,7 @@ prune-track:
 filter-state:
 	mkdir -p bin
 	g++ targets/filter_state.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/filter-state -fsanitize=address -O3
+
+find-max-e:
+	mkdir -p bin
+	g++ targets/find_max_e.cpp *.cpp -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -o bin/find-max-e -fsanitize=address -O3

@@ -95,6 +95,9 @@ namespace exec
 
 		// cpu_thread.join();
 		resync();
+
+#pragma GCC warning "TODO"
+		*cputimeout = 0;
 	}
 
 	void CPUExecutor::resync()

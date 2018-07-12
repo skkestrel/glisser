@@ -616,7 +616,7 @@ namespace wh
 			float64_t rsq = dr.lensq();
 			double _inverse_helio_cubed = 1. / (std::sqrt(rsq) * rsq);
 
-#pragma GCC warning "TODO"
+#pragma GCC warning "TODO figure out how to accelerate particles in nonhelio"
 			particle_a[i] -= dr * pl.m[i] * _inverse_helio_cubed;
 		}
 
@@ -822,7 +822,6 @@ namespace wh
 			{
 				if ((dM * dM > 0.16) || (esq > 0.36) || (esq * dM * dM > 0.0016)) goto hyperbolic;
 
-#pragma GCC warning "Why is kepmd not satisfactory?"
 				double dE, sindE, cosdE;
 				kepmd(dM, esinEo, ecosEo, &dE, &sindE, &cosdE);
 
