@@ -7,6 +7,7 @@ TARGETS_DIR = targets
 DOCOPT_DIR = docopt
 SRC_FILES = $(wildcard $(SRC_DIR)/*.cpp)
 OBJ_FILES = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES)) $(OBJ_DIR)/docopt/docopt.o
+DEP_FILES = $(OBJ_FILES:%.o=%.d)
 
 WFLAGS = -Wcast-align -Wshadow -Wcast-qual -Wconversion -Wdisabled-optimization \
 -Wfloat-equal -Wformat=2 -Wformat-nonliteral -Wformat-security -Wformat-y2k \
@@ -33,10 +34,12 @@ $(OBJ_DIR)/docopt/docopt.o: $(DOCOPT_DIR)/docopt.cpp
 	$(info CPP $(OBJ_DIR)/docopt/docopt.o)
 	@g++ $(DOCOPT_DIR)/docopt.cpp $(CPPFLAGS) -c -o $(OBJ_DIR)/docopt/docopt.o
 
+-include $(DEP_FILES)
+
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp
 	@mkdir -p obj
 	$(info CPP $@)
-	@g++ $(CPPFLAGS) -c -o $@ $<
+	@g++ $(CPPFLAGS) -MMD -c -o $@ $<
 
 define make-target =
 @mkdir -p $(BIN_DIR)

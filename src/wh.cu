@@ -180,9 +180,9 @@ namespace wh
 	{
 		device_h0_log_0 = Dvf64_3(config.tbsize);
 		device_h0_log_1 = Dvf64_3(config.tbsize);
-		device_particle_a = Dvf64_3(pa.n);
+		device_particle_a = Dvf64_3(pa.n());
 
-		device_planet_rh = Dvf64(pl.n);
+		device_planet_rh = Dvf64(pl.n());
 
 		memcpy_htd(device_planet_rh, base.planet_rh, 0);
 		cudaStreamSynchronize(0);

@@ -145,7 +145,7 @@ namespace exec
 	{
 		auto& particles = dd.particle_phase_space();
 
-		Vu32 prev_ids(hd.particles.id.begin(), hd.particles.id.end());
+		Vu32 prev_ids(hd.particles.id().begin(), hd.particles.id().end());
 
 		memcpy_dth(hd.particles.r(), particles.r, dth_stream, 0, 0, particles.n_alive);
 		cudaStreamSynchronize(dth_stream);
@@ -215,7 +215,7 @@ namespace exec
 				);
 		}
 
-		auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter);
+		auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter());
 		integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter());
 		upload_data(encounter_start, hd.particles.n_encounter());
 
@@ -348,8 +348,8 @@ namespace exec
 						for (size_t j = 1; j < hd.planets.n_alive(); j++)
 						{
 							*encounter_output << hd.planets.m()[j] << std::endl;
-							*encounter_output << hd.planets.r_log().slow()[ed.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
-							*encounter_output << hd.planets.v_log().slow()[ed.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.r_log().slow[ed.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.v_log().slow[ed.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
 							*encounter_output << hd.planets.id()[j] << std::endl;
 						}
 					}
