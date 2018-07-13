@@ -38,13 +38,18 @@ namespace data
 		return val;
 	}
 
+	void HostParticleSnapshot::gather(const std::vector<size_t>& indices, size_t begin, size_t length)
+	{
+		sr::data::gather(r, indices, begin, length);
+		sr::data::gather(v, indices, begin, length);
+		sr::data::gather(id, indices, begin, length);
+	}
+
 	void HostParticlePhaseSpace::gather(const std::vector<size_t>& indices, size_t begin, size_t length)
 	{
-		sr::data::gather(r(), indices, begin, length);
-		sr::data::gather(v(), indices, begin, length);
+		base.gather(indices, begin, length);
 		sr::data::gather(deathtime(), indices, begin, length);
 		sr::data::gather(deathflags(), indices, begin, length);
-		sr::data::gather(id(), indices, begin, length);
 
 		if (deathtime_index().size() > 0)
 		{
@@ -54,11 +59,6 @@ namespace data
 
 	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_unflagged(size_t begin, size_t length)
 	{
-		if (length == static_cast<size_t>(-1))
-		{
-			length = n() - begin;
-		}
-
 		std::unique_ptr<std::vector<size_t>> indices;
 		n_alive() = stable_partition_unflagged_indices(deathflags(), begin, length, &indices);
 		
@@ -69,11 +69,6 @@ namespace data
 
 	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_alive(size_t begin, size_t length)
 	{
-		if (length == static_cast<size_t>(-1))
-		{
-			length = n() - begin;
-		}
-
 		std::unique_ptr<std::vector<size_t>> indices;
 		n_alive() = stable_partition_alive_indices(deathflags(), begin, length, &indices);
 		
@@ -82,22 +77,25 @@ namespace data
 		return indices;
 	}
 
-	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::sort_by_id(size_t begin, size_t length)
+	std::unique_ptr<std::vector<size_t>> HostParticleSnapshot::sort_by_id(size_t begin, size_t length)
 	{
-		if (length == static_cast<size_t>(-1))
-		{
-			length = n() - begin;
-		}
-
 		auto new_indices = std::make_unique<std::vector<size_t>>(length);
 
 		std::iota(new_indices->begin(), new_indices->end(), 0);
 		std::sort(new_indices->begin(), new_indices->end(), [begin, this](size_t a, size_t b)
-				{ return id()[a + begin] < id()[b + begin]; });
+				{ return id[a + begin] < id[b + begin]; });
 
-		this->gather(*new_indices, 0, n());
+		this->gather(*new_indices, 0, n);
 
 		return new_indices;
+	}
+
+	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::sort_by_id(size_t begin, size_t length)
+	{
+		auto indices = base.sort_by_id(begin, length);
+
+		this->gather(*indices, 0, n());
+		return indices;
 	}
 
 	Configuration::Configuration()
@@ -496,7 +494,7 @@ namespace data
 				hd.planets.m()[i] *= config.big_g;
 			}
 
-			hd.particles.stable_partition_alive();
+			hd.particles.stable_partition_alive(0, hd.particles.n());
 		}
 
 		return ret;

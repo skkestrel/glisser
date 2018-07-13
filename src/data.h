@@ -32,6 +32,10 @@ namespace data
 
 		Vf64_3 r, v;
 		Vu32 id;
+
+		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
+		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
+
 		inline HostParticleSnapshot() { }
 		inline HostParticleSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_) { }
 	};
@@ -89,8 +93,8 @@ namespace data
 			}
 		}
 
-		std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin = 0, size_t length = static_cast<size_t>(-1));
-		std::unique_ptr<std::vector<size_t>> stable_partition_unflagged(size_t begin = 0, size_t length = static_cast<size_t>(-1));
+		std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin, size_t length);
+		std::unique_ptr<std::vector<size_t>> stable_partition_unflagged(size_t begin, size_t length);
 		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
 		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
 
