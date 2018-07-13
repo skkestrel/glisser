@@ -196,7 +196,7 @@ int main(int argc, char** argv)
 
 					if (output_energy)
 					{
-						timelog << std::setprecision(13) << "time " << elapsed << " " << ex.hd.particles.n_alive << " " << ex.hd.particles.n_encounter << std::endl;
+						timelog << std::setprecision(13) << "time " << elapsed << " " << ex.hd.particles.n_alive() << " " << ex.hd.particles.n_encounter() << std::endl;
 						timelog << "ep " << e_ << std::endl;
 						timelog << "lp " << l_ << std::endl;
 					}
@@ -207,7 +207,7 @@ int main(int argc, char** argv)
 						tout << "t=" << ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
 							<< total << "m total " << total - elapsed << "m remain)" << std::endl;
 						tout << "Error = " << (e_ - ex.e_0) / ex.e_0 * 100 << ", " <<
-							ex.hd.particles.n_alive << " particles remaining, " << ex.hd.particles.n_encounter << " in encounter" << std::endl;
+							ex.hd.particles.n_alive() << " particles remaining, " << ex.hd.particles.n_encounter() << " in encounter" << std::endl;
 
 						tout << "GPU took " << std::setprecision(4) << timediff << " ms longer than CPU" << std::endl;
 					}
@@ -254,7 +254,7 @@ int main(int argc, char** argv)
 
 					ex.add_job([&trackout, &ex, &config]()
 						{
-							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, ex.hd.particles.make_snapshot(), ex.t, true);
+							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, ex.hd.particles.base, ex.t, true);
 						});
 				}
 			}

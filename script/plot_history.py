@@ -13,6 +13,7 @@ Options:
     --plot-aei                     ..
     --plot-ftrect                  ..
     --plot-qQ                      ..
+    --plot-qQ-mmr                  ..
     --plot-e-smooth                ..
 """
 
@@ -42,6 +43,7 @@ if args["--watch"]:
         take_all_particles = False
         particlewatch = [int(x) for x in args["--watch"].split(',')]
 else:
+    take_all_particles = False
     particlewatch = []
 
 particles = [[] for i in range(len(particlewatch) * 6)]
@@ -220,6 +222,28 @@ if args["--plot-qQ"]:
         plt.plot(stimes, data[0] * (1. - data[1]), c=c)
         plt.plot(stimes, data[0] * (1. + data[1]), c=c)
         if is_planet:
+            if args["--plot-qQ-mmr"] and ind != npl:
+                def mmr(a1, deg):
+                    return (deg * (a1 ** (3/2))) ** (2/3)
+                
+                meana = data[0].mean()
+                plt.axhline(y=meana, linewidth=2, color=c)
+
+                for i in range(1, 5):
+                    res = mmr(meana, (i+1)/i)
+                    plt.axhline(y=res, linewidth=1, color=c, zorder=5)
+                    plt.text(0, res, "{0}:{1} {2:.2f}".format(i+1, i, res), color=c, horizontalalignment='right', zorder=5)
+                for i in range(1, 4):
+                    if i == 2: return
+                    res = mmr(meana, (i+2)/i)
+                    plt.axhline(y=res, linewidth=1, color=c, zorder=5)
+                    plt.text(0, res, "{0}:{1} {2:.2f}".format(i+2, i, res), color=c, horizontalalignment='right', zorder=5)
+                for i in range(1, 3):
+                    if i == 3: return
+                    res = mmr(meana, (i+3)/i)
+                    plt.axhline(y=res, linewidth=1, color=c, zorder=5)
+                    plt.text(0, res, "{0}:{1} {2:.2f}".format(i+3, i, res), color=c, horizontalalignment='right', zorder=5)
+
             plt.plot([], [], c=c, label="Planet {0}".format(ind))
         else:
             plt.plot([], [], c=c, label="Particle {0}".format(ind))

@@ -91,7 +91,7 @@ int main(int argc, char** argv)
 		config.readmomenta = false;
 
 		load_data(hd, config);
-		hd.particles.sort_by_id(0, hd.particles.n);
+		hd.particles.sort_by_id(0, hd.particles.n());
 		if (args["--barycentric"])
 		{
 			sr::convert::to_bary(hd);
@@ -108,9 +108,9 @@ int main(int argc, char** argv)
 			config.hybridin = args["--initial-state"].asString();
 			load_data(hd_init, config);
 
-			hd_init.particles.sort_by_id(0, hd_init.particles.n);
+			hd_init.particles.sort_by_id(0, hd_init.particles.n());
 
-			if (hd_init.particles.id != hd.particles.id)
+			if (hd_init.particles.id() != hd.particles.id())
 			{
 				throw std::runtime_error("Initial state is not congruent with input state");
 			}
@@ -126,17 +126,17 @@ int main(int argc, char** argv)
 		}
 
 		std::vector<size_t> candidates;
-		for (size_t i = 0; i < hd.particles.n; i++)
+		for (size_t i = 0; i < hd.particles.n(); i++)
 		{
 			int esign, esign_I;
 			double A, E, I, CAPOM, OM, F;
 			double A_I, E_I, I_I, CAPOM_I, OM_I, F_I;
 
-			sr::convert::to_elements(hd.planets.m[0], hd.particles.r[i], hd.particles.v[i], &esign, &A, &E, &I, &CAPOM, &OM, &F);
+			sr::convert::to_elements(hd.planets.m()[0], hd.particles.r()[i], hd.particles.v()[i], &esign, &A, &E, &I, &CAPOM, &OM, &F);
 
 			if (has_init)
 			{
-				sr::convert::to_elements(hd_init.planets.m[0], hd_init.particles.r[i], hd_init.particles.v[i], &esign_I, &A_I, &E_I, &I_I, &CAPOM_I, &OM_I, &F_I);
+				sr::convert::to_elements(hd_init.planets.m()[0], hd_init.particles.r()[i], hd_init.particles.v()[i], &esign_I, &A_I, &E_I, &I_I, &CAPOM_I, &OM_I, &F_I);
 			}
 
 			bool ok = !use_union;
@@ -150,18 +150,18 @@ int main(int argc, char** argv)
 				else if (crit.variable == "O") val = CAPOM;
 				else if (crit.variable == "o") val = OM;
 				else if (crit.variable == "f") val = F;
-				else if (crit.variable == "id") val = static_cast<double>(hd.particles.id[i]);
+				else if (crit.variable == "id") val = static_cast<double>(hd.particles.id()[i]);
 				else if (crit.variable == "a_i") val = A_I;
 				else if (crit.variable == "e_i") val = E_I;
 				else if (crit.variable == "i_i") val = I_I;
 				else if (crit.variable == "O_i") val = CAPOM_I;
 				else if (crit.variable == "o_i") val = OM_I;
 				else if (crit.variable == "f_i") val = F_I;
-				else if (crit.variable == "deathtime") val = hd.particles.deathtime[i];
+				else if (crit.variable == "deathtime") val = hd.particles.deathtime()[i];
 				else if (crit.variable == "killer")
 				{
-					if (hd.particles.deathflags[i] == 0) val = -1;
-					else val = static_cast<double>(hd.particles.deathflags[i] >> 8);
+					if (hd.particles.deathflags()[i] == 0) val = -1;
+					else val = static_cast<double>(hd.particles.deathflags()[i] >> 8);
 				}
 				else
 				{
@@ -214,9 +214,9 @@ int main(int argc, char** argv)
 		{
 			int esign;
 			double A, E, I, CAPOM, OM, F;
-			sr::convert::to_elements(hd.planets.m[0], hd.particles.r[i], hd.particles.v[i], &esign, &A, &E, &I, &CAPOM, &OM, &F);
+			sr::convert::to_elements(hd.planets.m()[0], hd.particles.r()[i], hd.particles.v()[i], &esign, &A, &E, &I, &CAPOM, &OM, &F);
 
-			std::cout << std::setw(7) << hd.particles.id[i] << " | ";
+			std::cout << std::setw(7) << hd.particles.id()[i] << " | ";
 			std::cout << std::setfill(' ') << std::setw(9) << std::fixed << std::setprecision(4)
 				<< std::setw(9) << A << std::setw(9) << E << std::setw(9) << I
 				<< std::setw(9) << CAPOM << std::setw(9) << OM << std::setw(9) << F << std::endl;

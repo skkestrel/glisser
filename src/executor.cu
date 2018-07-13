@@ -58,8 +58,8 @@ namespace exec
 
 		output << std::setprecision(7);
 		output << "e_0 (planets) = " << e_0 << std::endl;
-		output << "n_particle = " << hd.particles.n << std::endl;
-		output << "n_particle_alive = " << hd.particles.n_alive << std::endl;
+		output << "n_particle = " << hd.particles.n() << std::endl;
+		output << "n_particle_alive = " << hd.particles.n_alive() << std::endl;
 		output << "==================================" << std::endl;
 		output << "Sending initial conditions to GPU." << std::endl;
 
@@ -72,21 +72,21 @@ namespace exec
 		cudaEventCreate(&cpu_finish_event);
 		cudaEventCreate(&gpu_finish_event);
 
-		dd.particles = DeviceParticlePhaseSpace(hd.particles.n);
+		dd.particles = DeviceParticlePhaseSpace(hd.particles.n());
 
-		dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
-		dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n, config.tbsize);
+		dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n(), config.tbsize);
+		dd.planets1 = DevicePlanetPhaseSpace(hd.planets.n(), config.tbsize);
 		dd.planet_data_id = 0;
 
-		memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
+		memcpy_htd(dd.planet_phase_space().m, hd.planets.m(), htd_stream);
 		cudaStreamSynchronize(htd_stream);
 		dd.planet_data_id++;
-		memcpy_htd(dd.planet_phase_space().m, hd.planets.m, htd_stream);
+		memcpy_htd(dd.planet_phase_space().m, hd.planets.m(), htd_stream);
 		cudaStreamSynchronize(htd_stream);
 
-		if (hd.particles.n > 0)
+		if (hd.particles.n() > 0)
 		{
-			upload_data(0, hd.particles.n);
+			upload_data(0, hd.particles.n());
 		}
 
 		download_data();
@@ -114,7 +114,7 @@ namespace exec
 		// since the particles that survive close encounters can make it to the GPU at the end of this timestep
 		// and thus the next planet chunk will be required
 
-		if (dd.particle_phase_space().n_alive > 0 || hd.particles.n_encounter > 0)
+		if (dd.particle_phase_space().n_alive > 0 || hd.particles.n_encounter() > 0)
 		{
 			upload_planet_log();
 		}
@@ -123,16 +123,16 @@ namespace exec
 	void Executor::upload_data(size_t begin, size_t length)
 	{
 		auto& particles = dd.particle_phase_space();
-		particles.n_alive = hd.particles.n_alive;
+		particles.n_alive = hd.particles.n_alive();
 		integrator.upload_data_cuda(htd_stream, begin, length);
 
-		memcpy_htd(particles.r, hd.particles.r, htd_stream, begin, begin, length);
+		memcpy_htd(particles.r, hd.particles.r(), htd_stream, begin, begin, length);
 		cudaStreamSynchronize(htd_stream);
-		memcpy_htd(particles.v, hd.particles.v, htd_stream, begin, begin, length);
+		memcpy_htd(particles.v, hd.particles.v(), htd_stream, begin, begin, length);
 		cudaStreamSynchronize(htd_stream);
-		memcpy_htd(particles.deathflags, hd.particles.deathflags, htd_stream, begin, begin, length);
+		memcpy_htd(particles.deathflags, hd.particles.deathflags(), htd_stream, begin, begin, length);
 		cudaStreamSynchronize(htd_stream);
-		memcpy_htd(particles.id, hd.particles.id, htd_stream, begin, begin, length);
+		memcpy_htd(particles.id, hd.particles.id(), htd_stream, begin, begin, length);
 		cudaStreamSynchronize(htd_stream);
 	}
 
@@ -147,18 +147,18 @@ namespace exec
 
 		Vu32 prev_ids(hd.particles.id.begin(), hd.particles.id.end());
 
-		memcpy_dth(hd.particles.r, particles.r, dth_stream, 0, 0, particles.n_alive);
+		memcpy_dth(hd.particles.r(), particles.r, dth_stream, 0, 0, particles.n_alive);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(hd.particles.v, particles.v, dth_stream, 0, 0, particles.n_alive);
+		memcpy_dth(hd.particles.v(), particles.v, dth_stream, 0, 0, particles.n_alive);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(hd.particles.id, particles.id, dth_stream, 0, 0, particles.n_alive);
+		memcpy_dth(hd.particles.id(), particles.id, dth_stream, 0, 0, particles.n_alive);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(hd.particles.deathflags, particles.deathflags, dth_stream, 0, 0, particles.n_alive);
+		memcpy_dth(hd.particles.deathflags(), particles.deathflags, dth_stream, 0, 0, particles.n_alive);
 		cudaStreamSynchronize(dth_stream);
 
 		// This should NEVER happen. I think this is a recoverable 
 		// error, by swapping particle indices on the host, but that sounds annoying...
-		if (prev_ids != hd.particles.id)
+		if (prev_ids != hd.particles.id())
 		{
 			output << "WARNING! ID MISMATCH! WARNING!" << std::endl;
 
@@ -168,7 +168,7 @@ namespace exec
 			}
 		}
 
-		hd.particles.n_alive = dd.particle_phase_space().n_alive;
+		hd.particles.n_alive() = dd.particle_phase_space().n_alive;
 	}
 
 	void Executor::upload_planet_log()
@@ -176,7 +176,7 @@ namespace exec
 		dd.planet_data_id++;
 		auto& planets = dd.planet_phase_space();
 
-		memcpy_htd(planets.r_log, hd.planets.r_log.slow, htd_stream);
+		memcpy_htd(planets.r_log, hd.planets.r_log().slow, htd_stream);
 		cudaStreamSynchronize(htd_stream);
 
 		integrator.upload_planet_log_cuda(htd_stream, dd.planet_data_id);
@@ -206,8 +206,8 @@ namespace exec
 		work.clear();
 
 
-		size_t encounter_start = hd.particles.n_alive - hd.particles.n_encounter;
-		for (size_t i = encounter_start; i < hd.particles.n_alive; i++)
+		size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
+		for (size_t i = encounter_start; i < hd.particles.n_alive(); i++)
 		{
 			integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
 					ed.deathtime_index[i - encounter_start],
@@ -216,16 +216,18 @@ namespace exec
 		}
 
 		auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter);
-		integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter);
-		upload_data(encounter_start, hd.particles.n_encounter);
+		integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter());
+		upload_data(encounter_start, hd.particles.n_encounter());
 
 		// Fill deathtime index with 0 so that the continuation will work
 		thrust::fill(thrust::cuda::par.on(htd_stream), dd.particles.deathtime_index.begin() + encounter_start,
-				dd.particles.deathtime_index.begin() + encounter_start + hd.particles.n_encounter, 0);
+				dd.particles.deathtime_index.begin() + encounter_start + hd.particles.n_encounter(), 0);
 
 		// The snapshot contains the planet states at the end of the previous timestep - 
-		// consider removing this? We can use hd.planets.*_log_old[-1] to replicate this functionality
-		hd.planets_snapshot = hd.planets.make_snapshot();
+		// consider removing this? We can use hd.planets.*_log_old()[-1] to replicate this functionality
+
+		// Copy assignment ctor
+		hd.planets_snapshot = hd.planets.base;
 
 		t += config.dt * static_cast<double>(config.tbsize);
 		step_and_upload_planets();
@@ -302,26 +304,26 @@ namespace exec
 		std::unordered_map<size_t, size_t> indices;
 		for (size_t i = 0; i < prev_alive; i++)
 		{
-			indices[hd.particles.id[i]] = i;
+			indices[hd.particles.id()[i]] = i;
 		}
 
 		for (size_t i = 0; i < diff; i++)
 		{
 			size_t index = indices[ed.id[i]];
-			hd.particles.r[index] = ed.r[i];
-			hd.particles.v[index] = ed.v[i];
-			hd.particles.deathflags[index] = ed.deathflags[i];
+			hd.particles.r()[index] = ed.r[i];
+			hd.particles.v()[index] = ed.v[i];
+			hd.particles.deathflags()[index] = ed.deathflags[i];
 
 			if (ed.deathflags[i])
 			{
-				hd.particles.deathtime[index] = static_cast<float>(t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i]));
+				hd.particles.deathtime()[index] = static_cast<float>(t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i]));
 			}
 		}
 
 		auto gather_indices = hd.particles.stable_partition_alive(0, prev_alive);
 		integrator.gather_particles(*gather_indices, 0, prev_alive);
 
-		hd.particles.n_encounter = hd.particles.n_alive - particles.n_alive;
+		hd.particles.n_encounter() = hd.particles.n_alive() - particles.n_alive;
 
 		size_t encounter_start = particles.n_alive;
 
@@ -329,26 +331,26 @@ namespace exec
 			{
 				if (encounter_output)
 				{
-					for (size_t i = hd.particles.n_encounter; i < diff; i++)
+					for (size_t i = hd.particles.n_encounter(); i < diff; i++)
 					{
-						*encounter_output << hd.particles.r[encounter_start + i] << std::endl;
-						*encounter_output << hd.particles.v[encounter_start + i] << std::endl;
-						*encounter_output << hd.particles.id[encounter_start + i] << " "
-							<< hd.particles.deathflags[encounter_start + i] << " "
+						*encounter_output << hd.particles.r()[encounter_start + i] << std::endl;
+						*encounter_output << hd.particles.v()[encounter_start + i] << std::endl;
+						*encounter_output << hd.particles.id()[encounter_start + i] << " "
+							<< hd.particles.deathflags()[encounter_start + i] << " "
 							<< t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i]) << " death"
 							<< std::endl;
-						*encounter_output << hd.planets.n_alive << std::endl;
+						*encounter_output << hd.planets.n_alive() << std::endl;
 
-						*encounter_output << hd.planets.m[0] << std::endl;
+						*encounter_output << hd.planets.m()[0] << std::endl;
 						*encounter_output << f64_3(0) << std::endl;
 						*encounter_output << f64_3(0) << std::endl;
-						*encounter_output << hd.planets.id[0] << std::endl;
-						for (size_t j = 1; j < hd.planets.n_alive; j++)
+						*encounter_output << hd.planets.id()[0] << std::endl;
+						for (size_t j = 1; j < hd.planets.n_alive(); j++)
 						{
-							*encounter_output << hd.planets.m[j] << std::endl;
-							*encounter_output << hd.planets.r_log.slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-							*encounter_output << hd.planets.v_log.slow[ed.deathtime_index[i] * (hd.planets.n - 1) + j - 1] << std::endl;
-							*encounter_output << hd.planets.id[j] << std::endl;
+							*encounter_output << hd.planets.m()[j] << std::endl;
+							*encounter_output << hd.planets.r_log().slow()[ed.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.v_log().slow()[ed.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.id()[j] << std::endl;
 						}
 					}
 
@@ -370,7 +372,7 @@ namespace exec
 		for (auto& i : work) i();
 		work.clear();
 
-		output << "Simulation finished. t = " << t << ". n_particle = " << hd.particles.n_alive << std::endl;
+		output << "Simulation finished. t = " << t << ". n_particle = " << hd.particles.n_alive() << std::endl;
 	}
 }
 }

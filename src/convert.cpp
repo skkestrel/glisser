@@ -8,38 +8,38 @@ namespace convert
 	void jacobi_to_helio_planets(const Vf64& eta, const Vf64_3& rj, const Vf64_3& vj, HostPlanetPhaseSpace& pl)
 	{
 		// sun at origin
-		pl.r[0] = f64_3(0);
-		pl.v[0] = f64_3(0);
+		pl.r()[0] = f64_3(0);
+		pl.v()[0] = f64_3(0);
 
-		pl.r[1] = rj[1];
-		pl.v[1] = vj[1];
+		pl.r()[1] = rj[1];
+		pl.v()[1] = vj[1];
 
 		f64_3 rsum(0), vsum(0);
 
-		for (size_t i = 2; i < pl.n; i++)
+		for (size_t i = 2; i < pl.n(); i++)
 		{
-			rsum += rj[i-1] * (pl.m[i - 1] / eta[i-1]);
-			vsum += vj[i-1] * (pl.m[i - 1] / eta[i-1]);
+			rsum += rj[i-1] * (pl.m()[i - 1] / eta[i-1]);
+			vsum += vj[i-1] * (pl.m()[i - 1] / eta[i-1]);
 
-			pl.r[i] = rj[i] + rsum;
-			pl.v[i] = vj[i] + vsum;
+			pl.r()[i] = rj[i] + rsum;
+			pl.v()[i] = vj[i] + vsum;
 		}
 	}
 
 	/*
 	void helio_to_jacobi_r_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p)
 	{
-		for (size_t i = 0; i < p.n; i++)
+		for (size_t i = 0; i < p.n(); i++)
 		{
-			p.rj[i] = p.r[i] - pl.bary_r;
+			p.rj[i] = p.r()[i] - pl.bary_r;
 		}
 	}
 
 	void helio_to_jacobi_v_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p)
 	{
-		for (size_t i = 0; i < p.n; i++)
+		for (size_t i = 0; i < p.n(); i++)
 		{
-			p.vj[i] = p.v[i] - pl.bary_v;
+			p.vj[i] = p.v()[i] - pl.bary_v;
 		}
 	}
 	*/
@@ -50,24 +50,24 @@ namespace convert
 		vj[0] = f64_3(0);
 
 		// same as heliocentric
-		vj[1] = p.v[1];
+		vj[1] = p.v()[1];
 
 		// momentum sum
 		f64_3 psum(0);
 
-		for (size_t i = 2; i < p.n; i++)
+		for (size_t i = 2; i < p.n(); i++)
 		{
 			// velocity of interior COM
 			f64_3 vsum;
 
-			psum += p.v[i - 1] * p.m[i - 1];
+			psum += p.v()[i - 1] * p.m()[i - 1];
 			vsum = psum / eta[i - 1];
 
-			vj[i] = p.v[i] - vsum;
+			vj[i] = p.v()[i] - vsum;
 		}
 
-		psum += p.v[p.n - 1] * p.m[p.n - 1];
-		// p.bary_v = psum / eta[p.n - 1];
+		psum += p.v()[p.n() - 1] * p.m()[p.n() - 1];
+		// p.bary_v = psum / eta[p.n() - 1];
 	}
 
 	void helio_to_jacobi_r_planets(const HostPlanetPhaseSpace& p, const Vf64& eta, Vf64_3& rj)
@@ -76,21 +76,21 @@ namespace convert
 		rj[0] = f64_3(0);
 
 		// first jacobi coordinate is same as heliocentric
-		rj[1] = p.r[1];
+		rj[1] = p.r()[1];
 
 		f64_3 sum(0);
 		f64_3 bary;
 
-		for (size_t i = 2; i < p.n; i++)
+		for (size_t i = 2; i < p.n(); i++)
 		{
-			sum += p.r[i - 1] * p.m[i - 1];
+			sum += p.r()[i - 1] * p.m()[i - 1];
 			bary = sum / eta[i - 1];
 
-			rj[i] = p.r[i] - bary;
+			rj[i] = p.r()[i] - bary;
 		}
 
-		sum += p.r[p.n - 1] * p.m[p.n - 1];
-		// p.bary_r = sum / p.eta[p.n - 1];
+		sum += p.r()[p.n() - 1] * p.m()[p.n() - 1];
+		// p.bary_r = sum / p.eta[p.n() - 1];
 	}
 
 	void find_barycenter(const Vf64_3& r, const Vf64_3& v, const Vf64& m, size_t n, f64_3& r_out, f64_3& v_out)
@@ -115,18 +115,18 @@ namespace convert
 	void to_bary(HostData& hd)
 	{
 		f64_3 r, v;
-		find_barycenter(hd.planets.r, hd.planets.v, hd.planets.m, hd.planets.n, r, v);
+		find_barycenter(hd.planets.r(), hd.planets.v(), hd.planets.m(), hd.planets.n(), r, v);
 
-		for (size_t i = 0; i < hd.planets.n; i++)
+		for (size_t i = 0; i < hd.planets.n(); i++)
 		{
-			hd.planets.r[i] -= r;
-			hd.planets.v[i] -= v;
+			hd.planets.r()[i] -= r;
+			hd.planets.v()[i] -= v;
 		}
 
-		for (size_t i = 0; i < hd.particles.n; i++)
+		for (size_t i = 0; i < hd.particles.n(); i++)
 		{
-			hd.particles.r[i] -= r;
-			hd.particles.v[i] -= v;
+			hd.particles.r()[i] -= r;
+			hd.particles.v()[i] -= v;
 		}
 	}
 
@@ -134,19 +134,19 @@ namespace convert
 	{
 		f64_3 r;
 		f64_3 v;
-		r = hd.planets.r[0];
-		v = hd.planets.v[0];
+		r = hd.planets.r()[0];
+		v = hd.planets.v()[0];
 
-		for (size_t i = 0; i < hd.planets.n; i++)
+		for (size_t i = 0; i < hd.planets.n(); i++)
 		{
-			hd.planets.r[i] -= r;
-			hd.planets.v[i] -= v;
+			hd.planets.r()[i] -= r;
+			hd.planets.v()[i] -= v;
 		}
 
-		for (size_t i = 0; i < hd.particles.n; i++)
+		for (size_t i = 0; i < hd.particles.n(); i++)
 		{
-			hd.particles.r[i] -= r;
-			hd.particles.v[i] -= v;
+			hd.particles.r()[i] -= r;
+			hd.particles.v()[i] -= v;
 		}
 	}
 

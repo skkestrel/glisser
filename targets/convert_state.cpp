@@ -67,7 +67,7 @@ int main(int argc, char** argv)
 
 				load_data(hd, config);
 
-				if (hd.planets.r[0].lensq() < EPS && hd.planets.r[0].lensq() < EPS) ishelio = true;
+				if (hd.planets.r()[0].lensq() < EPS && hd.planets.r()[0].lensq() < EPS) ishelio = true;
 				else
 				{
 					to_bary(hd);
@@ -86,7 +86,7 @@ int main(int argc, char** argv)
 
 				load_data(hd, config);
 
-				if (hd.planets.r[0].lensq() < EPS && hd.planets.r[0].lensq() < EPS) ishelio = true;
+				if (hd.planets.r()[0].lensq() < EPS && hd.planets.r()[0].lensq() < EPS) ishelio = true;
 				else
 				{
 					to_bary(hd);
@@ -100,7 +100,7 @@ int main(int argc, char** argv)
 				config.writebinary = binary;
 				config.writemomenta = momentum;
 
-				hd.planets_snapshot = HostPlanetSnapshot(hd.planets);
+				hd.planets_snapshot = hd.planets.base;
 				save_data(hd, config, config.hybridout);
 
 				i++;
@@ -119,20 +119,20 @@ int main(int argc, char** argv)
 				int esign;
 
 				double totalmass = 0;
-				for (size_t j = 0; j < hd.planets.n; j++)
+				for (size_t j = 0; j < hd.planets.n(); j++)
 				{
-					totalmass += hd.planets.m[j];
+					totalmass += hd.planets.m()[j];
 				}
 
-				for (size_t j = 1; j < hd.planets.n; j++)
+				for (size_t j = 1; j < hd.planets.n(); j++)
 				{
 					if (ishelio)
 					{
-						to_elements(hd.planets.m[j] + hd.planets.m[0], hd.planets.r[j], hd.planets.v[j], &esign, &a, &e, &I, &capom, &om, &f);
+						to_elements(hd.planets.m()[j] + hd.planets.m()[0], hd.planets.r()[j], hd.planets.v()[j], &esign, &a, &e, &I, &capom, &om, &f);
 					}
 					else
 					{
-						to_elements(totalmass, hd.planets.r[j], hd.planets.v[j], &esign, &a, &e, &I, &capom, &om, &f);
+						to_elements(totalmass, hd.planets.r()[j], hd.planets.v()[j], &esign, &a, &e, &I, &capom, &om, &f);
 					}
 
 					if (esign == 0)
@@ -140,23 +140,23 @@ int main(int argc, char** argv)
 						std::cout << "Parabolic orbit detected!" << std::endl;
 					}
 
-					hd.planets.r[j].x = a;
-					hd.planets.r[j].y = e;
-					hd.planets.r[j].z = I;
-					hd.planets.v[j].x = capom;
-					hd.planets.v[j].y = om;
-					hd.planets.v[j].z = f;
+					hd.planets.r()[j].x = a;
+					hd.planets.r()[j].y = e;
+					hd.planets.r()[j].z = I;
+					hd.planets.v()[j].x = capom;
+					hd.planets.v()[j].y = om;
+					hd.planets.v()[j].z = f;
 				}
 
-				for (size_t j = 0; j < hd.particles.n; j++)
+				for (size_t j = 0; j < hd.particles.n(); j++)
 				{
 					if (ishelio)
 					{
-						to_elements(hd.planets.m[0], hd.particles.r[j], hd.particles.v[j], &esign, &a, &e, &I, &capom, &om, &f);
+						to_elements(hd.planets.m()[0], hd.particles.r()[j], hd.particles.v()[j], &esign, &a, &e, &I, &capom, &om, &f);
 					}
 					else
 					{
-						to_elements(totalmass, hd.particles.r[j], hd.particles.v[j], &esign, &a, &e, &I, &capom, &om, &f);
+						to_elements(totalmass, hd.particles.r()[j], hd.particles.v()[j], &esign, &a, &e, &I, &capom, &om, &f);
 					}
 
 					if (esign == 0)
@@ -164,12 +164,12 @@ int main(int argc, char** argv)
 						std::cout << "Parabolic orbit detected!" << std::endl;
 					}
 
-					hd.particles.r[j].x = a;
-					hd.particles.r[j].y = e;
-					hd.particles.r[j].z = I;
-					hd.particles.v[j].x = capom;
-					hd.particles.v[j].y = om;
-					hd.particles.v[j].z = f;
+					hd.particles.r()[j].x = a;
+					hd.particles.r()[j].y = e;
+					hd.particles.r()[j].z = I;
+					hd.particles.v()[j].x = capom;
+					hd.particles.v()[j].y = om;
+					hd.particles.v()[j].z = f;
 				}
 			}
 			else

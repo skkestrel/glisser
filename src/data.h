@@ -49,21 +49,43 @@ namespace data
 	};
 
 
-	struct HostParticlePhaseSpace : public HostParticleSnapshot
+	struct HostParticlePhaseSpace
 	{
-		size_t n_encounter;
+		HostParticleSnapshot base;
 
-		Vu16 deathflags;
-		Vf32 deathtime;
+		inline Vf64_3& r() { return base.r; }
+		inline const Vf64_3& r() const { return base.r; }
 
-		Vu32 deathtime_index;
+		inline Vf64_3& v() { return base.v; }
+		inline const Vf64_3& v() const { return base.v; }
+
+		inline Vu32& id() { return base.id; }
+		inline const Vu32& id() const { return base.id; }
+
+		inline size_t& n() { return base.n; }
+		inline const size_t& n() const { return base.n; }
+
+		inline size_t& n_alive() { return base.n_alive; }
+		inline const size_t& n_alive() const { return base.n_alive; }
+
+		inline size_t& n_encounter() { return _n_encounter; }
+		inline const size_t& n_encounter() const { return _n_encounter; }
+
+		inline Vu16& deathflags() { return _deathflags; }
+		inline const Vu16& deathflags() const { return _deathflags; }
+
+		inline Vf32& deathtime() { return _deathtime; }
+		inline const Vf32& deathtime() const { return _deathtime; }
+
+		inline Vu32& deathtime_index() { return _deathtime_index; }
+		inline const Vu32& deathtime_index() const { return _deathtime_index; }
 
 		inline HostParticlePhaseSpace() { }
-		inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : HostParticleSnapshot(siz), n_encounter(0), deathflags(siz), deathtime(siz)
+		inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : base(siz), _n_encounter(0), _deathflags(siz), _deathtime(siz)
 		{ 
 			if (cpu_only)
 			{
-				deathtime_index = Vu32(siz);
+				_deathtime_index = Vu32(siz);
 			}
 		}
 
@@ -77,57 +99,73 @@ namespace data
 			return static_cast<uint8_t>((deathflags & 0xFF00) >> 8);
 		}
 
-		inline HostParticleSnapshot make_snapshot() const
-		{
-			HostParticleSnapshot s;
-			s.n = n;
-			s.n_alive = n_alive;
-			s.r = Vf64_3(r);
-			s.v = Vf64_3(v);
-			s.id = Vu32(id);
-			return s;
-		}
+	private:
+		size_t _n_encounter;
+
+		Vu16 _deathflags;
+		Vf32 _deathtime;
+
+		Vu32 _deathtime_index;
 	};
 
-	struct HostPlanetPhaseSpace : public HostPlanetSnapshot
+	struct HostPlanetPhaseSpace
 	{
-		size_t n_alive_old;
-		sr::util::LogQuartet<Vf64_3> r_log;
-		sr::util::LogQuartet<Vf64_3> v_log;
+		HostPlanetSnapshot base;
+
+		inline Vf64_3& r() { return base.r; }
+		inline const Vf64_3& r() const { return base.r; }
+
+		inline Vf64_3& v() { return base.v; }
+		inline const Vf64_3& v() const { return base.v; }
+
+		inline Vu32& id() { return base.id; }
+		inline const Vu32& id() const { return base.id; }
+
+		inline Vf64& m() { return base.m; }
+		inline const Vf64& m() const { return base.m; }
+
+		inline size_t& n() { return base.n; }
+		inline const size_t& n() const { return base.n; }
+
+		inline size_t& n_alive() { return base.n_alive; }
+		inline const size_t& n_alive() const { return base.n_alive; }
+
+		inline size_t& n_alive_old() { return _n_alive_old; }
+		inline const size_t& n_alive_old() const { return _n_alive_old; }
+
+		inline sr::util::LogQuartet<Vf64_3>& r_log() { return _r_log; }
+		inline const sr::util::LogQuartet<Vf64_3>& r_log() const { return _r_log; }
+
+		inline sr::util::LogQuartet<Vf64_3>& v_log() { return _v_log; }
+		inline const sr::util::LogQuartet<Vf64_3>& v_log() const { return _v_log; }
 
 		inline HostPlanetPhaseSpace() { }
 		inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor) :
-			HostPlanetSnapshot(siz), n_alive_old(siz)
+			base(siz), _n_alive_old(siz)
 		{
-			r_log = sr::util::LogQuartet<Vf64_3>(((n - 1) * tb_size), ce_factor);
-			v_log = sr::util::LogQuartet<Vf64_3>(((n - 1) * tb_size), ce_factor);
-		}
-
-		inline HostPlanetSnapshot make_snapshot() const
-		{
-			HostPlanetSnapshot s;
-			s.n = n;
-			s.n_alive = n_alive;
-			s.r = Vf64_3(r);
-			s.v = Vf64_3(v);
-			s.m = Vf64(m);
-			s.id = Vu32(id);
-			return s;
+			_r_log = sr::util::LogQuartet<Vf64_3>(((n() - 1) * tb_size), ce_factor);
+			_v_log = sr::util::LogQuartet<Vf64_3>(((n() - 1) * tb_size), ce_factor);
 		}
 
 		inline void swap_old()
 		{
-			std::swap(n_alive, n_alive_old);
+			std::swap(n_alive(), n_alive_old());
 
-			r_log.swap_old();
-			v_log.swap_old();
+			r_log().swap_old();
+			v_log().swap_old();
 		}
 
 		template<bool old>
 		inline size_t log_index_at(size_t timestep, size_t planet_id) const
 		{
-			return timestep * ((old ? n_alive : n_alive_old) - 1) + planet_id - 1;
+			return timestep * ((old ? n_alive() : _n_alive_old) - 1) + planet_id - 1;
 		}
+
+	private:
+		size_t _n_alive_old;
+
+		sr::util::LogQuartet<Vf64_3> _r_log;
+		sr::util::LogQuartet<Vf64_3> _v_log;
 	};
 
 	struct HostData
