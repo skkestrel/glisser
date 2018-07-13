@@ -26,15 +26,6 @@ int main(int argc, char** argv)
 
 	try
 	{
-		if (!args["<input>"])
-		{
-			throw std::runtime_error("Required argument -i");
-		}
-		if (!args["<output>"])
-		{
-			throw std::runtime_error("Required argument -o");
-		}
-
 		std::vector<uint32_t> particles;
 		bool takeallparticles = false;
 		if (args["--watch"])
@@ -69,7 +60,7 @@ int main(int argc, char** argv)
 		}
 
 		bool killplanets = false;
-		if (args["--no-planets"])
+		if (args["--no-planets"].asBool())
 		{
 			killplanets = true;
 		}

@@ -474,7 +474,6 @@ namespace data
 
 			if (config.readbinary)
 			{
-
 				std::ifstream in(config.hybridin, std::ios_base::binary);
 				ret = load_data_hybrid_binary(hd, config, in);
 			}

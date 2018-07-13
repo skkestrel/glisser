@@ -6,15 +6,23 @@
 #include <thread>
 #include <iomanip>
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include "../src/cxxopts.h"
-#pragma GCC diagnostic pop
-
+#include "../docopt/docopt.h"
 #include "../src/data.h"
 #include "../src/wh.h"
 #include "../src/convert.h"
 #include "../src/util.h"
+
+static const char USAGE[] = R"(filter-state
+Usage:
+    filter-state [options] <input> [<criteria>...]
+
+Options:
+    -h, --help                         Show this screen.
+    -i <path>, --initial-state <path>  Initial state input file
+    -u, --union                        Take union of criteria instead of intersection
+    -b, --binary                       Read binary input
+    -B, --barycentric                  Calculate barycentric elements
+)";
 
 struct Criterion
 {
@@ -26,33 +34,17 @@ struct Criterion
 const double EPS = 1e-13;
 int main(int argc, char** argv)
 {
-	cxxopts::Options options("filter-state", "Find particles in a state file that match criteria");
-	options.add_options()
-		("i,input", "Input file", cxxopts::value<std::string>())
-		("I,initial", "Initial state input file", cxxopts::value<std::string>())
-		("u,union", "Take union of criteria instead of intersection")
-		("b,binary", "Read binary input")
-		("B,barycentric", "Calculate barycentric elements")
-		("criteria", "Criteria (eg. a>25)", cxxopts::value<std::vector<std::string>>());
-
-	options.parse_positional({ "input", "criteria" });
+	std::map<std::string, docopt::value> args = docopt::docopt(USAGE, { argv + 1, argv + argc }, true, "filter-state");
 
 	try
 	{
-		auto result = options.parse(argc, argv);
-
-		bool use_union = result.count("u") > 0;
-
-		if (result.count("i") == 0)
-		{
-			throw cxxopts::OptionException("Required option -i");
-		}
+		bool use_union = args["--union"].asBool();
 
 		std::vector<Criterion> criteria;
 
-		if (result.count("criteria") > 0)
+		if (args["<criteria>"])
 		{
-			for (const std::string& str : result["criteria"].as<std::vector<std::string>>())
+			for (const std::string& str : args["<criteria>"].asStringList())
 			{
 				Criterion crit;
 				size_t foundgt = str.find('>');
@@ -80,7 +72,7 @@ int main(int argc, char** argv)
 				{
 					std::ostringstream ss;
 					ss << "Could not parse criterion " << str;
-					throw cxxopts::OptionException(ss.str());
+					throw std::runtime_error(ss.str());
 				}
 
 				crit.variable = str.substr(0, split);
@@ -94,13 +86,13 @@ int main(int argc, char** argv)
 		sr::data::HostData hd;
 		sr::data::HostData hd_init;
 
-		config.hybridin = result["i"].as<std::string>();
-		config.readbinary = result.count("b") > 0;
+		config.hybridin = args["<input>"].asString();
+		config.readbinary = args["--binary"].asBool();
 		config.readmomenta = false;
 
 		load_data(hd, config);
 		hd.particles.sort_by_id(0, hd.particles.n);
-		if (result.count("B") > 0)
+		if (args["--barycentric"])
 		{
 			sr::convert::to_bary(hd);
 		}
@@ -110,20 +102,20 @@ int main(int argc, char** argv)
 		}
 
 
-		bool has_init = result.count("I") > 0;
+		bool has_init = static_cast<bool>(args["--initial-state"]);
 		if (has_init)
 		{
-			config.hybridin = result["I"].as<std::string>();
+			config.hybridin = args["--initial-state"].asString();
 			load_data(hd_init, config);
 
 			hd_init.particles.sort_by_id(0, hd_init.particles.n);
 
 			if (hd_init.particles.id != hd.particles.id)
 			{
-				throw cxxopts::OptionException("Initial state is not congruent with input state");
+				throw std::runtime_error("Initial state is not congruent with input state");
 			}
 
-			if (result.count("B") > 0)
+			if (args["--barycentric"])
 			{
 				sr::convert::to_bary(hd_init);
 			}
@@ -175,7 +167,7 @@ int main(int argc, char** argv)
 				{
 					std::ostringstream ss;
 					ss << "Unknown value " << crit.variable;
-					throw cxxopts::OptionException(ss.str());
+					throw std::runtime_error(ss.str());
 				}
 
 				bool newbool;
@@ -190,6 +182,10 @@ int main(int argc, char** argv)
 				else if (crit.comparison == 0)
 				{
 					newbool = std::abs(val - crit.konst) < EPS;
+				}
+				else
+				{
+					throw std::runtime_error("Internal error");
 				}
 
 				if (use_union)
@@ -239,10 +235,9 @@ int main(int argc, char** argv)
 			}
 		}
 	}
-	catch (cxxopts::OptionException& e)
+	catch (std::runtime_error& e)
 	{
 		std::cout << e.what() << std::endl;
-		std::cout << options.help() << std::endl;
 		return -1;
 	}
 

@@ -10,11 +10,15 @@
 #include "../src/wh.h"
 #include "../src/convert.h"
 #include "../src/util.h"
+#include "../docopt/docopt.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include "../src/cxxopts.h"
-#pragma GCC diagnostic pop
+static const char USAGE[] = R"(convert-state
+Usage:
+    convert-state [options] <commands>...
+
+Options:
+    -h, --help                     Show this screen.
+)";
 
 using namespace sr::data;
 using namespace sr::convert;
@@ -22,15 +26,10 @@ const double EPS = 1e-13;
 
 int main(int argc, char** argv)
 {
-	cxxopts::Options options("convert-state", "Convert state files between different formats");
-	options.add_options()
-		("commands", "Commands", cxxopts::value<std::vector<std::string>>());
-
-	options.parse_positional({ "commands" });
+	std::map<std::string, docopt::value> args = docopt::docopt(USAGE, { argv + 1, argv + argc }, true, "convert-state");
 
 	try
 	{
-		auto result = options.parse(argc, argv);
 		Configuration config;
 		HostData hd;
 
@@ -38,13 +37,7 @@ int main(int argc, char** argv)
 		bool binary = false;
 		bool momentum = false;
 
-		if (result.count("commands") == 0)
-		{
-			throw cxxopts::OptionException("No commands specified");
-		}
-
-		std::vector<std::string> commands = result["commands"]
-			.as<std::vector<std::string>>();
+		const std::vector<std::string>& commands = args["<commands>"].asStringList();
 
 		for (size_t i = 0; i < commands.size(); i++)
 		{
@@ -183,14 +176,13 @@ int main(int argc, char** argv)
 			{
 				std::ostringstream ss;
 				ss << "Unknown command " << arg;
-				throw cxxopts::OptionException(ss.str());
+				throw std::runtime_error(ss.str());
 			}
 		}
 	}
-	catch (cxxopts::OptionException& e)
+	catch (std::runtime_error& e)
 	{
 		std::cout << e.what() << std::endl;
-		std::cout << options.help() << std::endl;
 		return -1;
 	}
 

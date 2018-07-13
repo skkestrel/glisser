@@ -16,6 +16,7 @@
 #include <cmath>
 #include <iomanip>
 
+
 #include <execinfo.h>
 #include <csignal>
 
@@ -29,7 +30,15 @@
 #include "../src/wh.h"
 #include "../src/convert.h"
 #include "../src/util.h"
+#include "../docopt/docopt.h"
 
+static const char USAGE[] = R"(sr(_cpu)
+Usage:
+    sr(_cpu) [options] [<config>]
+
+Options:
+    -h, --help         Show this screen.
+)";
 
 volatile sig_atomic_t end_loop = 0;
 
@@ -39,7 +48,7 @@ void term(int signum)
 	end_loop = 1;
 }
 
-int main(int argv, char** argc)
+int main(int argc, char** argv)
 {
 	std::ios_base::sync_with_stdio(false);
 
@@ -53,8 +62,10 @@ int main(int argv, char** argc)
 		std::cerr << "sizeof float is not 4 - this code will likely not work!" << std::endl;
 	}
 
+	std::map<std::string, docopt::value> args = docopt::docopt(USAGE, { argv + 1, argv + argc }, true, "sr");
+
 	std::string configin = "config.in";
-	if (argv >= 2) configin = std::string(argc[1]);
+	if (args["<config>"]) configin = args["<config>"].asString();
 	
 	std::cout << "Reading from configuration file " << configin << std::endl;
 	

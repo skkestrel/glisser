@@ -1,15 +1,20 @@
 #include "../src/data.h"
 #include "../src/util.h"
+#include "../docopt/docopt.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-#include "../src/cxxopts.h"
-#pragma GCC diagnostic pop
-
+#include <unordered_map>
 #include <iostream>
 #include <string>
 #include <fstream>
 #include <sstream>
+
+static const char USAGE[] = R"(find-max-e
+Usage:
+    find-max-e [options] <input> <output>
+
+Options:
+    -h, --help           Show this screen.
+)";
 
 struct ParticleInfo
 {
@@ -19,28 +24,12 @@ struct ParticleInfo
 
 int main(int argc, char** argv)
 {
-	cxxopts::Options options("find-max-e", "Find the maximum e and maximum time of e of each particle from tracks");
-	options.add_options()
-		("i,input", "Input file or directory", cxxopts::value<std::string>())
-		("o,output", "Output file", cxxopts::value<std::string>());
-
-	options.parse_positional({ "input", "output" });
+	std::map<std::string, docopt::value> args = docopt::docopt(USAGE, { argv + 1, argv + argc }, true, "find-max-e");
 
 	try
 	{
-		auto result = options.parse(argc, argv);
-
-		if (result.count("i") == 0)
-		{
-			throw cxxopts::OptionException("Required argument -i");
-		}
-		if (result.count("o") == 0)
-		{
-			throw cxxopts::OptionException("Required argument -o");
-		}
-
-		std::string inpath = result["i"].as<std::string>();
-		std::string outpath = result["o"].as<std::string>();
+		std::string inpath = args["i"].asString();
+		std::string outpath = args["o"].asString();
 
 		std::ofstream outfile(outpath);
 
@@ -64,10 +53,9 @@ int main(int argc, char** argv)
 			outfile << pair.first << " " << pair.second.emax << " " << pair.second.emax_t << std::endl;
 		}
 	}
-	catch (cxxopts::OptionException& e)
+	catch (std::runtime_error& e)
 	{
 		std::cout << e.what() << std::endl;
-		std::cout << options.help() << std::endl;
 		return -1;
 	}
 
