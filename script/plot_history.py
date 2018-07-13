@@ -5,7 +5,7 @@ Usage:
 
 Options:
     -h, --help                     Show this screen.
-    -w <list>, --watch <list>  Plot the comma-separated list of particles, or "all"
+    -w <list>, --watch <list>      Plot the comma-separated list of particles, or "all"
     -P, --no-planets               Don't plot planets.
     -s <n>, --skip <n>             Take every n time steps [default: 1]
     -t <t>, --tmax <t>             Take only up to given time

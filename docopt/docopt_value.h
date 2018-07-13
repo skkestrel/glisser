@@ -83,6 +83,7 @@ namespace docopt {
 				case Kind::Long: return "long";
 				case Kind::String: return "string";
 				case Kind::StringList: return "string-list";
+				default: ;
 			}
 			return "unknown";
 		}
