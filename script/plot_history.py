@@ -2,9 +2,11 @@
 
 Usage:
     plot_history.py [options] <path>
+    plot_history.py --info <path>
 
 Options:
     -h, --help                     Show this screen.
+    -i, --info                     Show info about the provided track.
     -w <list>, --watch <list>      Plot the comma-separated list of particles, or "all"
     -P, --no-planets               Don't plot planets.
     -s <n>, --skip <n>             Take every n time steps [default: 1]
@@ -70,9 +72,15 @@ def bsearch(f, npa, partnum):
     return None
 
 take_every = int(args["--skip"])
+info = args["--info"]
+
+if info:
+    take_every = 1
+    particlewatch_rev = {}
+    take_all_particles = True
 
 planets = None
-skip_planets = bool(args["--no-planets"])
+skip_planets = args["--no-planets"]
 if skip_planets:
     planets = []
 
@@ -104,7 +112,7 @@ while True:
                 if (counter % take_every) == 0:
                     times.append(time)
 
-                if (counter % take_every) == 0 and not skip_planets:
+                if (counter % take_every) == 0 and not skip_planets and (not info or counter == 0):
                     for i in range(npl):
                         a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))[1:]
 
@@ -119,7 +127,7 @@ while True:
 
                 npa, = struct.unpack('=Q', f.read(8))
 
-                if (counter % take_every) == 0:
+                if (counter % take_every) == 0 and (not info or counter == 0):
                     if take_all_particles:
                         if len(particlewatch) == 0:
                             firstrun = True
@@ -186,7 +194,12 @@ while True:
     except IOError:
         break
 
-
+if info:
+    print("This track contains {0} planets and {1} particles".format(npl, len(particlewatch)))
+    if len(particlewatch) < 20:
+        print("Particle ids {0}".format(", ".join([str(i) for i in particlewatch])))
+    print("dt = {0}".format(times[1] - times[0]))
+    print("t_f = {0}".format(times[-1]))
 
 times = np.array(times)
 planets = np.array(planets)
