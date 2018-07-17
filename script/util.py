@@ -134,3 +134,13 @@ def rv2el(m, parts):
 		om = 1/0.
 		f = 1/0.
 	return (a, e, i, capom, om, f)
+
+
+def get_principal_angle(M):
+    M = M.copy()
+    for i in range(len(M)):
+        while M[i] < -np.pi:
+            M[i] = M[i] + 2 * np.pi
+        while M[i] > np.pi:
+            M[i] = M[i] - 2 * np.pi
+    return M

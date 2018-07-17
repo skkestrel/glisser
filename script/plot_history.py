@@ -12,6 +12,7 @@ Options:
     -s <n>, --skip <n>             Take every n time steps [default: 1]
     -t <t>, --tmax <t>             Take only up to given time
     --plot-angles                  ..
+    --plot-mmr-params <mmr>        <mmr> = "3:4@3" for neptune, for example
     --plot-aei                     ..
     --plot-ftrect                  ..
     --plot-qQ                      ..
@@ -27,6 +28,7 @@ import matplotlib
 matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 import struct
+import util
 import matplotlib.style as style
 import docopt
 
@@ -287,7 +289,6 @@ if args["--plot-ftrect"]:
         else:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
-
     do_for(plot_hp)
     axes[0].legend()
     axes[0].set_title("p")
@@ -311,6 +312,7 @@ if args["--plot-aei"]:
         else:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
+    do_for(plot_aei)
     axes[0].set_title("δa")
     axes[1].set_title("e")
     axes[2].set_title("i")
@@ -362,10 +364,43 @@ if args["--plot-angles"]:
         else:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
+    do_for(plot_angles)
     axes[0].set_title("dΩ/dt (rad/yr)")
     axes[1].set_title("d(Ω+ω)/dt")
     axes[2].set_title("df/dt")
     axes[2].set_xlabel(timelabel)
     axes[0].legend()
+
+if args["--plot-mmr-params"]:
+    mmrs = []
+    for s in args["--plot-mmr-params"].split(','):
+        split1 = s.split(':')
+        split2 = split1[1].split('@')
+        mmrs.append((int(split1[0]), int(split2[0]), int(split2[1])))
+
+    def get_M(data):
+        E = np.arccos((data[1] + np.cos(data[5])) / (1 + data[1] * np.cos(data[5])))
+        print(E[:10])
+        M = E - data[1] * np.sin(E)
+        return M
+
+    for mmr in mmrs:
+        fig, axes = plt.subplots(1, 1)
+
+        def plot_params(data, c, ind, is_planet):
+            if is_planet: return
+            M = get_M(data)
+            data_pl = planets[6 * mmr[2] : 6 * (mmr[2] + 1)]
+            Mpl = get_M(data_pl)
+
+            import pdb; pdb.set_trace()
+
+            param = (mmr[0] + 1) * (data[3] + data[4]) + mmr[0] * M - mmr[1] * (data_pl[3] + data_pl[4] + Mpl)
+            axes.scatter(stimes, util.get_principal_angle(param), c=c, s=1)
+            axes.scatter([], [], c=c, label="Particle {0}".format(ind))
+
+        do_for(plot_params)
+        axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2] + 1))
+        axes.legend()
 
 plt.show()
