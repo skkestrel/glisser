@@ -25,7 +25,7 @@ with open('prof/particle-prof.csv') as p:
         X.append(npa)
     plt.figure()
     plt.yscale('log')
-    plt.xscale('log')
+    #plt.xscale('log')
     plt.scatter(X, Y)
 with open('prof/timeblock-prof.csv') as p:
     X = []
@@ -54,7 +54,7 @@ with open('prof/planet-prof.csv') as p:
         Y.append(time / npa / nstep * 100000 * 10000)
         X.append(npl)
     plt.figure()
-    plt.yscale('log')
-    plt.xscale('log')
+    #plt.yscale('log')
+    #plt.xscale('log')
     plt.scatter(X, Y)
 plt.show()

@@ -4,5 +4,6 @@
 !data/*.out
 !data/*.in
 script/__pycache__
+prof
 bin
 obj
