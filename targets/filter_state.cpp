@@ -19,6 +19,7 @@ Usage:
 Options:
     -h, --help                         Show this screen.
     -i <path>, --initial-state <path>  Initial state input file
+    -c <list>, --csv <list>            Comma-separated list of paths to csvs that can contain attributes to filter by
     -u, --union                        Take union of criteria instead of intersection
     -b, --binary                       Read binary input
     -B, --barycentric                  Calculate barycentric elements
@@ -29,6 +30,13 @@ struct Criterion
 	std::string variable;
 	int comparison; // -1: var lt konst, 0: var eq konst, 1: var gt const
 	double konst;
+};
+
+struct CsvFile
+{
+	std::vector<std::vector<double>> values;
+	std::unordered_map<std::string, size_t> name_to_vector_index;
+	std::unordered_map<uint32_t, size_t> id_to_index;
 };
 
 const double EPS = 1e-13;
@@ -81,6 +89,68 @@ int main(int argc, char** argv)
 				criteria.push_back(crit);
 			}	
 		}
+
+		std::vector<CsvFile> files;
+		std::unordered_map<std::string, size_t> name_to_file_index;
+
+		if (args["--csv"])
+		{
+			std::istringstream ss(args["--csv"].asString());
+			std::string token;
+
+			while (std::getline(ss, token, ','))
+			{
+				std::string filename = token;
+				
+				std::ifstream infile(filename);
+				std::string line;
+				size_t linenum = 0;
+				CsvFile newfile;
+
+				while (std::getline(infile, line))
+				{
+					std::istringstream ss2(line);
+					std::string token2;
+					size_t token_num = 0;
+
+					while (std::getline(ss2, token2, ','))
+					{
+						if (linenum == 0)
+						{
+							newfile.name_to_vector_index[token2] = token_num;
+							name_to_file_index[token2] = files.size();
+						}
+						else
+						{
+							if (newfile.name_to_vector_index["id"] == token_num)
+							{
+								newfile.id_to_index[static_cast<uint32_t>(std::stoull(token2))] = linenum - 1;
+							}
+							else
+							{
+								newfile.values[token_num].push_back(std::stod(token2));
+							}
+						}
+
+						token_num++;
+					}
+
+					if (linenum == 0)
+					{
+						for (size_t i = 0; i < newfile.name_to_vector_index.size(); i++)
+						{
+							newfile.values.push_back(std::vector<double>());
+						}
+					}
+
+					linenum++;
+				}
+
+				files.push_back(std::move(newfile));
+			}
+		}
+
+		name_to_file_index.erase("id");
 
 		sr::data::Configuration config = sr::data::Configuration::create_dummy();
 		sr::data::HostData hd;
@@ -163,6 +233,11 @@ int main(int argc, char** argv)
 					if (hd.particles.deathflags()[i] == 0) val = -1;
 					else val = static_cast<double>(hd.particles.deathflags()[i] >> 8);
 				}
+				else if (name_to_file_index.count(crit.variable) > 0)
+				{
+					const auto& file = files[name_to_file_index.at(crit.variable)];
+					val = file.values[file.name_to_vector_index.at(crit.variable)][file.id_to_index.at(hd.particles.id()[i])];
+				}
 				else
 				{
 					std::ostringstream ss;
@@ -206,8 +281,12 @@ int main(int argc, char** argv)
 			}
 		}
 
-		std::cout << "ID      |   a        e        i        Om       om       f" << std::endl;
-		std::cout << std::setfill(' ');
+		std::cout << "ID    | a        e        i       Om       om       f       ";
+		for (auto& pair : name_to_file_index)
+		{
+			std::cout << std::left << std::setw(10) << pair.first;
+		}
+		std::cout << std::right << std::endl;
 
 		int num = 0;
 		for (auto& i : candidates)
@@ -216,10 +295,17 @@ int main(int argc, char** argv)
 			double A, E, I, CAPOM, OM, F;
 			sr::convert::to_elements(hd.planets.m()[0], hd.particles.r()[i], hd.particles.v()[i], &esign, &A, &E, &I, &CAPOM, &OM, &F);
 
-			std::cout << std::setw(7) << hd.particles.id()[i] << " | ";
-			std::cout << std::setfill(' ') << std::setw(9) << std::fixed << std::setprecision(4)
-				<< std::setw(9) << A << std::setw(9) << E << std::setw(9) << I
-				<< std::setw(9) << CAPOM << std::setw(9) << OM << std::setw(9) << F << std::endl;
+			std::cout << std::setw(5) << hd.particles.id()[i] << " |";
+			std::cout << std::fixed << std::setprecision(4)
+				<< std::setw(8) << A << std::setw(8) << E << std::setw(8) << I
+				<< std::setw(9) << CAPOM << std::setw(9) << OM << std::setw(9) << F << " ";
+			for (auto& pair : name_to_file_index)
+			{
+				const auto& file = files[pair.second];
+				double val = file.values[file.name_to_vector_index.at(pair.first)][file.id_to_index.at(hd.particles.id()[i])];
+				std::cout << std::setw(10) << std::defaultfloat << val;
+			}
+			std::cout << std::endl;
 			num++;
 
 			if (num % 10 == 0 && num != 0)

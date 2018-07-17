@@ -19,8 +19,9 @@ smass = 4 * math.pi * math.pi / math.pow(365.25, 2)
 
 dc = {}
 with open(sys.argv[2]) as p:
+    p.readline()
     for line in p:
-        tokens = [float(x) for x in line.strip().split()]
+        tokens = [float(x) for x in line.strip().split(',')]
         dc[int(tokens[0])] = (tokens[1], tokens[2])
 
 with open(sys.argv[1]) as p:

@@ -48,9 +48,10 @@ int main(int argc, char** argv)
 				}
 			});
 
+		outfile << "id,emax,emax_t" << std::endl;
 		for (auto& pair : map)
 		{
-			outfile << pair.first << " " << pair.second.emax << " " << pair.second.emax_t << std::endl;
+			outfile << pair.first << "," << pair.second.emax << "," << pair.second.emax_t << std::endl;
 		}
 	}
 	catch (std::runtime_error& e)
