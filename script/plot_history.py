@@ -37,11 +37,11 @@ args = docopt.docopt(__doc__)
 style.use('ggplot')
 
 times = []
+particlewatch = []
 
 if args["--watch"]:
     if args["--watch"] == "all":
         particlewatch = []
-        particlewatch_rev = {}
         take_all_particles = True
     else:
         take_all_particles = False
@@ -50,6 +50,7 @@ else:
     take_all_particles = False
     particlewatch = []
 
+particlewatch_rev = {}
 particles = [[] for i in range(len(particlewatch) * 6)]
 
 def bsearch(f, npa, partnum):
@@ -222,11 +223,11 @@ else:
 if skip_planets:
     npl = 0
 
-def do_for(callback):
-    for i in range(npl):
-        c = cc[i % len(cc)]
-        callback(planets[6*i:6*i+6], c, i+1, True)
-    for i in range(len(particlewatch)):
+def do_for(callback, pllist=None, palist=None):
+    for i in (pllist if pllist is not None else range(1, npl + 1)):
+        c = cc[(i - 1) % len(cc)]
+        callback(planets[6*(i-1):6*i], c, i, True)
+    for i in (palist if palist is not None else range(len((particlewatch)))):
         c = cc[(i+npl) % len(cc)]
         callback(particles[6*i:6*i+6], c, particlewatch[i], False)
 
@@ -237,7 +238,9 @@ if args["--plot-qQ"]:
         plt.plot(stimes, data[0] * (1. - data[1]), c=c)
         plt.plot(stimes, data[0] * (1. + data[1]), c=c)
         if is_planet:
-            if args["--plot-qQ-mmr"] and ind != npl:
+            plt.plot([], [], c=c, label="Planet {0}".format(ind))
+
+            if args["--plot-qQ-mmr"]:
                 def mmr(a1, deg):
                     return (deg * (a1 ** (3/2))) ** (2/3)
                 
@@ -247,19 +250,26 @@ if args["--plot-qQ"]:
                 for i in range(1, 5):
                     res = mmr(meana, (i+1)/i)
                     plt.axhline(y=res, linewidth=1, color=c, zorder=5)
-                    plt.text(0, res, "{0}:{1} {2:.2f}".format(i+1, i, res), color=c, horizontalalignment='right', zorder=5)
+                    plt.text(0, res, "{0}:{1}@{2} {3:.2f}".format(i+1, i, ind, res), color=c, horizontalalignment='right', zorder=5)
+                    res = mmr(meana, i/(i+1))
+                    plt.axhline(y=res, linewidth=1, color=c, zorder=5)
+                    plt.text(0, res, "{0}:{1}@{2} {3:.2f}".format(i, i+1, ind, res), color=c, horizontalalignment='right', zorder=5)
                 for i in range(1, 4):
-                    if i == 2: return
+                    if i % 2 == 0: continue
                     res = mmr(meana, (i+2)/i)
                     plt.axhline(y=res, linewidth=1, color=c, zorder=5)
-                    plt.text(0, res, "{0}:{1} {2:.2f}".format(i+2, i, res), color=c, horizontalalignment='right', zorder=5)
+                    plt.text(0, res, "{0}:{1}@{2} {3:.2f}".format(i+2, i, ind, res), color=c, horizontalalignment='right', zorder=5)
+                    res = mmr(meana, i/(i+2))
+                    plt.axhline(y=res, linewidth=1, color=c, zorder=5)
+                    plt.text(0, res, "{0}:{1}@{2} {3:.2f}".format(i, i+2, ind, res), color=c, horizontalalignment='right', zorder=5)
                 for i in range(1, 3):
-                    if i == 3: return
+                    if i % 3 == 0: continue
                     res = mmr(meana, (i+3)/i)
                     plt.axhline(y=res, linewidth=1, color=c, zorder=5)
-                    plt.text(0, res, "{0}:{1} {2:.2f}".format(i+3, i, res), color=c, horizontalalignment='right', zorder=5)
-
-            plt.plot([], [], c=c, label="Planet {0}".format(ind))
+                    plt.text(0, res, "{0}:{1}@{2} {3:.2f}".format(i+3, i, ind, res), color=c, horizontalalignment='right', zorder=5)
+                    res = mmr(meana, i/(i+3))
+                    plt.axhline(y=res, linewidth=1, color=c, zorder=5)
+                    plt.text(0, res, "{0}:{1}@{2} {3:.2f}".format(i, i+3, ind, res), color=c, horizontalalignment='right', zorder=5)
         else:
             plt.plot([], [], c=c, label="Particle {0}".format(ind))
 
@@ -338,6 +348,13 @@ if args["--plot-e-smooth"]:
     axes.set_xlabel(timelabel)
     axes.legend()
 
+def get_M(data):
+    E = np.arccos((data[1] + np.cos(data[5])) / (1 + data[1] * np.cos(data[5])))
+    E = E * np.sign(data[5])
+    M = E - data[1] * np.sin(E)
+    M = M * np.sign(data[5])
+    return M
+
 if args["--plot-angles"]:
     fig, axes = plt.subplots(3, 1, sharex=True)
     def normalize(x):
@@ -352,13 +369,13 @@ if args["--plot-angles"]:
             elif X[j - 1] - X[j] < -math.pi:
                 X[j] -= 2 * math.pi;
                 diff -= 2 * math.pi;
-        import scipy
         return np.gradient(X, dt / 365.25)
 
     def plot_angles(data, c, ind, is_planet):
         axes[0].plot(stimes, normalize(data[3]), c=c)
         axes[1].plot(stimes, normalize(data[3]+data[4]), c=c)
-        axes[2].plot(stimes, normalize(data[5]), c=c)
+        # axes[2].plot(stimes, normalize(data[5]), c=c)
+        axes[2].plot(stimes, data[5], c=c)
         if is_planet:
             axes[0].plot([], [], c=c, label="Planet {0}".format(ind))
         else:
@@ -378,29 +395,26 @@ if args["--plot-mmr-params"]:
         split2 = split1[1].split('@')
         mmrs.append((int(split1[0]), int(split2[0]), int(split2[1])))
 
-    def get_M(data):
-        E = np.arccos((data[1] + np.cos(data[5])) / (1 + data[1] * np.cos(data[5])))
-        print(E[:10])
-        M = E - data[1] * np.sin(E)
-        return M
-
     for mmr in mmrs:
         fig, axes = plt.subplots(1, 1)
 
         def plot_params(data, c, ind, is_planet):
-            if is_planet: return
             M = get_M(data)
-            data_pl = planets[6 * mmr[2] : 6 * (mmr[2] + 1)]
+            data_pl = planets[6 * (mmr[2] - 1) : 6 * mmr[2]]
             Mpl = get_M(data_pl)
 
-            import pdb; pdb.set_trace()
+            print(data[5][:10])
+            print(M[:10])
 
-            param = (mmr[0] + 1) * (data[3] + data[4]) + mmr[0] * M - mmr[1] * (data_pl[3] + data_pl[4] + Mpl)
+            param = mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (data[3] + data[4])
             axes.scatter(stimes, util.get_principal_angle(param), c=c, s=1)
-            axes.scatter([], [], c=c, label="Particle {0}".format(ind))
+            if is_planet:
+                axes.scatter([], [], c=c, label="Planet {0}".format(ind))
+            else:
+                axes.scatter([], [], c=c, label="Particle {0}".format(ind))
 
-        do_for(plot_params)
-        axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2] + 1))
+        do_for(plot_params, [2], [])
+        axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2]))
         axes.legend()
 
 plt.show()

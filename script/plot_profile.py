@@ -11,9 +11,13 @@ import matplotlib.style as style
 import numpy as np
 import util
 
+import sys
+
 style.use('ggplot')
 
-with open('prof/particle-prof.csv') as p:
+Dir = sys.argv[1]
+
+with open('{0}/particle-prof.csv'.format(Dir)) as p:
     X = []
     Y = []
     for line in p:
@@ -24,10 +28,12 @@ with open('prof/particle-prof.csv') as p:
         Y.append(time / npa / nstep * 100000 * 10000)
         X.append(npa)
     plt.figure()
+    plt.xlabel('Number of particles')
+    plt.ylabel('s / 100k particles / 10k timesteps')
     plt.yscale('log')
-    #plt.xscale('log')
+    plt.xscale('log')
     plt.scatter(X, Y)
-with open('prof/timeblock-prof.csv') as p:
+with open('{0}/timeblock-prof.csv'.format(Dir)) as p:
     X = []
     Y = []
     for line in p:
@@ -39,10 +45,12 @@ with open('prof/timeblock-prof.csv') as p:
         Y.append(time / npa / nstep * 100000 * 10000)
         X.append(nblock)
     plt.figure()
+    plt.xlabel('Timeblock size')
+    plt.ylabel('s / 100k particles / 10k timesteps')
     plt.yscale('log')
     plt.xscale('log')
     plt.scatter(X, Y)
-with open('prof/planet-prof.csv') as p:
+with open('{0}/planet-prof.csv'.format(Dir)) as p:
     X = []
     Y = []
     for line in p:
@@ -54,6 +62,8 @@ with open('prof/planet-prof.csv') as p:
         Y.append(time / npa / nstep * 100000 * 10000)
         X.append(npl)
     plt.figure()
+    plt.xlabel('Number of planets')
+    plt.ylabel('s / 100k particles / 10k timesteps')
     #plt.yscale('log')
     #plt.xscale('log')
     plt.scatter(X, Y)
