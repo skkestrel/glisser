@@ -16,9 +16,9 @@ WFLAGS = -Wcast-align -Wshadow -Wcast-qual -Wconversion -Wdisabled-optimization 
 -Wstrict-aliasing=2 -Wswitch-default -Wswitch-enum -Wunreachable-code -Wunused \
 -Wunused-parameter -Wvariadic-macros -Wwrite-strings
 
-CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -fsanitize=address -O3 -DNO_CUDA
+CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -O3 -DNO_CUDA # -fsanitize=address
 
-LDFLAGS = -lasan
+LDFLAGS = # -lasan
 
 sr:
 	@mkdir -p $(BIN_DIR)

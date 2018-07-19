@@ -196,7 +196,7 @@ int main(int argc, char** argv)
 
 					if (output_energy)
 					{
-						timelog << std::setprecision(13) << "time " << elapsed << " " << ex.hd.particles.n_alive() << " " << ex.hd.particles.n_encounter() << std::endl;
+						timelog << std::setprecision(13) << "time " << elapsed << " " << ex.t << " " << ex.hd.particles.n_alive() << " " << ex.hd.particles.n_encounter() << std::endl;
 						timelog << "ep " << e_ << std::endl;
 						timelog << "lp " << l_ << std::endl;
 					}
