@@ -255,7 +255,7 @@ int main(int argc, char** argv)
 					ex.add_job([&trackout, &ex, &config]()
 						{
 							sr::data::HostParticleSnapshot snapshot_copy = ex.hd.particles.base;
-							snapshot_copy.sort_by_id(0, snapshot_copy.n);
+							snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
 							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, true);
 						});
 				}

@@ -45,6 +45,15 @@ namespace data
 		sr::data::gather(id, indices, begin, length);
 	}
 
+	void HostParticleSnapshot::resize(size_t length)
+	{
+		r.resize(length);
+		v.resize(length);
+		id.resize(length);
+		n_alive = std::min(length, n_alive);
+		n = length;
+	}
+
 	void HostParticlePhaseSpace::gather(const std::vector<size_t>& indices, size_t begin, size_t length)
 	{
 		base.gather(indices, begin, length);

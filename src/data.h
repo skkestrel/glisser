@@ -34,6 +34,7 @@ namespace data
 		Vu32 id;
 
 		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
+		void resize(size_t length);
 		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
 
 		inline HostParticleSnapshot() { }
