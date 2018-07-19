@@ -149,7 +149,7 @@ namespace util
 			}
 		}
 
-		inline void swap_old()
+		inline void swap_logs()
 		{
 			std::swap(log, old);
 			std::swap(slow, slow_old);

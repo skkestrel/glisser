@@ -63,6 +63,7 @@ namespace exec
 		void add_job(const std::function<void()>& job);
 		void resync();
 		void finish();
+		void swap_logs();
 		void step_and_upload_planets();
 	};
 }

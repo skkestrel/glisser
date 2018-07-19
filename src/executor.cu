@@ -103,10 +103,17 @@ namespace exec
 		step_and_upload_planets();
 	}
 
+	void Executor::swap_logs()
+	{
+		hd.planets.swap_logs();
+		integrator.swap_logs();
+	}
+
 	void Executor::step_and_upload_planets()
 	{
-		hd.planets.swap_old();
 		integrator.integrate_planets_timeblock(hd.planets, t);
+
+		swap_logs();
 
 		// We only upload the planet log if any particles are going to use the planet log on the GPU
 		// Cases where the planet log is not used by the particles:

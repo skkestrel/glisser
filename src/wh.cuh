@@ -30,6 +30,7 @@ namespace wh
 		void integrate_particles_timeblock_cuda(cudaStream_t stream, size_t planet_data_id, const DevicePlanetPhaseSpace& pl, DeviceParticlePhaseSpace& pa) override;
 		void upload_data_cuda(cudaStream_t stream, size_t begin, size_t length) override;
 		void upload_planet_log_cuda(cudaStream_t stream, size_t planet_data_id) override;
+		void swap_logs() override;
 
 		Dvf64_3& device_h0_log(size_t planet_data_id);
 

@@ -54,6 +54,28 @@ namespace wh
 		return true;
 	}
 
+
+	bool kepeq_fixed(double dM, double esinEo, double ecosEo, double* dE, double* sindE, double* cosdE, uint32_t its)
+	{
+		double f, fp, delta = 1;
+
+		*sindE = std::sin( *dE);
+		*cosdE = std::cos( *dE);
+
+		for (uint32_t i = 0; i < its; i++)
+		{
+			f = *dE - ecosEo * (*sindE) + esinEo * (1. - *cosdE) - dM;
+			fp = 1. - ecosEo * (*cosdE) + esinEo * (*sindE);
+			delta = -f / fp;
+
+			*dE += delta;
+			*sindE = std::sin(*dE);
+			*cosdE = std::cos(*dE);
+		}
+
+		return std::fabs(delta) >= TOLKEP;
+	}
+
 	//  Subroutine for solving kepler's equation in difference form for an
 	//  ellipse, given SMALL dm and SMALL eccentricity.  See DRIFT_DAN.F
 	//  for the criteria.
@@ -518,9 +540,9 @@ namespace wh
 		sr::convert::helio_to_jacobi_r_planets(pl, planet_eta, planet_rj);
 		sr::convert::helio_to_jacobi_v_planets(pl, planet_eta, planet_vj);
 
-		std::copy(pl.r().begin() + 1, pl.r().end(), pl.r_log().slow.begin());
+		std::copy(pl.r().begin() + 1, pl.r().end(), pl.r_log().slow_old.begin());
 		helio_acc_planets<true>(pl, 0);
-		helio_acc_particles<false, false>(pl, pa, 0, pa.n_alive(), 0, 0);
+		helio_acc_particles<false, true>(pl, pa, 0, pa.n_alive(), 0, 0);
 
 		// If there are any encounters at the start of the integration,
 		// the CPU will only pick them up after the GPU finishes
@@ -542,12 +564,13 @@ namespace wh
 		}
 	}
 
+	void WHIntegrator::swap_logs()
+	{
+		planet_h0_log.swap_logs();
+	}
+
 	void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t)
 	{
-		planet_h0_log.swap_old();
-
-		pl.n_alive() = pl.n_alive_old();
-
 		if (resolve_encounters)
 		{
 			size_t fast_factor = encounter_n1 * encounter_n2;
@@ -561,13 +584,13 @@ namespace wh
 				{
 					size_t slow_index = i / fast_factor;
 
-					auto fast_begin = pl.r_log().log.begin() + i * (pl.n() - 1);
-					std::copy(fast_begin, fast_begin + (pl.n() - 1), pl.r_log().slow.begin() + slow_index * (pl.n() - 1));
+					auto fast_begin = pl.r_log().old.begin() + i * (pl.n() - 1);
+					std::copy(fast_begin, fast_begin + (pl.n() - 1), pl.r_log().slow_old.begin() + slow_index * (pl.n() - 1));
 
-					fast_begin = pl.v_log().log.begin() + i * (pl.n() - 1);
-					std::copy(fast_begin, fast_begin + (pl.n() - 1), pl.v_log().slow.begin() + slow_index * (pl.n() - 1));
+					fast_begin = pl.v_log().old.begin() + i * (pl.n() - 1);
+					std::copy(fast_begin, fast_begin + (pl.n() - 1), pl.v_log().slow_old.begin() + slow_index * (pl.n() - 1));
 
-					planet_h0_log.slow[i / fast_factor] = planet_h0_log.log[i];
+					planet_h0_log.slow_old[i / fast_factor] = planet_h0_log.old[i];
 				}
 
 				t += dt / static_cast<double>(fast_factor);
@@ -755,7 +778,7 @@ namespace wh
 			planet_a[i] = a_common;
 		}
 
-		planet_h0_log.get<slow, false>()[index] = a_common - p.r()[1] * p.m()[1] * this->planet_inverse_helio_cubed[1];
+		planet_h0_log.get<slow, true>()[index] = a_common - p.r()[1] * p.m()[1] * this->planet_inverse_helio_cubed[1];
 		
 		// Now do indirect acceleration ; note that planet 1 does not receive a contribution 
 		for (size_t i = 2; i < p.n_alive(); i++)    
@@ -908,6 +931,7 @@ namespace wh
 		return false;
 	}
 
+	template<bool fixediterations>
 	void WHIntegrator::drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t n, Vf64& dist, Vf64& energy, Vf64& vdotr, Vf64& mu, Vu8& mask)
 	{
 		for (size_t i = start; i < start + n; i++)
@@ -963,8 +987,18 @@ namespace wh
 				float64_t dE = dM - esinEo + esinEo * std::cos(dM) + ecosEo * std::sin(dM);
 				float64_t sindE, cosdE;
 
-				uint32_t its;
-				if (kepeq(dM, esinEo, ecosEo, &dE, &sindE, &cosdE, &its))
+				bool error;
+				if (fixediterations)
+				{
+					error = kepeq_fixed(dM, esinEo, ecosEo, &dE, &sindE, &cosdE, 5);
+				}
+				else
+				{
+					uint32_t its;
+					error = kepeq(dM, esinEo, ecosEo, &dE, &sindE, &cosdE, &its);
+				}
+
+				if (error)
 				{
 					throw std::runtime_error("Unconverging kepler");
 				}
@@ -990,17 +1024,11 @@ namespace wh
 			if (!this->particle_mask[i])
 			{
 				pa.v()[i] += this->particle_a[i] * (dt / 2);
-
-				/*
-				std::cerr << pa.id()[0] << " " << t << " " << pa.r()[0] << " " << pa.v()[0] << " " << std::endl;
-				std::cerr << "pl. " << t << " " << pl.r_log().slow()[pl.log_index_at<false>(timestep_index, 1)] << std::endl;
-				print_tiss(pl, pa);
-				*/
 			}
 		}
 
 		// Drift all the particles along their Jacobi Kepler ellipses
-		drift(dt, pa.r(), pa.v(), begin, length, particle_dist, particle_energy, particle_vdotr, particle_mu, particle_mask);
+		drift<true>(dt, pa.r(), pa.v(), begin, length, particle_dist, particle_energy, particle_vdotr, particle_mu, particle_mask);
 
 		// find the accelerations of the heliocentric velocities
 		helio_acc_particles<false, false>(pl, pa, begin, length, t, timestep_index);
@@ -1041,16 +1069,16 @@ namespace wh
 				double little_dt = dt / static_cast<double>(tfactor);
 				pa.v()[particle_index] += particle_a[particle_index] * (little_dt / 2);
 
-				f64_3 r_log()ged = pl.r_log().get<false, old>()[pl.log_index_at<old>(timestep_index, planet_index)];
-				f64_3 v_log()ged = pl.v_log().get<false, old>()[pl.log_index_at<old>(timestep_index, planet_index)];
+				f64_3 r_logged = pl.r_log().get<false, old>()[pl.log_index_at<old>(timestep_index, planet_index)];
+				f64_3 v_logged = pl.v_log().get<false, old>()[pl.log_index_at<old>(timestep_index, planet_index)];
 
-				f64_3 rel_r = pa.r()[particle_index] - r_log()ged;
-				f64_3 rel_v = pa.v()[particle_index] - v_log()ged;
+				f64_3 rel_r = pa.r()[particle_index] - r_logged;
+				f64_3 rel_v = pa.v()[particle_index] - v_logged;
 
 				// Drift all the particles along their Jacobi Kepler ellipses
 				drift_single(little_dt, pl.m()[planet_index], &rel_r, &rel_v);
-				pa.r()[particle_index] = rel_r + r_log()ged;
-				pa.v()[particle_index] = rel_v + v_log()ged;
+				pa.r()[particle_index] = rel_r + r_logged;
+				pa.v()[particle_index] = rel_v + v_logged;
 
 				// find the accelerations of the heliocentric velocities
 				nonhelio_acc_encounter_particle<old>(pl, pa, particle_index, t, timestep_index, planet_index);
@@ -1204,7 +1232,7 @@ namespace wh
 		}
 
 		// Drift all the particles along their Jacobi Kepler ellipses
-		drift(new_dt, this->planet_rj, this->planet_vj, 1, pl.n_alive() - 1, planet_dist, planet_energy, planet_vdotr, planet_mu, planet_mask);
+		drift<false>(new_dt, this->planet_rj, this->planet_vj, 1, pl.n_alive() - 1, planet_dist, planet_energy, planet_vdotr, planet_mu, planet_mask);
 
 		// convert Jacobi vectors to helio. ones for acceleration calc 
 		sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
@@ -1219,12 +1247,12 @@ namespace wh
 			helio_acc_planets<true>(pl, timestep_index);
 		}
 
-		Vf64_3* r_log = &pl.r_log().slow;
-		Vf64_3* v_log = &pl.v_log().slow;
+		Vf64_3* r_log = &pl.r_log().slow_old;
+		Vf64_3* v_log = &pl.v_log().slow_old;
 		if (resolve_encounters)
 		{
-			r_log = &pl.r_log().log;
-			v_log = &pl.v_log().log;
+			r_log = &pl.r_log().old;
+			v_log = &pl.v_log().old;
 		}
 
 		std::copy(pl.r().begin() + 1, pl.r().end(), r_log->begin() + (pl.n_alive() - 1) * timestep_index);

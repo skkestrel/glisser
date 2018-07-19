@@ -42,11 +42,17 @@ namespace exec
 		}
 
 		step_planets();
+		swap_logs();
+	}
+
+	void CPUExecutor::swap_logs()
+	{
+		hd.planets.swap_logs();
+		integrator.swap_logs();
 	}
 
 	void CPUExecutor::step_planets()
 	{
-		hd.planets.swap_old();
 		integrator.integrate_planets_timeblock(hd.planets, t);
 	}
 
@@ -64,10 +70,23 @@ namespace exec
 
 	void CPUExecutor::loop(double* cputimeout)
 	{
-		std::thread cpu_thread;
-		
-		integrator.integrate_particles_timeblock(hd.planets, hd.particles, 0, hd.particles.n_alive() - hd.particles.n_encounter(), t);
-		// cpu_thread = std::thread([this]() { integrator.integrate_particles_timeblock(hd.planets, hd.particles, 0, hd.particles.n_alive() - hd.particles.n_encounter(), t); });
+		std::vector<std::thread> threads;
+		for (size_t i = 0; i < config.num_thread; i++)
+		{
+			threads.push_back(std::thread([i, this]()
+				{
+					size_t total = hd.particles.n_alive() - hd.particles.n_encounter();
+					integrator.integrate_particles_timeblock(
+							hd.planets,
+							hd.particles,
+							total * i / config.num_thread,
+							// The length is not exactly total / config.num_thread due to roundoff
+							total * (i + 1) / config.num_thread - total * i / config.num_thread,
+							t);
+				}));
+		}
+
+		// integrator.integrate_particles_timeblock(hd.planets, hd.particles, 0, hd.particles.n_alive() - hd.particles.n_encounter(), t);
 
 		// The queued work should begin RIGHT after the CUDA call
 		for (auto& i : work) i();
@@ -86,16 +105,18 @@ namespace exec
 		auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter());
 		integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter());
 
-		// The snapshot contains the planet states at the end of the previous timestep - 
-		// consider removing this? We can use hd.planets.*_log_old[-1] to replicate this functionality
-
 		// Copy ctor
 		hd.planets_snapshot = hd.planets.base;
 
 		t += config.dt * static_cast<double>(config.tbsize);
-		step_planets();
 
-		// cpu_thread.join();
+		step_planets();
+		for (auto& i : threads)
+		{
+			i.join();
+		}
+		swap_logs();
+
 		resync();
 
 #pragma GCC warning "TODO"

@@ -195,7 +195,7 @@ namespace wh
 
 	void WHCudaIntegrator::upload_planet_log_cuda(cudaStream_t stream, size_t planet_data_id)
 	{
-		memcpy_htd(device_h0_log(planet_data_id), base.planet_h0_log.get<true, false>(), stream);
+		memcpy_htd(device_h0_log(planet_data_id), base.planet_h0_log.slow, stream);
 		cudaStreamSynchronize(stream);
 	}
 
@@ -217,6 +217,11 @@ namespace wh
 	void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t)
 	{
 		base.integrate_encounter_particle_catchup(pl, pa, particle_index, particle_deathtime_index, t);
+	}
+
+	void WHCudaIntegrator::swap_logs()
+	{
+		base.swap_logs();
 	}
 
 	void WHCudaIntegrator::upload_data_cuda(cudaStream_t stream, size_t begin, size_t length)

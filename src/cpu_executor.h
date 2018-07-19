@@ -37,6 +37,7 @@ namespace exec
 
 		void resync();
 		void finish();
+		void swap_logs();
 		void step_planets();
 	};
 }

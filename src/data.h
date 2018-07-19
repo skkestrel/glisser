@@ -151,12 +151,12 @@ namespace data
 			_v_log = sr::util::LogQuartet<Vf64_3>(((n() - 1) * tb_size), ce_factor);
 		}
 
-		inline void swap_old()
+		inline void swap_logs()
 		{
 			std::swap(n_alive(), n_alive_old());
 
-			r_log().swap_old();
-			v_log().swap_old();
+			r_log().swap_logs();
+			v_log().swap_logs();
 		}
 
 		template<bool old>
@@ -184,6 +184,7 @@ namespace data
 	struct Configuration
 	{
 		double t_0, t_f, dt, big_g;
+		uint32_t num_thread;
 		uint32_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
 		double wh_ce_r1, wh_ce_r2;
 		uint32_t wh_ce_n1, wh_ce_n2;

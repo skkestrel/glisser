@@ -12,6 +12,8 @@ namespace wh
 	using namespace sr::data;
 
 	bool kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE, uint32_t* iterations);
+	bool kepeq_fixed(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE, uint32_t iterations);
+
 	void kepmd(double dm, double es, double ec, double* x, double* s, double* c);
 	bool kepu(double dt, double r0, double mu, double alpha, double u, double* fp, double* c1, double* c2, double* c3);
 
@@ -53,6 +55,8 @@ namespace wh
 		WHIntegrator();
 		WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
 
+		void swap_logs() override;
+
 		void integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t) override;
 		void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t) override;
 		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length) override;
@@ -67,8 +71,8 @@ namespace wh
 
 		template<bool danby>
 		static bool drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v);
-
 		static bool drift_single_hp(float64_t t, float64_t mu, f64_3* r, f64_3* v);
+		template<bool fixedit>
 		static void drift(float64_t t, Vf64_3& r, Vf64_3& v, size_t start, size_t n, Vf64& dist, Vf64& energy, Vf64& vdotr, Vf64& mu, Vu8& mask);
 
 		template<bool old>

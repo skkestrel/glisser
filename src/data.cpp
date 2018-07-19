@@ -100,6 +100,7 @@ namespace data
 
 	Configuration::Configuration()
 	{
+		num_thread = 4;
 		t_0 = 0;
 		t_f = 365e4;
 		dt = 122;
@@ -185,6 +186,8 @@ namespace data
 					out->wh_ce_r2 = std::stod(second);
 				else if (first == "Enable-GPU")
 					out->use_gpu = std::stoi(second) != 0;
+				else if (first == "CPU-Thread-Count")
+					out->num_thread = std::stou(second);
 				else if (first == "Limit-Particle-Count")
 					out->max_particle = std::stou(second);
 				else if (first == "Log-Interval")
@@ -277,6 +280,7 @@ namespace data
 		outstream << "WH-Encounter-R1 " << out.wh_ce_r1 << std::endl;
 		outstream << "WH-Encounter-R2 " << out.wh_ce_r2 << std::endl;
 		outstream << "Enable-GPU " << out.use_gpu << std::endl;
+		outstream << "CPU-Thread-Count" << out.num_thread << std::endl;
 		outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 		outstream << "Log-Interval " << out.print_every << std::endl;
 		outstream << "Status-Interval " << out.energy_every << std::endl;
