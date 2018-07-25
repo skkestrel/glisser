@@ -679,17 +679,21 @@ namespace wh
 	template<bool encounter, bool old>
 	uint8_t WHIntegrator::helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index)
 	{
-		particle_a[particle_index] = planet_h0_log.get<!encounter, old>()[timestep_index];
+		f64_3& a = particle_a[particle_index];
+		a = planet_h0_log.get<!encounter, old>()[timestep_index];
 		uint8_t max_encounter = 0;
 
 		for (size_t j = 1; j < pl.n_alive(); j++)
 		{
 			f64_3 dr = pa.r()[particle_index] - pl.r_log().get<!encounter, old>()[pl.log_index_at<old>(timestep_index, j)];
-			float64_t planet_rji2 = dr.lensq();
+			float64_t planet_rji2 = std::fma(dr.x, dr.x, std::fma(dr.y, dr.y, dr.z * dr.z));
+
 			float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 			float64_t fac = pl.m()[j] * irij3;
 
-			particle_a[particle_index] -= dr * fac;
+			a.x = std::fma(-dr.x, fac, a.x);
+			a.y = std::fma(-dr.y, fac, a.y);
+			a.z = std::fma(-dr.z, fac, a.z);
 
 			uint8_t detection = WHIntegrator::detect_encounter(planet_rji2, planet_rh[j], encounter_r1, encounter_r2);
 			if (detection > max_encounter) max_encounter = detection;

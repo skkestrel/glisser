@@ -116,7 +116,7 @@ int main(int argc, char** argv)
 		if (s != "Yes") return -1;
 	}
 
-	sr::util::make_dir(sr::util::joinpath(config.outfolder, "dump"));
+	sr::util::make_dir(sr::util::joinpath(config.outfolder, "dumps"));
 	sr::util::make_dir(sr::util::joinpath(config.outfolder, "tracks"));
 
 	std::ofstream coutlog(sr::util::joinpath(config.outfolder, "stdout"));
