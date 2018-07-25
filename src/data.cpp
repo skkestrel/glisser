@@ -94,7 +94,7 @@ namespace data
 		std::sort(new_indices->begin(), new_indices->end(), [begin, this](size_t a, size_t b)
 				{ return id[a + begin] < id[b + begin]; });
 
-		this->gather(*new_indices, 0, n);
+		this->gather(*new_indices, 0, length);
 
 		return new_indices;
 	}
@@ -103,7 +103,7 @@ namespace data
 	{
 		auto indices = base.sort_by_id(begin, length);
 
-		this->gather(*indices, 0, n());
+		this->gather(*indices, 0, length);
 		return indices;
 	}
 

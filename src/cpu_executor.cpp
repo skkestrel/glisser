@@ -70,6 +70,9 @@ namespace exec
 
 	void CPUExecutor::loop(double* cputimeout)
 	{
+		for (auto& i : work) i();
+		work.clear();
+
 		std::vector<std::thread> threads;
 		for (size_t i = 0; i < config.num_thread; i++)
 		{
@@ -85,12 +88,6 @@ namespace exec
 							t);
 				}));
 		}
-
-		// integrator.integrate_particles_timeblock(hd.planets, hd.particles, 0, hd.particles.n_alive() - hd.particles.n_encounter(), t);
-
-		// The queued work should begin RIGHT after the CUDA call
-		for (auto& i : work) i();
-		work.clear();
 
 		size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
 		for (size_t i = encounter_start; i < hd.particles.n_alive(); i++)
