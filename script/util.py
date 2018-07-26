@@ -3,24 +3,24 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
-def nologHist(x, y, n=150):
+def nologHist(x, y, ny=150, nx=150):
     diff = y.max() - y.min()
     y_edges = [y.min()]
-    for i in range(1, n+1):
-        y_edges.append(y.min() + i * diff / n)
+    for i in range(1, ny+1):
+        y_edges.append(y.min() + i * diff / ny)
 
-    H, xedges, yedges = np.histogram2d(x, y, bins=[n, y_edges])
+    H, xedges, yedges = np.histogram2d(x, y, bins=[nx, y_edges])
     X, Y = np.meshgrid(xedges, yedges)
     a = plt.pcolormesh(X, Y, np.ma.masked_array(H.T, H.T == 0), norm=matplotlib.colors.LogNorm())
     plt.colorbar()
     
-def logHist(x, y, ymin, n=150):
+def logHist(x, y, ymin, ny=150, nx=150):
     diff = np.log(y.max()) - np.log(ymin)
     y_edges = [ymin]
-    for i in range(1, n+1):
-        y_edges.append(np.exp(np.log(ymin) + i * diff / n))
+    for i in range(1, ny+1):
+        y_edges.append(np.exp(np.log(ymin) + i * diff / ny))
 
-    H, xedges, yedges = np.histogram2d(x, y, bins=[n, y_edges])
+    H, xedges, yedges = np.histogram2d(x, y, bins=[nx, y_edges])
     X, Y = np.meshgrid(xedges, yedges)
     a = plt.pcolormesh(X, Y, np.ma.masked_array(H.T, H.T == 0), norm=matplotlib.colors.LogNorm())
     plt.colorbar()

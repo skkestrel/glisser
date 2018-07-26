@@ -12,8 +12,9 @@ Options:
     -s <n>, --skip <n>             Take every n time steps [default: 1]
     -t <t>, --tmax <t>             Take only up to given time
     --plot-angles                  ..
-    --plot-mmr-params <mmr>        <mmr> = "3:4@3" for neptune, for example
+    --plot-mmr-angle <mmr>        <mmr> = "3:4@3" for neptune, for example
     --plot-aei                     ..
+    --plot-ae                      ..
     --plot-ftrect                  ..
     --plot-qQ                      ..
     --plot-qQ-mmr                  ..
@@ -87,6 +88,8 @@ skip_planets = args["--no-planets"]
 if skip_planets:
     planets = []
 
+planet_id_to_index = {}
+
 filenum = 0
 counter = 0
 while True:
@@ -117,7 +120,9 @@ while True:
 
                 if (counter % take_every) == 0 and not skip_planets and (not info or counter == 0):
                     for i in range(npl):
-                        a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))[1:]
+                        pid, a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))
+
+                        planet_id_to_index[pid] = i
 
                         planets[6*i].append(a)
                         planets[6*i+1].append(e)
@@ -226,9 +231,9 @@ if skip_planets:
 def do_for(callback, pllist=None, palist=None):
     for i in (pllist if pllist is not None else range(1, npl + 1)):
         c = cc[(i - 1) % len(cc)]
-        callback(planets[6*(i-1):6*i], c, i, True)
+        callback(planets[6*(i-1):6*i], c, planet_id_to_index[i], True)
     for i in (palist if palist is not None else range(len((particlewatch)))):
-        c = cc[(i+npl) % len(cc)]
+        c = cc[(i + (len(pllist) if pllist is not None else npl)) % len(cc)]
         callback(particles[6*i:6*i+6], c, particlewatch[i], False)
 
 if args["--plot-qQ"]:
@@ -329,6 +334,21 @@ if args["--plot-aei"]:
     axes[2].set_xlabel(timelabel)
     axes[0].legend()
 
+if args["--plot-ae"]:
+    fig, axes = plt.subplots(1, 1)
+
+    def plot_ae(data, c, ind, is_planet):
+        axes.scatter(data[0], data[1], c=c, s=1)
+        if is_planet:
+            axes.plot([], [], c=c, label="Planet {0}".format(ind))
+        else:
+            axes.plot([], [], c=c, label="Particle {0}".format(ind))
+
+    do_for(plot_ae)
+    axes.set_xlabel("a (AU)")
+    axes.set_xlabel("e")
+    axes.legend()
+
 if args["--plot-e-smooth"]:
     def moving_average(a, n=3):
         ret = np.cumsum(a, dtype=float)
@@ -352,7 +372,6 @@ def get_M(data):
     E = np.arccos((data[1] + np.cos(data[5])) / (1 + data[1] * np.cos(data[5])))
     E = E * np.sign(data[5])
     M = E - data[1] * np.sin(E)
-    M = M * np.sign(data[5])
     return M
 
 if args["--plot-angles"]:
@@ -388,9 +407,9 @@ if args["--plot-angles"]:
     axes[2].set_xlabel(timelabel)
     axes[0].legend()
 
-if args["--plot-mmr-params"]:
+if args["--plot-mmr-angle"]:
     mmrs = []
-    for s in args["--plot-mmr-params"].split(','):
+    for s in args["--plot-mmr-angle"].split(','):
         split1 = s.split(':')
         split2 = split1[1].split('@')
         mmrs.append((int(split1[0]), int(split2[0]), int(split2[1])))
@@ -398,22 +417,21 @@ if args["--plot-mmr-params"]:
     for mmr in mmrs:
         fig, axes = plt.subplots(1, 1)
 
-        def plot_params(data, c, ind, is_planet):
+        def plot_angle(data, c, ind, is_planet):
             M = get_M(data)
-            data_pl = planets[6 * (mmr[2] - 1) : 6 * mmr[2]]
+            pid = planet_id_to_index[mmr[2]]
+
+            data_pl = planets[6 * pid : 6 * pid + 6]
             Mpl = get_M(data_pl)
 
-            print(data[5][:10])
-            print(M[:10])
-
-            param = mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (data[3] + data[4])
+            param = mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (mmr[1] - mmr[0]) * (data[3] + data[4])
             axes.scatter(stimes, util.get_principal_angle(param), c=c, s=1)
             if is_planet:
                 axes.scatter([], [], c=c, label="Planet {0}".format(ind))
             else:
                 axes.scatter([], [], c=c, label="Particle {0}".format(ind))
 
-        do_for(plot_params, [2], [])
+        do_for(plot_angle, [])
         axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2]))
         axes.legend()
 
