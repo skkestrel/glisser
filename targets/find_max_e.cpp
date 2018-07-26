@@ -14,6 +14,7 @@ Usage:
 
 Options:
     -h, --help           Show this screen.
+    -t <t>, --time <t>   Set the max time
 )";
 
 struct ParticleInfo
@@ -31,13 +32,22 @@ int main(int argc, char** argv)
 		std::string inpath = args["<input>"].asString();
 		std::string outpath = args["<output>"].asString();
 
-		std::ofstream outfile(outpath);
-
 		std::unordered_map<uint32_t, ParticleInfo> map;
-		sr::data::read_tracks(inpath, true, std::vector<uint32_t>(), true,
+
+		sr::data::TrackReaderOptions opt;
+		opt.remove_planets = true;
+		opt.take_all_particles = true;
+
+		if (args["--time"])
+		{
+			opt.max_time = std::stod(args["--time"].asString());
+		}
+
+		sr::data::read_tracks(inpath, opt,
 			[&](sr::data::HostPlanetSnapshot& pl, sr::data::HostParticleSnapshot& pa, double time)
 			{
 				(void) pl;
+
 				for (size_t i = 0; i < pa.n; i++)
 				{
 					if (map.count(pa.id[i]) == 0 || pa.r[i].y > map[pa.id[i]].emax)
@@ -48,6 +58,7 @@ int main(int argc, char** argv)
 				}
 			});
 
+		std::ofstream outfile(outpath);
 		outfile << "id,emax,emax_t" << std::endl;
 		for (auto& pair : map)
 		{

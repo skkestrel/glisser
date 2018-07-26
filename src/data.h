@@ -37,7 +37,7 @@ namespace data
 		void resize(size_t length);
 		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
 
-		inline HostParticleSnapshot() { }
+		inline HostParticleSnapshot() : n(0), n_alive(0) { }
 		inline HostParticleSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_) { }
 	};
 
@@ -49,7 +49,7 @@ namespace data
 		Vu32 id;
 		Vf64 m;
 
-		inline HostPlanetSnapshot() { }
+		inline HostPlanetSnapshot() : n(0), n_alive(0) { }
 		inline HostPlanetSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_), m(n_) { }
 	};
 
@@ -394,11 +394,66 @@ namespace data
 	void write_configuration(std::ostream& in, const Configuration& config);
 
 	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements);
+
+	struct TrackReader
+	{
+		enum class State
+		{
+			Start,
+			PlanetsBegin,
+			PlanetsEnd,
+			ParticlesBegin,
+			ParticlesEnd,
+			Finish
+		};
+
+		std::istream& input;
+
+		inline TrackReader(std::istream& _input) : input(_input), state(State::Start) { }
+
+		State state;
+
+		double time;
+		HostPlanetSnapshot planets;
+		HostParticleSnapshot particles;
+
+		size_t n_planets;
+		size_t n_particles;
+
+		void read_time();
+
+		void begin_planets();
+		void read_planets();
+		void end_planets();
+
+		void begin_particles();
+		void read_particles();
+		bool read_particle(uint32_t id);
+		void end_particles();
+
+		void check_state(const State& expected);
+
+		static size_t bsearch_track(std::istream& f, size_t npa, uint32_t partnum, size_t stride);
+	};
+
+	struct TrackReaderOptions
+	{
+		bool take_all_particles;
+		std::vector<uint32_t> particle_filter;
+		bool remove_planets;
+		double max_time;
+
+		TrackReaderOptions() : take_all_particles(false), remove_planets(true), max_time(std::numeric_limits<double>::infinity()) { }
+	};
+
 	void load_binary_track(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time, bool skipplanets, bool skipparticles);
-	void process_track(std::istream& input, bool takeallparticles, const std::vector<uint32_t>& particle_filter, bool removeplanets,
+
+	void process_track(std::istream& input,
+		TrackReaderOptions& options,
 		const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback);
 
-	void read_tracks(const std::string& path, bool takeallparticles, const std::vector<uint32_t>& particle_filter, bool removeplanets,
+	void read_tracks(const std::string& path,
+		const TrackReaderOptions& options,
 		const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback);
 
 	const size_t TRACK_PARTICLE_STRIDE = 28;

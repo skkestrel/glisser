@@ -624,7 +624,15 @@ namespace data
 	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements)
 	{
 		sr::data::write_binary(trackout, static_cast<double>(time));
-		sr::data::write_binary(trackout, static_cast<uint64_t>(pl.n_alive - 1));
+
+		if (pl.n_alive > 0)
+		{
+			sr::data::write_binary(trackout, static_cast<uint64_t>(pl.n_alive - 1));
+		}
+		else
+		{
+			sr::data::write_binary(trackout, static_cast<uint64_t>(0));
+		}
 
 		for (uint32_t i = 1; i < pl.n_alive; i++)
 		{
@@ -686,82 +694,159 @@ namespace data
 		trackout.flush();
 	}
 
-	void load_binary_track(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time, bool skipplanets, bool skipparticles)
+	void TrackReader::check_state(const State& expected)
 	{
-		sr::data::read_binary<double>(trackin, time);
-
-		uint64_t templl;
-		sr::data::read_binary<uint64_t>(trackin, templl);
-
-		if (!trackin) return;
-
-		if (skipplanets)
+		if (state != expected)
 		{
-			pl.n = static_cast<size_t>(templl);
-			pl.n_alive = static_cast<size_t>(templl);
-
-			trackin.seekg(TRACK_PLANET_STRIDE * pl.n, std::ios_base::cur);
-		}
-		else
-		{
-			pl = HostPlanetSnapshot(static_cast<size_t>(templl + 1));
-			
-			for (uint32_t i = 1; i < pl.n_alive; i++)
-			{
-				sr::data::read_binary<uint32_t>(trackin, pl.id[i]);
-
-				float tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pl.r[i].x = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pl.r[i].y = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pl.r[i].z = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pl.v[i].x = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pl.v[i].y = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pl.v[i].z = tempfloat;
-			}
-		}
-
-		sr::data::read_binary(trackin, templl);
-		if (!trackin) return;
-
-		if (skipparticles)
-		{
-			pa.n = static_cast<size_t>(templl);
-			pa.n_alive = static_cast<size_t>(templl);
-
-			trackin.seekg(TRACK_PARTICLE_STRIDE * pa.n, std::ios_base::cur);
-		}
-		else
-		{
-			pa = HostParticleSnapshot(static_cast<size_t>(templl));
-
-			for (uint32_t i = 0; i < pa.n_alive; i++)
-			{
-				sr::data::read_binary<uint32_t>(trackin, pa.id[i]);
-
-				float tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pa.r[i].x = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pa.r[i].y = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pa.r[i].z = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pa.v[i].x = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pa.v[i].y = tempfloat;
-				sr::data::read_binary<float>(trackin, tempfloat);
-				pa.v[i].z = tempfloat;
-			}
+			throw std::runtime_error("invalid reader state");
 		}
 	}
 
-	size_t bsearch_track(std::istream& f, size_t npa, uint32_t partnum, size_t stride)
+	void TrackReader::read_time()
+	{
+		check_state(State::Start);
+
+		sr::data::read_binary<double>(input, time);
+		state = State::PlanetsBegin;
+	}
+
+	void TrackReader::begin_planets()
+	{
+		check_state(State::PlanetsBegin);
+
+		planets = HostPlanetSnapshot();
+
+		uint64_t templl;
+		sr::data::read_binary<uint64_t>(input, templl);
+
+		// sun doesn't have an entry in the track so add its empty slot
+		templl++;
+
+		n_planets = static_cast<size_t>(templl);
+		state = State::PlanetsEnd;
+	}
+
+	void TrackReader::read_planets()
+	{
+		check_state(State::PlanetsEnd);
+		std::streampos pos = input.tellg();
+
+		planets = HostPlanetSnapshot(static_cast<size_t>(n_planets));
+
+		for (uint32_t i = 1; i < n_planets; i++)
+		{
+			sr::data::read_binary<uint32_t>(input, planets.id[i]);
+
+			float tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			planets.r[i].x = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			planets.r[i].y = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			planets.r[i].z = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			planets.v[i].x = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			planets.v[i].y = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			planets.v[i].z = tempfloat;
+		}
+
+		input.seekg(pos);
+	}
+
+	void TrackReader::end_planets()
+	{
+		check_state(State::PlanetsEnd);
+
+		input.seekg(TRACK_PLANET_STRIDE * (n_planets - 1), std::ios_base::cur);
+		state = State::ParticlesBegin;
+	}
+
+	void TrackReader::begin_particles()
+	{
+		check_state(State::ParticlesBegin);
+
+		particles = HostParticleSnapshot();
+
+		uint64_t templl;
+		sr::data::read_binary<uint64_t>(input, templl);
+
+		n_particles = static_cast<size_t>(templl);
+		state = State::ParticlesEnd;
+	}
+
+	void TrackReader::read_particles()
+	{
+		check_state(State::ParticlesEnd);
+
+		particles = HostParticleSnapshot(n_particles);
+		std::streampos position = input.tellg();
+
+		for (uint32_t i = 0; i < n_particles; i++)
+		{
+			sr::data::read_binary<uint32_t>(input, particles.id[i]);
+
+			float tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			particles.r[i].x = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			particles.r[i].y = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			particles.r[i].z = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			particles.v[i].x = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			particles.v[i].y = tempfloat;
+			sr::data::read_binary<float>(input, tempfloat);
+			particles.v[i].z = tempfloat;
+		}
+
+		input.seekg(position);
+	}
+
+	bool TrackReader::read_particle(uint32_t id)
+	{
+		check_state(State::ParticlesEnd);
+
+		std::streampos position = input.tellg();
+
+		size_t result = bsearch_track(input, n_particles, id, TRACK_PARTICLE_STRIDE);
+
+		if (result)
+		{
+			size_t newsize = particles.n + 1;
+			particles.n = newsize;
+			particles.n_alive = newsize;
+
+			particles.r.resize(newsize);
+			particles.v.resize(newsize);
+			particles.id.resize(newsize);
+
+			particles.r[newsize - 1].x = sr::data::read_binary<float>(input);
+			particles.r[newsize - 1].y = sr::data::read_binary<float>(input);
+			particles.r[newsize - 1].z = sr::data::read_binary<float>(input);
+			particles.v[newsize - 1].x = sr::data::read_binary<float>(input);
+			particles.v[newsize - 1].y = sr::data::read_binary<float>(input);
+			particles.v[newsize - 1].z = sr::data::read_binary<float>(input);
+
+			particles.id[newsize - 1] = id;
+		}
+
+		input.seekg(position);
+
+		return result > 0;
+	}
+
+	void TrackReader::end_particles()
+	{
+		check_state(State::ParticlesEnd);
+		input.seekg(TRACK_PARTICLE_STRIDE * n_particles, std::ios_base::cur);
+
+		state = State::Finish;
+	}
+
+	size_t TrackReader::bsearch_track(std::istream& f, size_t npa, uint32_t partnum, size_t stride)
 	{
 		int64_t base = f.tellg();
 		int64_t left = 0;
@@ -793,55 +878,62 @@ namespace data
 		return 0;
 	}
 
-	void process_track(std::istream& input, bool takeallparticles, const std::vector<uint32_t>& particles, bool killplanets, const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback)
+	void process_track(std::istream& input,
+		const TrackReaderOptions& options,
+		const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback)
 	{
 		while (true)
 		{
-			double time;
-			HostParticleSnapshot paout;
-			HostPlanetSnapshot pl;
+			TrackReader reader(input);
+			bool skip = false;
 
-			load_binary_track(input, pl, paout, time, killplanets, !takeallparticles);
+			reader.read_time();
+			if (!input) break;
+
+			if (reader.time > options.max_time)
+			{
+				skip = true;
+			}
+
+			reader.begin_planets();
+			if (!input) break;
+
+			if (!skip && !options.remove_planets)
+			{
+				reader.read_planets();
+			}
+			reader.end_planets();
+
+			reader.begin_particles();
+			if (!input) break;
+
+			if (!skip)
+			{
+				if (options.take_all_particles)
+				{
+					reader.read_particles();
+				}
+				else
+				{
+					for (uint32_t id : options.particle_filter)
+					{
+						reader.read_particle(id);
+					}
+				}
+			}
+			reader.end_particles();
 
 			if (!input) break;
 
-			if (!takeallparticles)
+			if (!skip)
 			{
-				input.seekg(-TRACK_PARTICLE_STRIDE * paout.n, std::ios_base::cur);
-
-				for (size_t j = 0; j < particles.size(); j++)
-				{
-					int64_t position = input.tellg();
-					size_t result = bsearch_track(input, paout.n, particles[j], TRACK_PARTICLE_STRIDE);
-
-					if (result)
-					{
-						paout.r.resize(paout.r.size() + 1);
-						paout.v.resize(paout.v.size() + 1);
-						paout.id.resize(paout.id.size() + 1);
-
-						paout.r[paout.r.size() - 1].x = sr::data::read_binary<float>(input);
-						paout.r[paout.r.size() - 1].y = sr::data::read_binary<float>(input);
-						paout.r[paout.r.size() - 1].z = sr::data::read_binary<float>(input);
-						paout.v[paout.r.size() - 1].x = sr::data::read_binary<float>(input);
-						paout.v[paout.r.size() - 1].y = sr::data::read_binary<float>(input);
-						paout.v[paout.r.size() - 1].z = sr::data::read_binary<float>(input);
-
-						paout.id[paout.id.size() - 1] = particles[j];
-					}
-
-					input.seekg(position);
-				}
-
-				input.seekg(TRACK_PARTICLE_STRIDE * paout.n, std::ios_base::cur);
-				paout.n_alive = paout.n = paout.r.size();
+				callback(reader.planets, reader.particles, reader.time);
 			}
-
-			callback(pl, paout, time);
 		}
 	}
 
-	void read_tracks(const std::string& path, bool takeallparticles, const std::vector<uint32_t>& particle_filter, bool removeplanets,
+	void read_tracks(const std::string& path,
+		const TrackReaderOptions& options,
 		const std::function<void(HostPlanetSnapshot&, HostParticleSnapshot&, double)>& callback)
 	{
 		sr::util::PathType pathtype = sr::util::get_path_type(path);
@@ -872,14 +964,14 @@ namespace data
 
 				std::ifstream input(ss.str(), std::ios_base::binary);
 
-				process_track(input, takeallparticles, particle_filter, removeplanets, callback);
+				process_track(input, options, callback);
 			}
 		}
 		else if (pathtype == sr::util::PathType::File)
 		{
 			std::ifstream input(path, std::ios_base::binary);
 
-			process_track(input, takeallparticles, particle_filter, removeplanets, callback);
+			process_track(input, options, callback);
 		}
 		else
 		{

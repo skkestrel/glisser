@@ -97,15 +97,16 @@ int main(int argc, char** argv)
 		size_t outnum = 1;
 		std::ofstream outfile(ss.str(), std::ios_base::binary);
 
-		sr::data::read_tracks(inpath, takeallparticles, particles, killplanets,
+		sr::data::TrackReaderOptions opt;
+		opt.take_all_particles = takeallparticles;
+		opt.particle_filter = std::move(particles);
+		opt.remove_planets = killplanets;
+
+		sr::data::read_tracks(inpath, opt,
 			[&](sr::data::HostPlanetSnapshot& pl, sr::data::HostParticleSnapshot& pa, double time)
 			{
-				if (killplanets)
-				{
-					pl.n_alive = pl.n = 1;
-				}
-
 				sr::data::save_binary_track(outfile, pl, pa, time, false);
+
 				if (splitbytes != 0 && outfile.tellp() > static_cast<int>(splitbytes))
 				{
 					ss = std::ostringstream();
