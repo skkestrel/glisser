@@ -28,8 +28,8 @@ int main(int argc, char** argv)
 
 	try
 	{
-		std::string inpath = args["i"].asString();
-		std::string outpath = args["o"].asString();
+		std::string inpath = args["<input>"].asString();
+		std::string outpath = args["<output>"].asString();
 
 		std::ofstream outfile(outpath);
 
