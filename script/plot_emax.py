@@ -88,21 +88,21 @@ def f():
             plt.axvline(x=a)
             plt.text(a, 0, "{0}:{1}".format(deg0, deg1))
 
-    f2(2, 1)
-    f2(3, 2)
-    f2(4, 3)
-    f2(5, 4)
-
-    f2(1, 2)
-    f2(2, 3)
-    f2(3, 4)
-    f2(4, 5)
-
-    f2(3, 5)
-    f2(5, 3)
-
-    f2(2, 5)
-    f2(5, 2)
+    for i in range(1, 10):
+        f2(i, i+1)
+        f2(i+1, i)
+    for i in range(1, 10):
+        if i % 2 == 0: continue
+        f2(i, i+2)
+        f2(i+2, i)
+    for i in range(1, 10):
+        if i % 3 == 0: continue
+        f2(i, i+3)
+        f2(i+3, i)
+    for i in range(1, 10):
+        if i % 2 == 0: continue
+        f2(i, i+4)
+        f2(i+4, i)
 
 util.nologHist(initial[:, 0], emax[initial[:, 7].astype(np.int32)], 150, 300)
 plt.xlabel("a_i (AU)")
