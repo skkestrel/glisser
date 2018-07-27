@@ -5,20 +5,21 @@ Usage:
     plot_history.py --info <path>
 
 Options:
-    -h, --help                     Show this screen.
-    -i, --info                     Show info about the provided track.
-    -w <list>, --watch <list>      Plot the comma-separated list of particles, or "all"
-    -P, --no-planets               Don't plot planets.
-    -s <n>, --skip <n>             Take every n time steps [default: 1]
-    -t <t>, --tmax <t>             Take only up to given time
-    --plot-angles                  ..
-    --plot-mmr-angle <mmr>        <mmr> = "3:4@3" for neptune, for example
-    --plot-aei                     ..
-    --plot-ae                      ..
-    --plot-ftrect                  ..
-    --plot-qQ                      ..
-    --plot-qQ-mmr                  ..
-    --plot-e-smooth                ..
+    -h, --help                        Show this screen.
+    -i, --info                        Show info about the provided track.
+    -w <list>, --watch <list>         Plot the comma-separated list of particles, or "all"
+    -P, --no-planets                  Don't plot planets.
+    -s <n>, --skip <n>                Take every n time steps [default: 1]
+    -t <t>, --tmax <t>                Take only up to given time
+    --plot-angles                     ..
+    --plot-mmr-angle <mmr>           <mmr> = "3:4@3" for neptune, for example
+    --plot-aei                        ..
+    --plot-ae                         ..
+    --plot-ftrect                     ..
+    --plot-qQ                         ..
+    --plot-qQ-mmr                     ..
+    --plot-e-smooth                   ..
+    --plot-individual-history <mmr>   ..
 """
 
 import sys
@@ -407,24 +408,30 @@ if args["--plot-angles"]:
     axes[2].set_xlabel(timelabel)
     axes[0].legend()
 
+def parse_mmr(string):
+    split1 = string.split(':')
+    split2 = split1[1].split('@')
+    return ((int(split1[0]), int(split2[0]), int(split2[1])))
+
+def get_mmr_angle(data, mmr):
+    M = get_M(data)
+    pid = planet_id_to_index[mmr[2]]
+
+    data_pl = planets[6 * pid : 6 * pid + 6]
+    Mpl = get_M(data_pl)
+
+    return mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (mmr[1] - mmr[0]) * (data[3] + data[4])
+
 if args["--plot-mmr-angle"]:
     mmrs = []
     for s in args["--plot-mmr-angle"].split(','):
-        split1 = s.split(':')
-        split2 = split1[1].split('@')
-        mmrs.append((int(split1[0]), int(split2[0]), int(split2[1])))
+        mmrs.append(parse_mmr(s))
 
     for mmr in mmrs:
         fig, axes = plt.subplots(1, 1)
 
         def plot_angle(data, c, ind, is_planet):
-            M = get_M(data)
-            pid = planet_id_to_index[mmr[2]]
-
-            data_pl = planets[6 * pid : 6 * pid + 6]
-            Mpl = get_M(data_pl)
-
-            param = mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (mmr[1] - mmr[0]) * (data[3] + data[4])
+            param = get_mmr_angle(data, mmr)
             axes.scatter(stimes, util.get_principal_angle(param), c=c, s=1)
             if is_planet:
                 axes.scatter([], [], c=c, label="Planet {0}".format(ind))
@@ -434,5 +441,33 @@ if args["--plot-mmr-angle"]:
         do_for(plot_angle, [])
         axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2]))
         axes.legend()
+
+if args["--plot-individual-history"]:
+    mmr = parse_mmr(args["--plot-individual-history"])
+
+    def plot_stuff(data, c, ind, is_planet):
+        fig, axes = plt.subplots(6, 1, sharex=True)
+
+        axes[0].scatter(stimes, data[0], c=c, s=1)
+        axes[0].set_ylabel("a (AU)")
+        axes[1].scatter(stimes, data[1], c=c, s=1)
+        axes[1].set_ylabel("e")
+        axes[1].set_ylim([0, np.nanmax(data[1]) * 1.2])
+        axes[2].scatter(stimes, data[2], c=c, s=1)
+        axes[2].set_ylabel("i")
+        axes[2].set_ylim([0, np.nanmax(data[2]) * 1.2])
+        axes[3].scatter(stimes, data[3], c=c, s=1)
+        axes[3].set_ylabel("Ω")
+        axes[4].scatter(stimes, data[4], c=c, s=1)
+        axes[4].set_ylabel("ω")
+
+        param = get_mmr_angle(data, mmr)
+        axes[5].scatter(stimes, util.get_principal_angle(param), c=c, s=1)
+        axes[5].set_ylabel("{0}:{1}@{2}".format(*mmr))
+        axes[5].set_xlabel(timelabel)
+
+        axes[0].set_title("Particle {0}".format(ind))
+
+    do_for(plot_stuff, [])
 
 plt.show()
