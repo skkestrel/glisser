@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 
-def nologHist(x, y, ny=150, nx=150):
+def nologHist(ax, x, y, ny=150, nx=150, logBar=True):
     diff = y.max() - y.min()
     y_edges = [y.min()]
     for i in range(1, ny+1):
@@ -11,10 +11,11 @@ def nologHist(x, y, ny=150, nx=150):
 
     H, xedges, yedges = np.histogram2d(x, y, bins=[nx, y_edges])
     X, Y = np.meshgrid(xedges, yedges)
-    a = plt.pcolormesh(X, Y, np.ma.masked_array(H.T, H.T == 0), norm=matplotlib.colors.LogNorm())
-    plt.colorbar()
+    a = ax.pcolormesh(X, Y, np.ma.masked_array(H.T, H.T == 0), norm=matplotlib.colors.LogNorm() if logBar else None)
+    cbar = plt.colorbar(a, ax=ax)
+    cbar.set_label("# particles")
     
-def logHist(x, y, ymin, ny=150, nx=150):
+def logHist(ax, x, y, ymin, ny=150, nx=150):
     diff = np.log(y.max()) - np.log(ymin)
     y_edges = [ymin]
     for i in range(1, ny+1):
@@ -22,8 +23,9 @@ def logHist(x, y, ymin, ny=150, nx=150):
 
     H, xedges, yedges = np.histogram2d(x, y, bins=[nx, y_edges])
     X, Y = np.meshgrid(xedges, yedges)
-    a = plt.pcolormesh(X, Y, np.ma.masked_array(H.T, H.T == 0), norm=matplotlib.colors.LogNorm())
-    plt.colorbar()
+    a = ax.pcolormesh(X, Y, np.ma.masked_array(H.T, H.T == 0), norm=matplotlib.colors.LogNorm() if logBar else None)
+    cbar = plt.colorbar(a, ax=ax)
+    cbar.set_label("# particles")
     
 
 def rv2el(m, parts):

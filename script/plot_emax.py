@@ -79,41 +79,59 @@ for key, value in dc.items():
 mina = initial[:, 0].min()
 maxa = initial[:, 0].max()
 
-def f():
+def f(ax):
     def mmr(a1, deg):
         return (deg * (a1 ** (3/2))) ** (2/3)
     def f2(deg0, deg1):
         a = mmr(PLANET_A, deg0 / deg1)
         if a < maxa and a > mina:
-            plt.axvline(x=a)
-            plt.text(a, 0, "{0}:{1}".format(deg0, deg1))
+            ax.axvline(x=a)
+            ax.text(a, 0, "{0}:{1}".format(deg0, deg1))
 
-    f2(2, 1)
-    f2(3, 2)
-    f2(4, 3)
-    f2(5, 4)
+    for i in range(1, 10):
+        f2(i, i+1)
+        f2(i+1, i)
+    for i in range(1, 10):
+        if i % 2 == 0: continue
+        f2(i, i+2)
+        f2(i+2, i)
+    for i in range(1, 10):
+        if i % 3 == 0: continue
+        f2(i, i+3)
+        f2(i+3, i)
+    for i in range(1, 10):
+        if i % 2 == 0: continue
+        f2(i, i+4)
+        f2(i+4, i)
 
-    f2(1, 2)
-    f2(2, 3)
-    f2(3, 4)
-    f2(4, 5)
+fig, ax = plt.subplots(2, 2)
 
-    f2(3, 5)
-    f2(5, 3)
-
-    f2(2, 5)
-    f2(5, 2)
-
-util.nologHist(initial[:, 0], emax[initial[:, 7].astype(np.int32)], 150, 300)
-plt.xlabel("a_i (AU)")
-plt.ylabel("e_max")
+util.nologHist(ax[0, 0], initial[:, 0], emax[initial[:, 7].astype(np.int32)], 150, 300, False)
+ax[0, 0].set_xlabel("a_i (AU)")
+ax[0, 0].set_ylabel("e_max")
 if args["--plot-mmr"]:
-    f()
+    f(ax[0, 0])
 
-plt.figure()
-util.nologHist(initial[:, 0], emax2[initial[:, 7].astype(np.int32)] / 365e6, 150, 300)
-plt.xlabel("a_i (AU)")
-plt.ylabel("e_max_t (MYr)")
+util.nologHist(ax[1, 0], initial[:, 0], emax2[initial[:, 7].astype(np.int32)] / 365e6, 150, 300, False)
+ax[1, 0].set_xlabel("a_i (AU)")
+ax[1, 0].set_ylabel("e_max_t (MYr)")
 if args["--plot-mmr"]:
-    f()
+    f(ax[1, 0])
+
+s = ax[0, 1].scatter(initial[:, 0], emax[initial[:, 7].astype(np.int32)], c=initial[:, 1], s=1)
+ax[0, 1].set_xlabel("a_i (AU)")
+ax[0, 1].set_ylabel("e_max")
+cbar = fig.colorbar(s, ax=ax[0, 1])
+cbar.set_label("e_i")
+if args["--plot-mmr"]:
+    f(ax[0, 1])
+
+s = ax[1, 1].scatter(initial[:, 0], emax2[initial[:, 7].astype(np.int32)] / 365e6, c=initial[:, 1], s=1)
+ax[1, 1].set_xlabel("a_i (AU)")
+ax[1, 1].set_ylabel("e_max_t (MYr)")
+cbar = fig.colorbar(s, ax=ax[1, 1])
+cbar.set_label("e_i")
+if args["--plot-mmr"]:
+    f(ax[1, 1])
+
 plt.show()
