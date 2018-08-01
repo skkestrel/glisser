@@ -385,8 +385,6 @@ namespace data
 			ss = std::istringstream(s);
 			
 			ss >> hd.planets.id()[i];
-
-			hd.planets.id()[i] = static_cast<uint32_t>(i);
 		}
 
 		std::getline(in, s);
