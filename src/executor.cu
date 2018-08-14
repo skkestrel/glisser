@@ -298,6 +298,16 @@ namespace exec
 					ed.deathflags[i] |= 0x0080;
 				}
 			}
+
+			if ((ed.deathflags[i] & 0x00FF) == 0x0004)
+			{
+				output << "Warning: simulation did not converge on particle " << ed.id[i] << std::endl;
+			}
+
+			if ((ed.deathflags[i] & 0x00FF) == 0x0004)
+			{
+				output << "Warning: particle " << ed.id[i] << " OOB" << std::endl;
+			}
 		}
 
 		std::unique_ptr<std::vector<size_t>> ed_indices;

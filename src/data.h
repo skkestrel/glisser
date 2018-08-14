@@ -376,6 +376,8 @@ namespace data
 		}
 	}
 
+	bool load_planet_data(HostData& hd, const Configuration& config, std::istream& plin);
+
 	size_t stable_partition_alive_indices(const std::vector<uint16_t>& flags, size_t begin, size_t length, std::unique_ptr<std::vector<size_t>>* indices);
 
 	bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::istream& in);

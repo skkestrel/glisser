@@ -86,11 +86,6 @@ int main(int argc, char** argv)
 
 	const sr::data::Configuration& config = config_mut;
 
-	{
-		std::ofstream configstream(sr::util::joinpath(config.outfolder, "config.in"));
-		write_configuration(configstream, config);
-	}
-
 
 #ifdef NO_CUDA
 	if (config_mut.use_gpu)
@@ -116,6 +111,11 @@ int main(int argc, char** argv)
 		if (s != "Yes") return -1;
 	}
 
+	{
+		std::ofstream configstream(sr::util::joinpath(config.outfolder, "config.in"));
+		write_configuration(configstream, config);
+	}
+
 	sr::util::make_dir(sr::util::joinpath(config.outfolder, "dumps"));
 	sr::util::make_dir(sr::util::joinpath(config.outfolder, "tracks"));
 
@@ -137,6 +137,7 @@ int main(int argc, char** argv)
 	ex.t = config.t_0;
 
 	if (load_data(hd, config)) return -1;
+	save_data(hd, config, sr::util::joinpath(config.outfolder, "state.in"));
 
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);

@@ -64,3 +64,6 @@ prune-track: $(OBJ_FILES)
 
 find-max-e: $(OBJ_FILES)
 	$(call make-target,find_max_e,find-max-e)
+
+make-state: $(OBJ_FILES)
+	$(call make-target,make_state,make-state)

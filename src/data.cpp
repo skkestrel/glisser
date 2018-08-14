@@ -289,7 +289,7 @@ namespace data
 		outstream << "WH-Encounter-R1 " << out.wh_ce_r1 << std::endl;
 		outstream << "WH-Encounter-R2 " << out.wh_ce_r2 << std::endl;
 		outstream << "Enable-GPU " << out.use_gpu << std::endl;
-		outstream << "CPU-Thread-Count" << out.num_thread << std::endl;
+		outstream << "CPU-Thread-Count " << out.num_thread << std::endl;
 		outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 		outstream << "Log-Interval " << out.print_every << std::endl;
 		outstream << "Status-Interval " << out.energy_every << std::endl;
@@ -310,7 +310,7 @@ namespace data
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
 	}
 
-	bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream& plin, std::istream& icsin)
+	bool load_planet_data(HostData& hd, const Configuration& config, std::istream& plin)
 	{
 		size_t npl;
 		plin >> npl;
@@ -325,6 +325,13 @@ namespace data
 
 			hd.planets.id()[i] = static_cast<uint32_t>(i);
 		}
+
+		return false;
+	}
+
+	bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream& plin, std::istream& icsin)
+	{
+		load_planet_data(hd, config, plin);
 
 		size_t npart;
 		icsin >> npart;
