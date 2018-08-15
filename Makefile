@@ -67,3 +67,6 @@ find-max-e: $(OBJ_FILES)
 
 make-state: $(OBJ_FILES)
 	$(call make-target,make_state,make-state)
+
+find-librators: $(OBJ_FILES)
+	$(call make-target,find_librators,find-librators)

@@ -12,7 +12,7 @@ Options:
     -s <n>, --skip <n>                Take every n time steps [default: 1]
     -t <t>, --tmax <t>                Take only up to given time
     --plot-angles                     ..
-    --plot-mmr-angle <mmr>           <mmr> = "3:4@3" for neptune, for example
+    --plot-mmr-arg <mmr>              <mmr> = "3:4@3" for neptune, for example
     --plot-aei                        ..
     --plot-ae                         ..
     --plot-ftrect                     ..
@@ -437,15 +437,15 @@ def get_mmr_angle(data, mmr):
 
     return mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (mmr[1] - mmr[0]) * (data[3] + data[4])
 
-if args["--plot-mmr-angle"]:
+if args["--plot-mmr-arg"]:
     mmrs = []
-    for s in args["--plot-mmr-angle"].split(','):
+    for s in args["--plot-mmr-arg"].split(','):
         mmrs.append(parse_mmr(s))
 
     for mmr in mmrs:
         fig, axes = plt.subplots(1, 1)
 
-        def plot_angle(data, c, ind, is_planet):
+        def plot_arg(data, c, ind, is_planet):
             param = get_mmr_angle(data, mmr)
             axes.scatter(stimes, util.get_principal_angle(param), c=c, s=1)
             if is_planet:
@@ -453,7 +453,7 @@ if args["--plot-mmr-angle"]:
             else:
                 axes.scatter([], [], c=c, label="Particle {0}".format(ind))
 
-        do_for(plot_angle, [])
+        do_for(plot_arg, [])
         axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2]))
         axes.legend()
 

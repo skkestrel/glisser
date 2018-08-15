@@ -210,7 +210,7 @@ def get_principal_angle(M):
     for i in range(len(M)):
         M[i] = M[i] - 2 * np.pi * round(M[i] / (2 * np.pi))
         while M[i] < -np.pi:
-            M[i] = M[i] + 2 * np.pi * M[i]
+            M[i] = M[i] + 2 * np.pi
         while M[i] > np.pi:
             M[i] = M[i] - 2 * np.pi
     return M
