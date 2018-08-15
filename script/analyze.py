@@ -142,21 +142,31 @@ if final.shape[0] < 20001:
 elif final[:, 8].max() > 0:
     plt.figure()
     plt.title('survival time given initial conditions')
-    util.logHist(initial[alive, 1], final[alive, 6] / 365.25e6, 1)
+    util.logHist(plt.gca(), initial[alive, 1], final[alive, 6] / 365.25e6, 1)
     plt.xlabel('e')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
 
     plt.figure()
     plt.title('survival time given initial conditions')
-    util.logHist(initial[alive, 0], final[alive, 6] / 365.25e6, 1)
+    util.logHist(plt.gca(), initial[alive, 0], final[alive, 6] / 365.25e6, 1)
     plt.xlabel('a (AU)')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
 
+
     plt.figure()
     plt.title('survival time given initial conditions')
-    util.logHist(initial[alive, 2] / math.pi * 180, final[alive, 6] / 365.25e6, 1)
+    order = list(range(initial.shape[0]))
+    order.sort(key=lambda x: final[x, 6])
+    util.dense_scatter(plt.gca(), initial[alive, 0], initial[alive, 1], final[alive, 6] / 365.25e6, 150, 150, logBar=True, label="Survival time (MYr)", order=order, upperLimitColor='red', defaultValue=final[alive, 6].min() / 365.25e6)
+    plt.xlabel('a (AU)')
+    plt.ylabel('e')
+
+
+    plt.figure()
+    plt.title('survival time given initial conditions')
+    util.logHist(plt.gca(), initial[alive, 2] / math.pi * 180, final[alive, 6] / 365.25e6, 1)
     plt.xlabel('i (deg)')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')

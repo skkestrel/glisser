@@ -20,6 +20,7 @@ Options:
     --plot-qQ-mmr                     ..
     --plot-e-smooth                   ..
     --plot-individual-history <mmr>   ..
+    --planet-names <mmr>              0=Jupiter,1=Saturn, ...
 """
 
 import sys
@@ -36,10 +37,23 @@ import docopt
 
 args = docopt.docopt(__doc__)
 
+planet_names = {}
+
+if args["--planet-names"]:
+    for i in args["--planet-names"].split(","):
+        j = i.split("=")
+        planet_names[int(j[0])] = j[1]
+
 style.use('ggplot')
 
 times = []
 particlewatch = []
+
+def get_planet_name(ind):
+    if ind in planet_names:
+        return planet_names[ind]
+    else:
+        return "Planet {0}".format(ind)
 
 if args["--watch"]:
     if args["--watch"] == "all":
@@ -207,6 +221,7 @@ if info:
     print("This track contains {0} planets and {1} particles".format(npl, len(particlewatch)))
     if len(particlewatch) < 20:
         print("Particle ids {0}".format(", ".join([str(i) for i in particlewatch])))
+    print("Planet ids {0}".format(", ".join([str(i) for i in planet_id_to_index.keys()])))
     print("dt = {0}".format(times[1] - times[0]))
     print("t_f = {0}".format(times[-1]))
 
@@ -244,7 +259,7 @@ if args["--plot-qQ"]:
         plt.plot(stimes, data[0] * (1. - data[1]), c=c)
         plt.plot(stimes, data[0] * (1. + data[1]), c=c)
         if is_planet:
-            plt.plot([], [], c=c, label="Planet {0}".format(ind))
+            plt.plot([], [], c=c, label=get_planet_name(ind))
 
             if args["--plot-qQ-mmr"]:
                 def mmr(a1, deg):
@@ -301,7 +316,7 @@ if args["--plot-ftrect"]:
         axes[0].plot(taxis[1:half], np.abs(np.fft.fft(data[2, notnan] * np.sin(data[3, notnan]))[1:half]), c=c)
         axes[1].plot(taxis[1:half], np.abs(np.fft.fft(data[1, notnan] * np.sin(data[4, notnan] + data[3, notnan]))[1:half]), c=c)
         if is_planet:
-            axes[0].plot([], [], c=c, label="Planet {0}".format(ind))
+            axes[0].plot([], [], c=c, label=get_planet_name(ind))
         else:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
@@ -324,7 +339,7 @@ if args["--plot-aei"]:
         axes[1].plot(stimes, data[1], c=c)
         axes[2].plot(stimes, data[2], c=c)
         if is_planet:
-            axes[0].plot([], [], c=c, label="Planet {0}".format(ind))
+            axes[0].plot([], [], c=c, label=get_planet_name(ind))
         else:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
@@ -341,7 +356,7 @@ if args["--plot-ae"]:
     def plot_ae(data, c, ind, is_planet):
         axes.scatter(data[0], data[1], c=c, s=1)
         if is_planet:
-            axes.plot([], [], c=c, label="Planet {0}".format(ind))
+            axes.plot([], [], c=c, label=get_planet_name(ind))
         else:
             axes.plot([], [], c=c, label="Particle {0}".format(ind))
 
@@ -397,7 +412,7 @@ if args["--plot-angles"]:
         # axes[2].plot(stimes, normalize(data[5]), c=c)
         axes[2].plot(stimes, data[5], c=c)
         if is_planet:
-            axes[0].plot([], [], c=c, label="Planet {0}".format(ind))
+            axes[0].plot([], [], c=c, label=get_planet_name(ind))
         else:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
@@ -434,7 +449,7 @@ if args["--plot-mmr-angle"]:
             param = get_mmr_angle(data, mmr)
             axes.scatter(stimes, util.get_principal_angle(param), c=c, s=1)
             if is_planet:
-                axes.scatter([], [], c=c, label="Planet {0}".format(ind))
+                axes.scatter([], [], c=c, label=get_planet_name(ind))
             else:
                 axes.scatter([], [], c=c, label="Particle {0}".format(ind))
 
@@ -458,14 +473,23 @@ if args["--plot-individual-history"]:
         axes[2].set_ylim([0, np.nanmax(data[2]) * 1.2])
         axes[3].scatter(stimes, data[3], c=c, s=1)
         axes[3].set_ylabel("Ω")
-        axes[4].scatter(stimes, data[4], c=c, s=1)
-        axes[4].set_ylabel("ω")
+
+        axes[4].scatter(stimes, data[3], c=c, s=1)
+        axes[4].set_ylabel("ω~")
 
         param = get_mmr_angle(data, mmr)
         axes[5].scatter(stimes, util.get_principal_angle(param), c=c, s=1)
         axes[5].set_ylabel("{0}:{1}@{2}".format(*mmr))
-        axes[5].set_xlabel(timelabel)
+        '''
 
+        axes[4].scatter(stimes, util.get_principal_angle(data[4] + data[3]), c=c, s=1)
+        axes[4].set_ylabel("ω~")
+        axes[5].scatter(stimes, util.get_principal_angle(data[4] + data[3] - times / 365 / 360 / 3600 * 28 * 2 * math.pi), c=c, s=1)
+        axes[5].set_ylabel("ω~")
+        '''
+
+
+        axes[5].set_xlabel(timelabel)
         axes[0].set_title("Particle {0}".format(ind))
 
     do_for(plot_stuff, [])
