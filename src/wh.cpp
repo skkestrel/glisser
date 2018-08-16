@@ -434,8 +434,9 @@ namespace wh
 	void calculate_planet_metrics(const HostPlanetPhaseSpace& pl, double* energy, f64_3* l)
 	{
 		f64_3 bary_r, bary_v;
+		double bary_m;
 
-		sr::convert::find_barycenter(pl.r(), pl.v(), pl.m(), pl.n_alive(), bary_r, bary_v);
+		sr::convert::find_barycenter(pl.r(), pl.v(), pl.m(), pl.n_alive(), bary_r, bary_v, bary_m);
 
 		Vf64_3 r(pl.n_alive()), v(pl.n_alive());
 		for (size_t i = 0; i < pl.n_alive(); i++)

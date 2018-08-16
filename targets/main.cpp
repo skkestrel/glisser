@@ -257,7 +257,7 @@ int main(int argc, char** argv)
 						{
 							sr::data::HostParticleSnapshot snapshot_copy = ex.hd.particles.base;
 							snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
-							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, true);
+							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, true, config.write_bary_track);
 						});
 				}
 			}

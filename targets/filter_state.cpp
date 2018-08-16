@@ -23,6 +23,7 @@ Options:
     -u, --union                        Take union of criteria instead of intersection
     -b, --binary                       Read binary input
     -B, --barycentric                  Calculate barycentric elements
+    -o <file>, --output <file>         Write output filtered state
 )";
 
 struct Criterion
@@ -236,7 +237,16 @@ int main(int argc, char** argv)
 				else if (name_to_file_index.count(crit.variable) > 0)
 				{
 					const auto& file = files[name_to_file_index.at(crit.variable)];
-					val = file.values[file.name_to_vector_index.at(crit.variable)][file.id_to_index.at(hd.particles.id()[i])];
+					const auto& values = file.values[file.name_to_vector_index.at(crit.variable)];
+
+					if (file.id_to_index.count(hd.particles.id()[i]) > 0)
+					{
+						val = values[file.id_to_index.at(hd.particles.id()[i])];
+					}
+					else
+					{
+						val = std::numeric_limits<double>::quiet_NaN();
+					}
 				}
 				else
 				{
@@ -281,6 +291,23 @@ int main(int argc, char** argv)
 			}
 		}
 
+		
+		if (args["--output"])
+		{
+			sr::data::HostData hd_out;
+			hd_out.planets = hd.planets;
+
+			std::string outfile = args["--output"].asString();
+
+			hd.particles.filter(candidates, hd_out.particles);
+
+			sr::data::Configuration outcfg;
+			outcfg.hybridout = outfile;
+			hd_out.planets_snapshot = hd_out.planets.base;
+
+			sr::data::save_data(hd_out, outcfg, config.hybridout);
+		}
+
 		std::cout << "ID    | a        e        i       Om       om       f       ";
 		for (auto& pair : name_to_file_index)
 		{
@@ -302,8 +329,15 @@ int main(int argc, char** argv)
 			for (auto& pair : name_to_file_index)
 			{
 				const auto& file = files[pair.second];
-				double val = file.values[file.name_to_vector_index.at(pair.first)][file.id_to_index.at(hd.particles.id()[i])];
-				std::cout << std::setw(10) << std::defaultfloat << val;
+				if (file.id_to_index.count(hd.particles.id()[i]) > 0)
+				{
+					double val = file.values[file.name_to_vector_index.at(pair.first)][file.id_to_index.at(hd.particles.id()[i])];
+					std::cout << std::setw(10) << std::defaultfloat << val;
+				}
+				else
+				{
+					std::cout << std::setw(10) << std::defaultfloat << std::numeric_limits<double>::quiet_NaN();
+				}
 			}
 			std::cout << std::endl;
 			num++;

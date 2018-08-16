@@ -17,27 +17,30 @@ Options:
     -t <t>, --time <t>   Set the max time
     --slow               Use slow mode
     --tolerance <deg>    Tolerance [default: 10]
-    --opposite <deg>     Opposite pole [default: 0]
+    --center <deg>       Libration center [default: 180]
     --mmr <a>            mmr symbol (example: '3:1@4')
 )";
 
 struct ParticleInfo
 {
 	bool ok;
+	bool okopp;
+	bool alive;
 
 	ParticleInfo()
 	{
 		ok = true;
+		okopp = true;
 	}
 };
 
-using mmr_t = std::tuple<uint32_t, uint32_t, uint32_t>;
+using mmr_t = std::tuple<int32_t, int32_t, uint32_t>;
 
 double mean_anomaly(double e, double f)
 {
 	double E = std::acos((e + std::cos(f)) / (1 + e * std::cos(f)));
 	E = std::copysign(E, f);
-	return E - e * std::cos(E);
+	return E - e * std::sin(E);
 }
 
 double principal_angle(double t)
@@ -92,11 +95,17 @@ int main(int argc, char** argv)
 		else
 		{
 			double tol = std::stod(args["--tolerance"].asString()) / 180 * M_PI;
-			double opp = std::stod(args["--opposite"].asString()) / 180 * M_PI;
+			double ctr = std::stod(args["--center"].asString()) / 180 * M_PI;
+			double opp = principal_angle(ctr + M_PI);
 
 			sr::data::read_tracks(inpath, opt,
 				[&](sr::data::HostPlanetSnapshot& pl, sr::data::HostParticleSnapshot& pa, double time)
 				{
+					for (auto& pair : map)
+					{
+						pair.second.alive = false;
+					}
+
 					int planet_index = -1;
 					for (size_t i = 0; i < pl.n; i++)
 					{
@@ -121,6 +130,12 @@ int main(int argc, char** argv)
 
 					for (size_t i = 0; i < pa.n; i++)
 					{
+						map[pa.id[i]].alive = true;
+						if (!map[pa.id[i]].ok && !map[pa.id[i]].okopp)
+						{
+							continue;
+						}
+
 						double pa_e = pa.r[i].y;
 						double pa_f = pa.v[i].z;
 						double pa_O = pa.v[i].x;
@@ -129,23 +144,30 @@ int main(int argc, char** argv)
 
 						double arg = std::get<0>(mmr) * (pa_O + pa_o + pa_M) - std::get<1>(mmr) * (pl_O + pl_o + pl_M) +
 							(std::get<1>(mmr) - std::get<0>(mmr)) * (pa_O + pa_o);
+						arg = principal_angle(arg);
 
 						double dist = std::min((2 * M_PI) - std::abs(arg - opp), std::abs(arg - opp));
+						double dist_opp = std::min((2 * M_PI) - std::abs(arg - ctr), std::abs(arg - ctr));
 
-						map[pa.id[i]];
-						if (dist > tol)
+						if (dist < tol)
 						{
 							map[pa.id[i]].ok = false;
+						}
+
+						if (dist_opp < tol)
+						{
+							map[pa.id[i]].okopp = false;
 						}
 					}
 				});
 		}
 
 		std::ofstream outfile(outpath);
-		outfile << "id,ok" << std::endl;
+		outfile << "id,lib,xlib" << std::endl;
 		for (auto& pair : map)
 		{
-			outfile << pair.first << "," << pair.second.ok << std::endl;
+			outfile << pair.first << "," << (pair.second.ok && pair.second.alive) << "," <<
+				(pair.second.okopp && !pair.second.ok && pair.second.alive) << std::endl;
 		}
 	}
 	catch (std::runtime_error& e)

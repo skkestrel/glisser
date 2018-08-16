@@ -37,6 +37,8 @@ namespace data
 		void resize(size_t length);
 		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
 
+		void filter(const std::vector<size_t>& filter, HostParticleSnapshot& out) const;
+
 		inline HostParticleSnapshot() : n(0), n_alive(0) { }
 		inline HostParticleSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_) { }
 	};
@@ -86,7 +88,7 @@ namespace data
 		inline const Vu32& deathtime_index() const { return _deathtime_index; }
 
 		inline HostParticlePhaseSpace() { }
-		inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : base(siz), _n_encounter(0), _deathflags(siz), _deathtime(siz)
+		inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : base(siz), _n_encounter(0), _deathflags(siz), _deathtime(siz), _cpu_only(cpu_only)
 		{ 
 			if (cpu_only)
 			{
@@ -98,6 +100,8 @@ namespace data
 		std::unique_ptr<std::vector<size_t>> stable_partition_unflagged(size_t begin, size_t length);
 		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
 		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
+
+		void filter(const std::vector<size_t>& filter, HostParticlePhaseSpace& out) const;
 
 		inline static uint8_t encounter_planet(uint16_t deathflags)
 		{
@@ -111,6 +115,7 @@ namespace data
 		Vf32 _deathtime;
 
 		Vu32 _deathtime_index;
+		bool _cpu_only;
 	};
 
 	struct HostPlanetPhaseSpace
@@ -192,6 +197,7 @@ namespace data
 		uint32_t split_track_file;
 
 		bool use_gpu;
+		bool write_bary_track;
 
 		double cull_radius;
 
@@ -211,6 +217,7 @@ namespace data
 		inline static Configuration create_dummy()
 		{
 			Configuration config;
+			config.write_bary_track = false;
 			config.resolve_encounters = false;
 			config.tbsize = 0;
 			config.wh_ce_n1 = 0;
@@ -395,7 +402,7 @@ namespace data
 	void read_configuration(std::istream& in, Configuration* out);
 	void write_configuration(std::ostream& in, const Configuration& config);
 
-	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements);
+	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_elements);
 
 	struct TrackReader
 	{

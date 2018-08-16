@@ -54,6 +54,28 @@ namespace data
 		n = length;
 	}
 
+	void HostParticleSnapshot::filter(const std::vector<size_t>& filter, HostParticleSnapshot& out) const
+	{
+		out = HostParticleSnapshot(filter.size());
+		out.n_alive = 0;
+
+		size_t index = 0;
+
+		for (size_t i : filter)
+		{
+			out.id[index] = id[i];
+			out.r[index] = r[i];
+			out.v[index] = v[i];
+
+			if (i < n_alive)
+			{
+				out.n_alive++;
+			}
+
+			index++;
+		}
+	}
+
 	void HostParticlePhaseSpace::gather(const std::vector<size_t>& indices, size_t begin, size_t length)
 	{
 		base.gather(indices, begin, length);
@@ -63,6 +85,35 @@ namespace data
 		if (deathtime_index().size() > 0)
 		{
 			sr::data::gather(deathtime_index(), indices, begin, length);
+		}
+	}
+
+	void HostParticlePhaseSpace::filter(const std::vector<size_t>& filter, HostParticlePhaseSpace& out) const
+	{
+		base.filter(filter, out.base);
+		out._n_encounter = 0;
+		out._cpu_only = _cpu_only;
+		out._deathflags = std::vector<uint16_t>(out.base.n);
+		out._deathtime = std::vector<float>(out.base.n);
+
+		if (_cpu_only)
+		{
+			out._deathtime_index = std::vector<uint32_t>(out.base.n);
+		}
+
+		size_t index = 0;
+
+		for (size_t i : filter)
+		{
+			out._deathflags[index] = _deathflags[i];
+			out._deathtime[index] = _deathtime[i];
+
+			if (_cpu_only)
+			{
+				out._deathtime_index[index] = _deathtime_index[i];
+			}
+
+			index++;
 		}
 	}
 
@@ -205,6 +256,8 @@ namespace data
 					out->energy_every = std::stou(second);
 				else if (first == "Track-Interval")
 					out->track_every = std::stou(second);
+				else if (first == "Write-Barycentric-Track")
+					out->write_bary_track = std::stoi(second) != 0;
 				else if (first == "Split-Track-File")
 					out->split_track_file = std::stou(second);
 				else if (first == "Dump-Interval")
@@ -294,6 +347,7 @@ namespace data
 		outstream << "Log-Interval " << out.print_every << std::endl;
 		outstream << "Status-Interval " << out.energy_every << std::endl;
 		outstream << "Track-Interval " << out.track_every << std::endl;
+		outstream << "Write-Barycentric-Track" << out.write_bary_track << std::endl;
 		outstream << "Split-Track-File " << out.split_track_file << std::endl;
 		outstream << "Dump-Interval " << out.dump_every << std::endl;
 		outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
@@ -626,7 +680,7 @@ namespace data
 		}
 	}
 
-	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements)
+	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_elements)
 	{
 		sr::data::write_binary(trackout, static_cast<double>(time));
 
@@ -643,8 +697,26 @@ namespace data
 		{
 			if (to_elements)
 			{
+				double center_mass = pl.m[0];
+				f64_3 center_r = pl.r[0] * pl.m[0];
+				f64_3 center_v = pl.v[0] * pl.m[0];
+				if (barycentric_elements)
+				{
+					for (uint32_t j = 1; j < pl.n_alive; j++)
+					{
+						if (j != i)
+						{
+							center_mass += pl.m[j];
+							center_r += pl.r[j] * pl.m[j];
+							center_v += pl.v[j] * pl.m[j];
+						}
+					}
+				}
+				center_r /= center_mass;
+				center_v /= center_mass;
+
 				double a, e, in, capom, om, f;
-				sr::convert::to_elements(pl.m[i] + pl.m[0], pl.r[i], pl.v[i],
+				sr::convert::to_elements(pl.m[i] + center_mass, pl.r[i] - center_r, pl.v[i] - center_v,
 					nullptr, &a, &e, &in, &capom, &om, &f);
 
 				sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
@@ -672,8 +744,16 @@ namespace data
 		{
 			if (to_elements)
 			{
+				double center_mass = pl.m[0];
+				f64_3 center_r = pl.r[0];
+				f64_3 center_v = pl.v[0];
+				if (barycentric_elements)
+				{
+					sr::convert::find_barycenter(pl.r, pl.v, pl.m, pl.n_alive, center_r, center_v, center_mass);
+				}
+
 				double a, e, in, capom, om, f;
-				sr::convert::to_elements(pl.m[0], pa.r[i], pa.v[i],
+				sr::convert::to_elements(center_mass, pa.r[i] - center_r, pa.v[i] - center_v,
 						nullptr, &a, &e, &in, &capom, &om, &f);
 
 				sr::data::write_binary(trackout, static_cast<uint32_t>(pa.id[i]));

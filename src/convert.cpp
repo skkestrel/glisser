@@ -93,29 +93,30 @@ namespace convert
 		// p.bary_r = sum / p.eta[p.n() - 1];
 	}
 
-	void find_barycenter(const Vf64_3& r, const Vf64_3& v, const Vf64& m, size_t n, f64_3& r_out, f64_3& v_out)
+	void find_barycenter(const Vf64_3& r, const Vf64_3& v, const Vf64& m, size_t n, f64_3& r_out, f64_3& v_out, double& m_out)
 	{
 		f64_3 rsum(0);
 		f64_3 vsum(0);
 
-		double totalm = 0;
+		m_out = 0;
 
 		for (size_t i = 0; i < n; i++)
 		{
 			rsum += r[i] * m[i];
 			vsum += v[i] * m[i];
 
-			totalm += m[i];
+			m_out += m[i];
 		}
 
-		r_out = rsum / totalm;
-		v_out = vsum / totalm;
+		r_out = rsum / m_out;
+		v_out = vsum / m_out;
 	}
 
 	void to_bary(HostData& hd)
 	{
 		f64_3 r, v;
-		find_barycenter(hd.planets.r(), hd.planets.v(), hd.planets.m(), hd.planets.n(), r, v);
+		double m;
+		find_barycenter(hd.planets.r(), hd.planets.v(), hd.planets.m(), hd.planets.n(), r, v, m);
 
 		for (size_t i = 0; i < hd.planets.n(); i++)
 		{

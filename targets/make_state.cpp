@@ -27,6 +27,7 @@ Options:
     -o <range>          o range [default: 0,360]
     -M <range>          M range [default: 0,360]
     -G <g>              G [default: 1]
+    -B, --barycentric   Generate in barycentric coords
 )";
 
 using namespace sr::data;
@@ -59,6 +60,12 @@ int main(int argc, char** argv)
 		}
 
 		double mu = hd.planets.m()[0] * std::stod(args["-G"].asString());
+		
+		bool gen_bary = static_cast<bool>(args["--barycentric"]);
+		if (gen_bary)
+		{
+			sr::convert::to_bary(hd);
+		}
 
 		const double min = 1e-6;
 
@@ -114,20 +121,26 @@ int main(int argc, char** argv)
 			double ecosE = e;
 			double esinE = 0;
 			double dE = M + ecosE * std::sin(M);  /* input guess */
+
 			uint32_t it;
-			if (sr::wh::kepeq(M,ecosE,esinE,&dE,&sindE,&cosdE, &it)) throw std::runtime_error("?");
+			if (sr::wh::kepeq(M,esinE,ecosE,&dE,&sindE,&cosdE, &it)) throw std::runtime_error("?");
 
 			double cosanom = (cosdE - e)/(1.0 - e*cosdE);
 			double sinanom = std::sqrt(1.0 - e*e) * sindE/(1.0 - e*cosdE);
 			double anom = std::atan2(sinanom,cosanom);
 		   
 			sr::convert::from_elements(mu,a,e,inc,O,o, anom, &hd.particles.r()[i], &hd.particles.v()[i]);
-			hd.particles.id()[i] = i;
+			hd.particles.id()[i] = static_cast<uint32_t>(i);
 			hd.particles.deathflags()[i] = 0;
 			hd.particles.deathtime()[i] = 0;
 
 			// sr::convert::to_elements(mu, hd.particles.r()[i], hd.particles.v()[i], nullptr, &a, &e, &inc, &O, &o, &M);
 			// std::cout << a << " " << e << " " << inc << " " << O << " " << o << " " << M << std::endl;
+		}
+
+		if (gen_bary)
+		{
+			sr::convert::to_helio(hd);
 		}
 
 		config.hybridout = args["<output-file>"].asString();
@@ -136,6 +149,7 @@ int main(int argc, char** argv)
 	}
 	catch (std::runtime_error& e)
 	{
+		std::cout << "Error occurred" << std::endl;
 		std::cout << e.what() << std::endl;
 		return -1;
 	}

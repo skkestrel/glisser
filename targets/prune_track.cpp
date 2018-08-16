@@ -105,7 +105,7 @@ int main(int argc, char** argv)
 		sr::data::read_tracks(inpath, opt,
 			[&](sr::data::HostPlanetSnapshot& pl, sr::data::HostParticleSnapshot& pa, double time)
 			{
-				sr::data::save_binary_track(outfile, pl, pa, time, false);
+				sr::data::save_binary_track(outfile, pl, pa, time, false, false);
 
 				if (splitbytes != 0 && outfile.tellp() > static_cast<int>(splitbytes))
 				{
