@@ -214,3 +214,9 @@ def get_principal_angle(M):
         while M[i] > np.pi:
             M[i] = M[i] - 2 * np.pi
     return M
+
+def get_M(data):
+    E = np.arccos((data[1] + np.cos(data[5])) / (1 + data[1] * np.cos(data[5])))
+    E = E * np.sign(data[5])
+    M = E - data[1] * np.sin(E)
+    return M

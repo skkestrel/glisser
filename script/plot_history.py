@@ -384,12 +384,6 @@ if args["--plot-e-smooth"]:
     axes.set_xlabel(timelabel)
     axes.legend()
 
-def get_M(data):
-    E = np.arccos((data[1] + np.cos(data[5])) / (1 + data[1] * np.cos(data[5])))
-    E = E * np.sign(data[5])
-    M = E - data[1] * np.sin(E)
-    return M
-
 if args["--plot-angles"]:
     fig, axes = plt.subplots(3, 1, sharex=True)
     def normalize(x):
@@ -429,13 +423,15 @@ def parse_mmr(string):
     return ((int(split1[0]), int(split2[0]), int(split2[1])))
 
 def get_mmr_angle(data, mmr):
-    M = get_M(data)
+    M = util.get_M(data)
     pid = planet_id_to_index[mmr[2]]
 
     data_pl = planets[6 * pid : 6 * pid + 6]
-    Mpl = get_M(data_pl)
+    Mpl = util.get_M(data_pl)
 
-    return mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (mmr[1] - mmr[0]) * (data[3] + data[4])
+    arg = mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (mmr[1] - mmr[0]) * (data[3] + data[4])
+    return arg
+
 
 if args["--plot-mmr-arg"]:
     mmrs = []
