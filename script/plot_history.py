@@ -21,6 +21,7 @@ Options:
     --plot-e-smooth                   ..
     --plot-individual-history <mmr>   ..
     --planet-names <mmr>              0=Jupiter,1=Saturn, ...
+    --plot-diffusion                  ..
 """
 
 import sys
@@ -489,5 +490,15 @@ if args["--plot-individual-history"]:
         axes[0].set_title("Particle {0}".format(ind))
 
     do_for(plot_stuff, [])
+
+if args["--plot-diffusion"]:
+    fig, ax = plt.subplots(1, 1)
+    def plot_diffusion(data, c, ind, is_planet):
+        ax.scatter(data[0], data[1], c=c, s=1, label="Particle {0}".format(ind))
+    ax.set_xlabel("a (AU)")
+    ax.set_ylabel("e")
+
+    do_for(plot_diffusion, [])
+    ax.legend()
 
 plt.show()

@@ -16,7 +16,7 @@ style.use('ggplot')
 
 smass = 4 * math.pi * math.pi / math.pow(365.25, 2)
 
-mydict = {}
+initial_id_to_index = {}
 
 with open(sys.argv[1]) as p:
     npl = int(p.readline().strip())
@@ -36,25 +36,163 @@ with open(sys.argv[1]) as p:
         initial[i, 4] = vxyz[1]
         initial[i, 5] = vxyz[2]
         initial[i, 6] = Id
-        mydict[Id] = i
+        initial_id_to_index[Id] = i
+
+final_to_initial = {}
+initial_to_final = {}
+
+with open(sys.argv[2]) as p:
+    npl = int(p.readline().strip())
+    for i in range(npl * 4): p.readline()
+    n = int(p.readline().strip())
+
+    final = np.zeros((n, 9))
+    for i in range(n):
+        xyz = list([float(i) for i in p.readline().split()])
+        vxyz = list([float(i) for i in p.readline().split()])
+        flags = p.readline().strip().split()
+
+        dtime = float(flags[2])
+        pid = int(flags[0])
+
+        final[i, 0] = xyz[0]
+        final[i, 1] = xyz[1]
+        final[i, 2] = xyz[2]
+        final[i, 3] = vxyz[0]
+        final[i, 4] = vxyz[1]
+        final[i, 5] = vxyz[2]
+        final[i, 6] = dtime
+        final[i, 7] = pid
+        final[i, 8] = int(flags[1])
+
+        final_to_initial[i] = initial_id_to_index[pid]
+        initial_to_final[initial_id_to_index[pid]] = i
 
 lib = np.zeros(initial.shape[0])
 lib2 = np.zeros(initial.shape[0])
 
-with open(sys.argv[2]) as p:
+with open(sys.argv[3]) as p:
     p.readline()
     for line in p:
-        lib[mydict[int(line.split(',')[0])]] = int(line.split(',')[1])
-        lib2[mydict[int(line.split(',')[0])]] = int(line.split(',')[2])
+        lib[initial_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[1])
+        lib2[initial_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[2])
 
 print("rv2el")
 
 for i in range(initial.shape[0]):
     initial[i, :6] = util.rv2el(smass, initial[i, :6])
+for i in range(final.shape[0]):
+    final[i, :6] = util.rv2el(smass, final[i, :6])
 
-#plt.scatter(initial[lib == 0, 0], initial[lib == 0, 1], c="black", s=1, label="Non-librators")
-plt.scatter(initial[lib == 1, 0], initial[lib == 1, 1], c="red", s=1, label="Librators")
-plt.scatter(initial[lib2 == 1, 0], initial[lib2 == 1, 1], c="blue", s=1, label="Anti-librators")
+ft = np.zeros(initial.shape[0], dtype=np.bool)
+
+fig, ax = plt.subplots(1, 2)
+for i in range(initial.shape[0]):
+    ft[i] = int(final[initial_to_final[i]][8]) == 0 and lib[i] == 0
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=1, c="k", label="survived but not librating")
+for i in range(final.shape[0]):
+    ft[i] = int(final[i][8]) == 0 and lib[final_to_initial[i]] == 0
+ax[1].scatter(final[ft, 0], final[ft, 1], s=1, c="k", label="survived but not librating")
+
+for i in range(initial.shape[0]):
+    ft[i] = int(final[initial_to_final[i]][8]) == 0 and lib[i] == 1
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=1, c="r", label="survived and librating")
+for i in range(final.shape[0]):
+    ft[i] = int(final[i][8]) == 0 and lib[final_to_initial[i]] == 1
+ax[1].scatter(final[ft, 0], final[ft, 1], s=1, c="r", label="survived and librating")
+
+
+for i in range(initial.shape[0]):
+    ft[i] = int(final[initial_to_final[i]][8]) == 2
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=4, c="b", label="dead, outofbounds")
+for i in range(final.shape[0]):
+    ft[i] = int(final[i][8]) == 2
+ax[1].scatter(final[ft, 0], final[ft, 1], s=4, c="b", label="dead, outofbounds")
+
+
+for i in range(initial.shape[0]):
+    val = int(final[initial_to_final[i]][8])
+    ft[i] = val == 1153
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=1, c="g", label="dead, neptune")
+for i in range(final.shape[0]):
+    val = int(final[i][8])
+    ft[i] = val == 1153
+ax[1].scatter(final[ft, 0], final[ft, 1], s=1, c="g", label="dead, neptune")
+
+
+for i in range(initial.shape[0]):
+    val = int(final[initial_to_final[i]][8])
+    ft[i] = val == 897
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=10, c="y", marker="x", label="dead, ur")
+for i in range(final.shape[0]):
+    val = int(final[i][8])
+    ft[i] = val == 897
+ax[1].scatter(final[ft, 0], final[ft, 1], s=10, c="y", marker="x", label="dead, ur")
+
+for i in range(initial.shape[0]):
+    val = int(final[initial_to_final[i]][8])
+    ft[i] = val != 0 and val != 2 and val != 1153 and val != 897
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=20, c="r", marker="x", label="dead, ?")
+for i in range(final.shape[0]):
+    val = int(final[i][8])
+    ft[i] = val != 0 and val != 2 and val != 1153 and val != 897
+ax[1].scatter(final[ft, 0], final[ft, 1], s=20, c="r", marker="x", label="dead, ?")
+
+
+ax[0].plot(np.linspace(50, 70, 1000), 1-30.11/np.linspace(50, 70, 1000))
+ax[0].plot(np.linspace(50, 70, 1000), 1-20.5/np.linspace(50, 70, 1000))
+ax[1].plot(np.linspace(50, 70, 1000), 1-30.11/np.linspace(50, 70, 1000))
+ax[1].plot(np.linspace(50, 70, 1000), 1-20.5/np.linspace(50, 70, 1000))
+
+ax[1].set_title("Final")
+ax[0].set_title("Initial")
+
+ax[0].set_xlabel("a (AU)")
+ax[1].set_xlabel("a (AU)")
+ax[0].set_ylabel("e")
+ax[1].set_ylabel("e")
+
+plt.legend()
+
+fig, ax = plt.subplots(1, 2)
+
+for i in range(initial.shape[0]):
+    ft[i] = int(final[initial_to_final[i]][8]) != 0
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=1, c="r", label="particles that die after 4Gyr")
+
+for i in range(initial.shape[0]):
+    ft[i] = int(final[initial_to_final[i]][8]) == 0
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=1, c="k", label="particles that survive for 4Gyr")
+ax[0].legend()
+
+for i in range(final.shape[0]):
+    ft[i] = int(final[i][8]) == 0
+ax[1].scatter(final[ft, 0], final[ft, 1], s=1, c="k")
+
+ax[0].set_xlim([61.63,63.63])
+ax[1].set_xlim([61.63,63.63])
+ax[0].set_ylim([0, 0.7])
+ax[1].set_ylim([0, 0.7])
+
+ax[0].set_title("Initial librators (10Myr librators)")
+ax[1].set_title("Final survivors (4GYr)")
+
+ax[0].set_xlabel("a (AU)")
+ax[1].set_xlabel("a (AU)")
+ax[0].set_ylabel("e")
+ax[1].set_ylabel("e")
+
+
+plt.show()
+
+
+
+
+A = 62.63
+plt.figure()
+plt.scatter(initial[lib == 0, 0] - A, initial[lib == 0, 1], c="black", s=1, label="Non-librators")
+plt.scatter(initial[lib == 1, 0] - A, initial[lib == 1, 1], c="red", s=1, label="Librators")
+plt.scatter(initial[lib2 == 1, 0] - A, initial[lib2 == 1, 1], c="blue", s=1, label="Anti-librators")
 plt.xlabel("a")
 plt.ylabel("e")
 plt.legend()
