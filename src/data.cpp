@@ -656,13 +656,13 @@ namespace data
 		}
 	}
 
-	void save_data(const HostData& hd, const Configuration& config, const std::string& outfile, bool dump)
+	void save_data(const HostData& hd, const Configuration& config, const std::string& outfile)
 	{
-		if (dump || !config.writesplit)
+		if (!config.writesplit)
 		{
 			std::ostringstream ss;
 
-			if (dump || (!config.writesplit && config.writebinary))
+			if (config.writebinary)
 			{
 				std::ofstream out(outfile, std::ios_base::binary);
 				save_data_hybrid_binary(hd, config, out);
@@ -1032,7 +1032,10 @@ namespace data
 				if (path[path.size() - 1] != '/') ss << '/';
 				ss << "track." << i << ".out";
 
-				std::cout << "Reading " << ss.str() << std::endl;
+				if (!options.silent)
+				{
+					std::cout << "Reading " << ss.str() << std::endl;
+				}
 
 				if (!sr::util::does_file_exist(ss.str()))
 				{
@@ -1042,7 +1045,10 @@ namespace data
 					}
 					else
 					{
-						std::cout << i << " files read" << std::endl;
+						if (!options.silent)
+						{
+							std::cout << i << " files read" << std::endl;
+						}
 						return;
 					}
 				}

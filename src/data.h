@@ -15,79 +15,190 @@ namespace sr
 {
 namespace data
 {
-
-	/// Deathflags guide:
-	/// High byte:
-	///     Planet ID that killed the particle
-	/// Low byte:
-	/// 0x80 Particle fell into sun
-	/// 0x08 Particle absorbed by planet
-	/// 0x04 Kepler didn't converge
-	/// 0x02 Out of bounds
-	/// 0x01 Particle is in close encounter
-	
+	/**
+	 * This class represents a set of particle states.
+	 * There is no data for death time or particle flags,
+	 * so this class is used to represent a snapshot that
+	 * makes up a single entry in a simulation track.
+	 */
 	struct HostParticleSnapshot
 	{
-		size_t n, n_alive;
+		/** The number of particles that this snapshot contains.  */
+		size_t n;
 
-		Vf64_3 r, v;
+		/**
+		 * The number of alive particles. The alive particles always come before
+		 * dead particles in the array in order to speed up CUDA calls.
+		 * However, when running in CPU-only mode, the array can be out of order
+		 * between the integrator->step_particles_timeblock() call and the resync() call.
+		 */
+		size_t n_alive;
+
+		/**
+		 * The cartesian position vectors of the particles.
+		 * These can be either barycentric or heliocentric.
+		 * These may also contain the orbital elements a, e, i
+		 * when a HostParticleSnapshot is returned from reading
+		 * particle tracks.
+		 */
+		Vf64_3 r;
+
+		/**
+		 * The cartesian velocity vectors of the particles.
+		 * These can be either barycentric or heliocentric.
+		 * These may also contain the orbital elements O, o, f
+		 * when a HostParticleSnapshot is returned from reading
+		 * particle tracks.
+		 */
+		Vf64_3 v;
+
+		/**
+		 * The IDs of the particles.
+		 */
 		Vu32 id;
 
+		/**
+		 * Implements the gather operation on all of the particle arrays.
+		 * The gather operation reorders the particle data in the order provided
+		 * by the `indices` array.
+		 * See `sr::data::gather<T>` for details on the gather operation.
+		 */
 		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
+
+		/**
+		 * Resizes all of the particle arrays to the given length.
+		 */
 		void resize(size_t length);
+
+		/**
+		 * Sorts all of the particles and their corresponding arrays
+		 * by their ID. This function returns an array of indices that can
+		 * be passed to a gather operation to reorder other data
+		 * that particles may have.
+		 */
 		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
 
+		/**
+		 * Copies particle data to the given `sr::data::HostParticleSnapshot`,
+		 * but only the particles with indices (not IDs) that the `filter` argument contains.
+		 */
 		void filter(const std::vector<size_t>& filter, HostParticleSnapshot& out) const;
 
+		/** Default ctor. */
 		inline HostParticleSnapshot() : n(0), n_alive(0) { }
+		/** Ctor with size argument. */
 		inline HostParticleSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_) { }
 	};
 
 	struct HostPlanetSnapshot
 	{
-		size_t n, n_alive;
+		/** The number of planets that this snapshot contains. */
+		size_t n;
 
-		Vf64_3 r, v;
+		/** The number of alive planets that this snapshot contains. Currently is equivalent to `n`. */
+		size_t n_alive;
+
+		/**
+		 * The cartesian position vectors of the planets.
+		 * These can be either barycentric or heliocentric.
+		 * These may also contain the orbital elements a, e, i
+		 * when a HostPlanetSnapshot is returned from reading
+		 * particle tracks.
+		 */
+		Vf64_3 r;
+
+		/**
+		 * The cartesian veloicty vectors of the planets.
+		 * These can be either barycentric or heliocentric.
+		 * These may also contain the orbital elements O, o, f
+		 * when a HostPlanetSnapshot is returned from reading
+		 * particle tracks.
+		 */
+		Vf64_3 v;
+
+		/**
+		 * The IDs of the planets.
+		 */
 		Vu32 id;
+
+		/**
+		 * The masses of the planets.
+		 */
 		Vf64 m;
 
+		/** Default ctor. */
 		inline HostPlanetSnapshot() : n(0), n_alive(0) { }
+		/** Ctor with size argument. */
 		inline HostPlanetSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_), m(n_) { }
 	};
 
 
 	struct HostParticlePhaseSpace
 	{
+		/** Basic particle data. */
 		HostParticleSnapshot base;
 
+		/** Gets the particle position array. */
 		inline Vf64_3& r() { return base.r; }
 		inline const Vf64_3& r() const { return base.r; }
 
+		/** Gets the particle velocity array. */
 		inline Vf64_3& v() { return base.v; }
 		inline const Vf64_3& v() const { return base.v; }
 
+		/** Gets the particle ID array. */
 		inline Vu32& id() { return base.id; }
 		inline const Vu32& id() const { return base.id; }
 
+		/** Gets the number of particles. */
 		inline size_t& n() { return base.n; }
 		inline const size_t& n() const { return base.n; }
 
+		/** Gets the number of alive particles. */
 		inline size_t& n_alive() { return base.n_alive; }
 		inline const size_t& n_alive() const { return base.n_alive; }
 
+		/**
+		 * Gets the number of particles that are currently in an encounter.
+		 * Particles in encounter are not run on the block integrator but are
+		 * integrated afterwards.
+		 */
 		inline size_t& n_encounter() { return _n_encounter; }
 		inline const size_t& n_encounter() const { return _n_encounter; }
 
+		/**
+		 * Gets the particle death flags.
+		 * Guide:
+		 * High byte:
+		 *   Planet ID that killed the particle
+		 * Low byte:
+		 *   0x80 Particle absorbed by planet
+		 *   0x04 Kepler didn't converge
+		 *   0x02 Out of bounds
+		 *   0x01 Particle is in close encounter
+		 */
 		inline Vu16& deathflags() { return _deathflags; }
 		inline const Vu16& deathflags() const { return _deathflags; }
 
+		/**
+		 * Gets the particle death time.
+		 * Particles that remain alive have their death time set to the current time.
+		 */
 		inline Vf32& deathtime() { return _deathtime; }
 		inline const Vf32& deathtime() const { return _deathtime; }
 
+		/**
+		 * CPU block integration mode only.
+		 * Gets the index within the timeblock of the death time. This allows
+		 * encounter integration to continue from the correct place.
+		 */
 		inline Vu32& deathtime_index() { return _deathtime_index; }
 		inline const Vu32& deathtime_index() const { return _deathtime_index; }
 
+		/** Default ctor. */
 		inline HostParticlePhaseSpace() { }
+
+		/** Ctor with size argument and cpu_only. cpu_only must be set to true when CPU block integration is required. */
 		inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : base(siz), _n_encounter(0), _deathflags(siz), _deathtime(siz), _cpu_only(cpu_only)
 		{ 
 			if (cpu_only)
@@ -96,13 +207,33 @@ namespace data
 			}
 		}
 
+		/** Execute stable partition on alive particles, i.e., `deathflags & 0x00FE = 0` */
 		std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin, size_t length);
+
+		/** Execute stable partition on unflagged particles, i.e., `deathflags & 0x00FF = 0`. */
 		std::unique_ptr<std::vector<size_t>> stable_partition_unflagged(size_t begin, size_t length);
+
+		/**
+		 * Implements the gather operation on all of the particle arrays.
+		 * The gather operation reorders the particle data in the order provided
+		 * by the indices array.
+		 * See sr::data::gather for details on the gather operation.
+		 */
 		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
+
+		/**
+		 * Sorts particle data by IDs. See `HostParticleSnapshot::sort_by_id`.
+		 */
 		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
 
+		/**
+		 * Filters particle data. See `HostParticleSnapshot::filter`.
+		 */
 		void filter(const std::vector<size_t>& filter, HostParticlePhaseSpace& out) const;
 
+		/**
+		 * Gets the planet ID that is in an encounter with the particle.
+		 */
 		inline static uint8_t encounter_planet(uint16_t deathflags)
 		{
 			return static_cast<uint8_t>((deathflags & 0xFF00) >> 8);
@@ -120,32 +251,63 @@ namespace data
 
 	struct HostPlanetPhaseSpace
 	{
+		/**
+		 * Basic planet data.
+		 */
 		HostPlanetSnapshot base;
 
+		/**
+		 * Gets the planet position array.
+		 */
 		inline Vf64_3& r() { return base.r; }
 		inline const Vf64_3& r() const { return base.r; }
 
+		/**
+		 * Gets the planet velocity array.
+		 */
 		inline Vf64_3& v() { return base.v; }
 		inline const Vf64_3& v() const { return base.v; }
 
+		/**
+		 * Gets the planet ID array.
+		 */
 		inline Vu32& id() { return base.id; }
 		inline const Vu32& id() const { return base.id; }
 
+		/**
+		 * Gets the planet mass array.
+		 */
 		inline Vf64& m() { return base.m; }
 		inline const Vf64& m() const { return base.m; }
 
+		/**
+		 * Gets the planet count.
+		 */
 		inline size_t& n() { return base.n; }
 		inline const size_t& n() const { return base.n; }
 
+		/**
+		 * Gets the alive planet count in the current timeblock.
+		 */
 		inline size_t& n_alive() { return base.n_alive; }
 		inline const size_t& n_alive() const { return base.n_alive; }
 
+		/**
+		 * Gets the alive planet count for the previous timeblock.
+		 * This is used in cases where the number of planets has changed.
+		 */
 		inline size_t& n_alive_old() { return _n_alive_old; }
 		inline const size_t& n_alive_old() const { return _n_alive_old; }
 
+		/**
+		 * Gets various log of positions of the planets.
+		 */
 		inline sr::util::LogQuartet<Vf64_3>& r_log() { return _r_log; }
 		inline const sr::util::LogQuartet<Vf64_3>& r_log() const { return _r_log; }
 
+		/**
+		 * Gets various log of velocities of the planets.
+		 */
 		inline sr::util::LogQuartet<Vf64_3>& v_log() { return _v_log; }
 		inline const sr::util::LogQuartet<Vf64_3>& v_log() const { return _v_log; }
 
@@ -157,6 +319,9 @@ namespace data
 			_v_log = sr::util::LogQuartet<Vf64_3>(((n() - 1) * tb_size), ce_factor);
 		}
 
+		/**
+		 * Swap data for the previous and current timeblocks.
+		 */
 		inline void swap_logs()
 		{
 			std::swap(n_alive(), n_alive_old());
@@ -165,6 +330,9 @@ namespace data
 			v_log().swap_logs();
 		}
 
+		/**
+		 * Get the index in a log for a given timestep and planet ID.
+		 */
 		template<bool old>
 		inline size_t log_index_at(size_t timestep, size_t planet_id) const
 		{
@@ -178,15 +346,26 @@ namespace data
 		sr::util::LogQuartet<Vf64_3> _v_log;
 	};
 
+	/** This struct represents data stored on the CPU. */
 	struct HostData
 	{
+		/** Particle data. */
 		HostParticlePhaseSpace particles;
+		/** Planet data. */
 		HostPlanetPhaseSpace planets;
+		/**
+		 * Frozen planet data.
+		 * Since the planet data is always ahead
+		 * of the particle data due to pre-integration,
+		 * when a dump is needed, planet data is taken
+		 * from the snapshot instead.
+		 */
 		HostPlanetSnapshot planets_snapshot;
 
 		inline HostData() { }
 	};
 
+	/** Contains all the integration options. */
 	struct Configuration
 	{
 		double t_0, t_f, dt, big_g;
@@ -213,7 +392,14 @@ namespace data
 
 		Configuration();
 
+		/**
+		 * Create an output configuration for the current configuration.
+		 */
 		Configuration output_config() const;
+
+		/**
+		 * Create a dummy configuration for using data loading and writing in the data namespace.
+		 */
 		inline static Configuration create_dummy()
 		{
 			Configuration config;
@@ -373,6 +559,15 @@ namespace data
 		t = to_little_endian(t);
 	}
 
+	/**
+	 * The gather operation reorders elements in the `values` array based on the indices
+	 * in the `indices` array. The indices array should have length `length` and
+	 * should contain integers in the range [0, `length`).
+	 * After the operation, the `values` array will contain elements such that
+	 * ```values[i] = previous_values[indices[i]]```
+	 * The `begin` argument specifies an offset into only the `values` array.
+	 * Do not add `begin` to each element in `indices`.
+	 */
 	template<typename T>
 	void gather(std::vector<T>& values, const std::vector<size_t>& indices, size_t begin, size_t length)
 	{
@@ -397,7 +592,7 @@ namespace data
 	void save_data_hybrid(const HostData& hd, const Configuration& config, std::ostream& out);
 	void save_data_split(const HostData& hd, const Configuration& config, std::ostream& plout, std::ostream& icsout);
 
-	void save_data(const HostData& hd, const Configuration& config, const std::string& outfile, bool dump=false);
+	void save_data(const HostData& hd, const Configuration& config, const std::string& outfile);
 
 	void read_configuration(std::istream& in, Configuration* out);
 	void write_configuration(std::ostream& in, const Configuration& config);
@@ -451,8 +646,9 @@ namespace data
 		std::vector<uint32_t> particle_filter;
 		bool remove_planets;
 		double max_time;
+		bool silent;
 
-		TrackReaderOptions() : take_all_particles(false), remove_planets(true), max_time(std::numeric_limits<double>::infinity()) { }
+		TrackReaderOptions() : take_all_particles(false), remove_planets(true), max_time(std::numeric_limits<double>::infinity()), silent(false) { }
 	};
 
 	void load_binary_track(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time, bool skipplanets, bool skipparticles);

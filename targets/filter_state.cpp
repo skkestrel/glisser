@@ -305,7 +305,7 @@ int main(int argc, char** argv)
 			outcfg.hybridout = outfile;
 			hd_out.planets_snapshot = hd_out.planets.base;
 
-			sr::data::save_data(hd_out, outcfg, config.hybridout);
+			sr::data::save_data(hd_out, outcfg, outcfg.hybridout);
 		}
 
 		std::cout << "ID    | a        e        i       Om       om       f       ";

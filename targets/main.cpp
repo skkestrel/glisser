@@ -44,8 +44,10 @@ volatile sig_atomic_t end_loop = 0;
 
 void term(int signum)
 {
-	(void) signum;
-	end_loop = 1;
+	if (signum == SIGINT)
+	{
+		end_loop = 1;
+	}
 }
 
 int main(int argc, char** argv)
@@ -95,8 +97,6 @@ int main(int argc, char** argv)
 	}
 #endif
 
-
-	sr::data::Configuration out_config = config.output_config();
 
 	sr::util::make_dir(config.outfolder);
 
@@ -225,8 +225,12 @@ int main(int argc, char** argv)
 
 				if (dump)
 				{
+					sr::data::Configuration out_config = config.output_config();
 					out_config.t_f = config.t_f - config.t_0 + ex.t;
 					out_config.t_0 = ex.t;
+					out_config.writesplit = false;
+					out_config.writebinary = true;
+
 					ex.add_job([&tout, &ex, &out_config, &config, &dump_num]()
 						{
 							tout << "Dumping to disk. t = " << ex.t << std::endl;
@@ -238,7 +242,7 @@ int main(int argc, char** argv)
 
 							ss = std::ostringstream();
 							ss << "dumps/state." << dump_num << ".out";
-							save_data(ex.hd, config, sr::util::joinpath(config.outfolder, ss.str()), true);
+							save_data(ex.hd, config, sr::util::joinpath(config.outfolder, ss.str()));
 
 							dump_num++;
 						});
@@ -262,12 +266,62 @@ int main(int argc, char** argv)
 				}
 			}
 
-
 			if (end_loop)
 			{
-				tout << "Caught signal." << std::endl;
-				throw std::exception();
+				tout << "Caught signal. What do you want to do?" << std::endl;
+				tout << "dump <output_config> <output_file> | quit | continue" << std::endl;
+
+				std::string s;
+				while (std::getline(std::cin, s))
+				{
+					std::vector<std::string> tokens;
+					std::stringstream ss(s);
+					std::string token;
+					while (ss >> token)
+					{
+						tokens.push_back(token);
+					}
+
+					if (tokens.size() < 0) continue;
+
+					if (tokens[0] == "quit")
+					{
+						throw std::exception();
+					}
+					else if (tokens[0] == "continue")
+					{
+						break;
+					}
+					else if (tokens[0] == "dump")
+					{
+						if (tokens.size() != 3)
+						{
+							tout << "?" << std::endl;
+						}
+#ifndef NO_CUDA
+						if (!dump && !track)
+						{
+							ex.download_data();
+						}
+#endif
+						sr::data::Configuration out_config = config.output_config();
+						out_config.t_f = config.t_f - config.t_0 + ex.t;
+						out_config.t_0 = ex.t;
+						out_config.writesplit = false;
+
+						tout << "Dumping to disk. t = " << ex.t << std::endl;
+						std::ofstream configout(tokens[1]);
+						write_configuration(configout, out_config);
+						save_data(ex.hd, config, tokens[2]);
+					}
+					else
+					{
+						tout << "?" << std::endl;
+					}
+				}
+				// TODO add option to edit configuration
 			}
+
 		}
 	}
 	catch (const std::exception& e)
@@ -289,8 +343,11 @@ int main(int argc, char** argv)
 
 	tout << "Saving to disk." << std::endl;
 	save_data(hd, config, sr::util::joinpath(config.outfolder, "state.out"));
+
+	sr::data::Configuration out_config = config.output_config();
 	out_config.t_f = config.t_f - config.t_0 + ex.t;
 	out_config.t_0 = ex.t;
+
 	std::ofstream configout(sr::util::joinpath(config.outfolder, "config.out"));
 	write_configuration(configout, out_config);
 

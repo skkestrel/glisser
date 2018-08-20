@@ -70,3 +70,6 @@ make-state: $(OBJ_FILES)
 
 find-librators: $(OBJ_FILES)
 	$(call make-target,find_librators,find-librators)
+
+track-info: $(OBJ_FILES)
+	$(call make-target,track_info,track-info)

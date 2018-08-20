@@ -152,7 +152,7 @@ namespace wh
 						flags = flags & 0x00FF;
 						flags = flags | 0x0001;
 					}
-					if (rad > 200 * 200)
+					if (rad > 500 * 500)
 					{
 						flags = flags | 0x0002;
 					}
