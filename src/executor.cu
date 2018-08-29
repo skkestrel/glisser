@@ -41,7 +41,7 @@ namespace exec
 	};
 
 	Executor::Executor(HostData& _hd, DeviceData& _dd, const Configuration& _config, std::ostream& out)
-		: hd(_hd), dd(_dd), output(out), config(_config) { }
+		: hd(_hd), dd(_dd), output(out), config(_config), resync_counter(0) { }
 
 	void Executor::init()
 	{
@@ -256,7 +256,14 @@ namespace exec
 			// resync() is called, this is safe:
 			// - The MVS kernel does not revive particles, so resync() will never INCREASE n_alive
 			// - dd.particles.n_alive is adjusted by the close encounter handler just BEFORE this call
-			resync();
+
+			
+			resync_counter++;
+
+			if (resync_counter % config.resync_every == 0)
+			{
+				resync();
+			}
 		}
 	}
 

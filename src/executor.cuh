@@ -44,6 +44,8 @@ namespace exec
 		std::ostream& output;
 		std::ostream* encounter_output;
 
+		size_t resync_counter;
+
 		const Configuration& config;
 
 		std::chrono::time_point<std::chrono::high_resolution_clock> starttime;

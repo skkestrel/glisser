@@ -375,6 +375,8 @@ namespace data
 		uint32_t wh_ce_n1, wh_ce_n2;
 		uint32_t split_track_file;
 
+		uint32_t resync_every;
+
 		bool use_gpu;
 		bool write_bary_track;
 
@@ -578,21 +580,13 @@ namespace data
 		}
 	}
 
-	bool load_planet_data(HostData& hd, const Configuration& config, std::istream& plin);
+	bool load_planet_data(HostPlanetPhaseSpace& pl, const Configuration& config, std::istream& plin);
+	bool load_data(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
 
 	size_t stable_partition_alive_indices(const std::vector<uint16_t>& flags, size_t begin, size_t length, std::unique_ptr<std::vector<size_t>>* indices);
 
-	bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::istream& in);
-	bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& in);
-	bool load_data_split(HostData& hd, const Configuration& config, std::istream& plin, std::istream& icsin);
-
-	bool load_data(HostData& hd, const Configuration& config);
-
-	void save_data_hybrid_binary(const HostData& hd, const Configuration& config, std::ostream& out);
-	void save_data_hybrid(const HostData& hd, const Configuration& config, std::ostream& out);
-	void save_data_split(const HostData& hd, const Configuration& config, std::ostream& plout, std::ostream& icsout);
-
-	void save_data(const HostData& hd, const Configuration& config, const std::string& outfile);
+	void save_data(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, const std::string& outfile);
+	void save_data_swift(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, std::ostream& plout, std::ostream& icsout);
 
 	void read_configuration(std::istream& in, Configuration* out);
 	void write_configuration(std::ostream& in, const Configuration& config);

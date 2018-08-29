@@ -53,7 +53,7 @@ int main(int argc, char** argv)
 		HostData hd;
 
 		std::ifstream inplanet(args["<planet-file>"].asString());
-		if (sr::data::load_planet_data(hd, config, inplanet))
+		if (sr::data::load_planet_data(hd.planets, config, inplanet))
 		{
 			std::cerr << "Could not load planet data" << std::endl;
 			return -1;
@@ -144,8 +144,7 @@ int main(int argc, char** argv)
 		}
 
 		config.hybridout = args["<output-file>"].asString();
-		hd.planets_snapshot = hd.planets.base;
-		sr::data::save_data(hd, config, config.hybridout);
+		sr::data::save_data(hd.planets.base, hd.particles, config, config.hybridout);
 	}
 	catch (std::runtime_error& e)
 	{

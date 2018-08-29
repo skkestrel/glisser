@@ -136,8 +136,8 @@ int main(int argc, char** argv)
 
 	ex.t = config.t_0;
 
-	if (load_data(hd, config)) return -1;
-	save_data(hd, config, sr::util::joinpath(config.outfolder, "state.in"));
+	if (load_data(hd.planets, hd.particles, config)) return -1;
+	save_data(hd.planets.base, hd.particles, config, sr::util::joinpath(config.outfolder, "state.in"));
 
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
@@ -242,7 +242,7 @@ int main(int argc, char** argv)
 
 							ss = std::ostringstream();
 							ss << "dumps/state." << dump_num << ".out";
-							save_data(ex.hd, config, sr::util::joinpath(config.outfolder, ss.str()));
+							save_data(ex.hd.planets_snapshot, ex.hd.particles, config, sr::util::joinpath(config.outfolder, ss.str()));
 
 							dump_num++;
 						});
@@ -282,14 +282,15 @@ int main(int argc, char** argv)
 						tokens.push_back(token);
 					}
 
-					if (tokens.size() < 0) continue;
+					if (tokens.size() < 1) continue;
 
 					if (tokens[0] == "quit")
 					{
-						throw std::exception();
+						throw std::runtime_error("Quit requested by user");
 					}
 					else if (tokens[0] == "continue")
 					{
+						end_loop = 0;
 						break;
 					}
 					else if (tokens[0] == "dump")
@@ -312,7 +313,7 @@ int main(int argc, char** argv)
 						tout << "Dumping to disk. t = " << ex.t << std::endl;
 						std::ofstream configout(tokens[1]);
 						write_configuration(configout, out_config);
-						save_data(ex.hd, config, tokens[2]);
+						save_data(ex.hd.planets_snapshot, ex.hd.particles, config, tokens[2]);
 					}
 					else
 					{
@@ -342,7 +343,7 @@ int main(int argc, char** argv)
 #endif
 
 	tout << "Saving to disk." << std::endl;
-	save_data(hd, config, sr::util::joinpath(config.outfolder, "state.out"));
+	save_data(hd.planets_snapshot, hd.particles, config, sr::util::joinpath(config.outfolder, "state.out"));
 
 	sr::data::Configuration out_config = config.output_config();
 	out_config.t_f = config.t_f - config.t_0 + ex.t;
