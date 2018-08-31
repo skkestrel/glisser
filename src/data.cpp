@@ -811,30 +811,39 @@ namespace data
 		state = State::PlanetsEnd;
 	}
 
-	void TrackReader::read_planets()
+	void TrackReader::read_planets(const std::vector<uint32_t>* filter)
 	{
 		check_state(State::PlanetsEnd);
 		std::streampos pos = input.tellg();
 
-		planets = HostPlanetSnapshot(static_cast<size_t>(n_planets));
+		// planets = HostPlanetSnapshot(static_cast<size_t>(n_planets));
+		planets = HostPlanetSnapshot(static_cast<size_t>(filter ? filter->size() : n_planets));
 
+		int index = 0;
 		for (uint32_t i = 1; i < n_planets; i++)
 		{
-			sr::data::read_binary<uint32_t>(input, planets.id[i]);
+			uint32_t id;
+			sr::data::read_binary<uint32_t>(input, id);
 
-			float tempfloat;
-			sr::data::read_binary<float>(input, tempfloat);
-			planets.r[i].x = tempfloat;
-			sr::data::read_binary<float>(input, tempfloat);
-			planets.r[i].y = tempfloat;
-			sr::data::read_binary<float>(input, tempfloat);
-			planets.r[i].z = tempfloat;
-			sr::data::read_binary<float>(input, tempfloat);
-			planets.v[i].x = tempfloat;
-			sr::data::read_binary<float>(input, tempfloat);
-			planets.v[i].y = tempfloat;
-			sr::data::read_binary<float>(input, tempfloat);
-			planets.v[i].z = tempfloat;
+			if (!filter || std::find(filter->begin(), filter->end(), id) != filter->end())
+			{
+				planets.id[index] = id;
+
+				float tempfloat;
+				sr::data::read_binary<float>(input, tempfloat);
+				planets.r[index].x = tempfloat;
+				sr::data::read_binary<float>(input, tempfloat);
+				planets.r[index].y = tempfloat;
+				sr::data::read_binary<float>(input, tempfloat);
+				planets.r[index].z = tempfloat;
+				sr::data::read_binary<float>(input, tempfloat);
+				planets.v[index].x = tempfloat;
+				sr::data::read_binary<float>(input, tempfloat);
+				planets.v[index].y = tempfloat;
+				sr::data::read_binary<float>(input, tempfloat);
+				planets.v[index].z = tempfloat;
+				index++;
+			}
 		}
 
 		input.seekg(pos);
@@ -983,9 +992,9 @@ namespace data
 			reader.begin_planets();
 			if (!input) break;
 
-			if (!skip && !options.remove_planets)
+			if (!skip)
 			{
-				reader.read_planets();
+				reader.read_planets(options.take_all_planets ? nullptr : &options.planet_filter);
 			}
 			reader.end_planets();
 

@@ -627,7 +627,7 @@ namespace data
 		void read_time();
 
 		void begin_planets();
-		void read_planets();
+		void read_planets(const std::vector<uint32_t>* filter);
 		void end_planets();
 
 		void begin_particles();
@@ -644,11 +644,12 @@ namespace data
 	{
 		bool take_all_particles;
 		std::vector<uint32_t> particle_filter;
-		bool remove_planets;
+		bool take_all_planets;
+		std::vector<uint32_t> planet_filter;
 		double max_time;
 		bool silent;
 
-		TrackReaderOptions() : take_all_particles(false), remove_planets(true), max_time(std::numeric_limits<double>::infinity()), silent(false) { }
+		TrackReaderOptions() : take_all_particles(false), take_all_planets(true), max_time(std::numeric_limits<double>::infinity()), silent(false) { }
 	};
 
 	void load_binary_track(std::istream& trackin, HostPlanetSnapshot& pl, HostParticleSnapshot& pa, double& time, bool skipplanets, bool skipparticles);
