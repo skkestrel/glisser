@@ -12,11 +12,12 @@ import numpy as np
 import matplotlib.style as style
 import numpy as np
 
-style.use('ggplot')
+# style.use('ggplot')
 
 smass = 4 * math.pi * math.pi / math.pow(365.25, 2)
 
 initial_id_to_index = {}
+final_id_to_index = {}
 
 with open(sys.argv[1]) as p:
     npl = int(p.readline().strip())
@@ -65,17 +66,25 @@ with open(sys.argv[2]) as p:
         final[i, 7] = pid
         final[i, 8] = int(flags[1])
 
+        final_id_to_index[pid] = i
         final_to_initial[i] = initial_id_to_index[pid]
         initial_to_final[initial_id_to_index[pid]] = i
 
 lib = np.zeros(initial.shape[0])
 lib2 = np.zeros(initial.shape[0])
+flib = np.zeros(initial.shape[0])
+flib2 = np.zeros(initial.shape[0])
 
 with open(sys.argv[3]) as p:
     p.readline()
     for line in p:
         lib[initial_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[1])
         lib2[initial_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[2])
+with open(sys.argv[4]) as p:
+    p.readline()
+    for line in p:
+        flib[final_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[1])
+        flib2[final_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[2])
 
 print("rv2el")
 
@@ -152,40 +161,111 @@ ax[1].set_xlabel("a (AU)")
 ax[0].set_ylabel("e")
 ax[1].set_ylabel("e")
 
-plt.legend()
+
+
+
+
 
 fig, ax = plt.subplots(1, 2)
 
 for i in range(initial.shape[0]):
     ft[i] = int(final[initial_to_final[i]][8]) != 0
-ax[0].scatter(initial[ft, 0], initial[ft, 1], s=1, c="r", label="particles that die after 4Gyr")
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=0.5, c="r", label="non-survivors 1Gyr")
 
 for i in range(initial.shape[0]):
     ft[i] = int(final[initial_to_final[i]][8]) == 0
-ax[0].scatter(initial[ft, 0], initial[ft, 1], s=1, c="k", label="particles that survive for 4Gyr")
+ax[0].scatter(initial[ft, 0], initial[ft, 1], s=0.5, c="k", label="survivors after 1Gyr")
 ax[0].legend()
 
 for i in range(final.shape[0]):
-    ft[i] = int(final[i][8]) == 0
-ax[1].scatter(final[ft, 0], final[ft, 1], s=1, c="k")
+    ft[i] = int(final[i][8]) == 0 and not flib[i] and not flib2[i]
+ax[1].scatter(final[ft, 0], final[ft, 1], s=0.5, c="lime", label="non-librators")
+
+for i in range(final.shape[0]):
+    ft[i] = int(final[i][8]) == 0 and (flib[i] or flib2[i])
+ax[1].scatter(final[ft, 0], final[ft, 1], s=0.5, c="k", label="librators")
+
+
+X = np.linspace(61.63, 63.63, 300)
+
+ax[1].plot(X, 1-30.11/X, c="k")
+ax[0].plot(X, 1-30.11/X, c="k")
+
+ax[1].plot(X, 1-20.7/X, c="k", ls="--")
+ax[0].plot(X, 1-20.7/X, c="k", ls="--")
+
+
+ax[1].legend()
+ax[0].legend()
 
 ax[0].set_xlim([61.63,63.63])
 ax[1].set_xlim([61.63,63.63])
 ax[0].set_ylim([0, 0.7])
 ax[1].set_ylim([0, 0.7])
 
-ax[0].set_title("Initial librators (10Myr librators)")
-ax[1].set_title("Final survivors (4GYr)")
+ax[0].set_title("Initial 1Myr librators")
+ax[1].set_title("Final 1Gyr survivors")
 
 ax[0].set_xlabel("a (AU)")
 ax[1].set_xlabel("a (AU)")
 ax[0].set_ylabel("e")
 ax[1].set_ylabel("e")
 
+ax[0].tick_params(axis="y",direction="in")
+ax[0].tick_params(axis="x",direction="in")
+ax[0].set_axisbelow(True)
+ax[1].tick_params(axis="y",direction="in")
+ax[1].tick_params(axis="x",direction="in")
+ax[1].set_axisbelow(True)
+ax[0].grid()
+ax[1].grid()
+
+
+
+
+
+
+
+
+
+fig, ax = plt.subplots(1, 2)
+
+for i in range(initial.shape[0]):
+    ft[i] = True
+ax[0].scatter(initial[ft, 0], initial[ft, 2] / np.pi * 180, s=1, c="k")
+
+for i in range(final.shape[0]):
+    ft[i] = int(final[i][8]) == 0 and (flib[i] or flib2[i])
+ax[1].scatter(initial[ft, 1], initial[ft, 2] / np.pi * 180,  s=1, c="k")
+
+ax[0].set_xlim([61.63,63.63])
+ax[1].set_xlim([0,0.7])
+ax[0].set_ylim([0,50])
+ax[1].set_ylim([0,50])
+
+ax[0].set_ylabel("i (deg)")
+ax[1].set_ylabel("i (deg)")
+ax[0].set_xlabel("a (AU)")
+ax[1].set_xlabel("e")
+
+ax[0].tick_params(axis="y",direction="in")
+ax[0].tick_params(axis="x",direction="in")
+ax[0].set_axisbelow(True)
+ax[1].tick_params(axis="y",direction="in")
+ax[1].tick_params(axis="x",direction="in")
+ax[1].set_axisbelow(True)
+ax[0].grid()
+ax[1].grid()
+
+
+
+
+
+
+
+
 
 plt.show()
-
-
 
 
 A = 62.63

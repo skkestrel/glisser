@@ -13,8 +13,8 @@ Usage:
 
 Options:
     -h, --help                     Show this screen.
-    -w <list>, --watch <list>      Take only the comma-separated list of particles, or "all"
-    -P, --no-planets               Don't take planets.
+    -w <list>, --watch <list>      Take only the comma-separated list of particles, or "all" [default: none]
+    -p <list>, --planets <list>    Take the comma-separated list of particles, or "none" [default: all]
     -l <n>, --split <n>            Split output every n bytes
     -s <n>, --skip <n>             Take every n time steps [default: 1]
     -t <t>, --tmax <t>             Take only up to given time
@@ -28,23 +28,46 @@ int main(int argc, char** argv)
 	{
 		std::vector<uint32_t> particles;
 		bool takeallparticles = false;
-		if (args["--watch"])
+		if (args["--watch"].asString() == "all")
 		{
-			if (args["--watch"].asString() == "all")
-			{
-				takeallparticles = true;
-			}
-			else
-			{
-				std::istringstream ss(args["--watch"].asString());
-				std::string token;
+			takeallparticles = true;
+		}
+		else if (args["--watch"].asString() == "none")
+		{
+			takeallparticles = false;
+		}
+		else
+		{
+			std::istringstream ss(args["--watch"].asString());
+			std::string token;
 
-				while (std::getline(ss, token, ','))
-				{
-					particles.push_back(static_cast<uint32_t>(std::stoul(token)));
-				}
+			while (std::getline(ss, token, ','))
+			{
+				particles.push_back(static_cast<uint32_t>(std::stoul(token)));
 			}
 		}
+
+		std::vector<uint32_t> planet_filter;
+		bool takeallplanets = true;
+		if (args["--planets"].asString() == "all")
+		{
+			takeallplanets = true;
+		}
+		else if (args["--planets"].asString() == "none")
+		{
+			takeallplanets = false;
+		}
+		else
+		{
+			std::istringstream ss(args["--planets"].asString());
+			std::string token;
+
+			while (std::getline(ss, token, ','))
+			{
+				planet_filter.push_back(static_cast<uint32_t>(std::stoul(token)));
+			}
+		}
+
 
 		std::sort(particles.begin(), particles.end());
 
@@ -57,12 +80,6 @@ int main(int argc, char** argv)
 			{
 				throw std::runtime_error("Cannot specify a negative integer for split");
 			}
-		}
-
-		bool killplanets = false;
-		if (args["--no-planets"].asBool())
-		{
-			killplanets = true;
 		}
 
 		std::string inpath = args["<input>"].asString();
@@ -100,7 +117,8 @@ int main(int argc, char** argv)
 		sr::data::TrackReaderOptions opt;
 		opt.take_all_particles = takeallparticles;
 		opt.particle_filter = std::move(particles);
-		opt.remove_planets = killplanets;
+		opt.take_all_planets = takeallplanets;
+		opt.planet_filter = std::move(planet_filter);
 
 		sr::data::read_tracks(inpath, opt,
 			[&](sr::data::HostPlanetSnapshot& pl, sr::data::HostParticleSnapshot& pa, double time)

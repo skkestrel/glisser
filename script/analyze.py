@@ -12,59 +12,15 @@ import numpy as np
 import matplotlib.style as style
 import numpy as np
 
-style.use('ggplot')
+# style.use('ggplot')
 
 smass = 4 * math.pi * math.pi / math.pow(365.25, 2)
 
-with open(sys.argv[2]) as p:
-	npl = int(p.readline().strip())
-	for i in range(npl * 4): p.readline()
-	n = int(p.readline().strip())
+initial, initial_int = util.read_state(sys.argv[1])
+final, final_int = util.read_state(sys.argv[2])
 
-	initial = np.zeros((n, 6))
-	for i in range(n):
-		xyz = list([float(i) for i in p.readline().split()])
-		vxyz = list([float(i) for i in p.readline().split()])
-		p.readline()
-
-		initial[i, 0] = xyz[0]
-		initial[i, 1] = xyz[1]
-		initial[i, 2] = xyz[2]
-		initial[i, 3] = vxyz[0]
-		initial[i, 4] = vxyz[1]
-		initial[i, 5] = vxyz[2]
-
-with open(sys.argv[1]) as p:
-	npl = int(p.readline().strip())
-	for i in range(npl * 4): p.readline()
-	n = int(p.readline().strip())
-
-	final = np.zeros((n, 9))
-	for i in range(n):
-		xyz = list([float(i) for i in p.readline().split()])
-		vxyz = list([float(i) for i in p.readline().split()])
-		flags = p.readline().strip().split()
-
-		dtime = float(flags[2])
-		pid = int(flags[0])
-
-		final[i, 0] = xyz[0]
-		final[i, 1] = xyz[1]
-		final[i, 2] = xyz[2]
-		final[i, 3] = vxyz[0]
-		final[i, 4] = vxyz[1]
-		final[i, 5] = vxyz[2]
-		final[i, 6] = dtime
-		final[i, 7] = pid
-		final[i, 8] = int(flags[1])
-	initial = initial[final[:, 7].astype(np.int32), :]
-
-print("rv2el")
-
-for i in range(initial.shape[0]):
-	initial[i, :6] = util.rv2el(smass, initial[i, :6])
-for i in range(final.shape[0]):
-	final[i, :6] = util.rv2el(smass, final[i, :6])
+initial = initial[final_int[:, 0].astype(np.int32), :]
+initial_int = initial_int[final_int[:, 0].astype(np.int32), :]
 
 def plot_orbits():
     a = np.linspace(22, 28, 200)
@@ -73,17 +29,22 @@ def plot_orbits():
     plt.plot(a, 30 / a - 1)
     plt.text(26, 0.15, "Aphelion neptune")
 
-
 # import pdb; pdb.set_trace()
 
-alive = final[:, 8] > -1
+alive = final_int[:, 0] > -1 # always true
+
 final[final[:, 6] == 0, 6] = final[:, 6].max()
 
 if final.shape[0] < 20001:
     plt.scatter(initial[alive, 0], initial[alive, 1], c=final[alive, 6] / 365.25e6, s=1, norm=matplotlib.colors.LogNorm())
     cbar = plt.colorbar()
     cbar.set_label('survival time (MYr)')
-    plt.title('survival time given initial conditions')
+    # plt.title('survival time given initial conditions')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
     plt.xlim([23, 27])
     plt.ylim([0.0001, 0.1])
     plt.xlabel('a (AU)')
@@ -94,11 +55,16 @@ if final.shape[0] < 20001:
     plt.scatter(initial[alive, 0], initial[alive, 2] / 2 / np.pi * 360, c=final[alive, 6] / 365.25e6, s=1, norm=matplotlib.colors.LogNorm())
     cbar = plt.colorbar()
     cbar.set_label('survival time (MYr)')
-    plt.title('survival time given initial conditions')
+    #plt.title('survival time given initial conditions')
     plt.xlim([23, 27])
     plt.ylim([0, 0.1])
     plt.xlabel('a (AU)')
     plt.ylabel('i (deg)')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
 
     def cFromFlags(flags):
         nflags = []
@@ -116,52 +82,123 @@ if final.shape[0] < 20001:
         return nflags
 
     plt.figure()
-    plt.title('survival time given initial conditions')
+    #plt.title('survival time given initial conditions')
     plt.scatter(initial[alive, 0], final[alive, 6] / 365.25e6, s=1, c=cFromFlags(final[alive, 8]))
     plt.ylim([0.00001, 4500])
     plt.xlabel('a (AU)')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
 
     plt.figure()
-    plt.title('survival time given initial conditions')
+    #plt.title('survival time given initial conditions')
     plt.scatter(initial[alive, 2] / math.pi * 180, final[alive, 6] / 365.25e6, s=1, c=cFromFlags(final[alive, 8]))
     plt.ylim([0.00001, 4500])
     plt.xlabel('i (deg)')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
 
     plt.figure()
-    plt.title('survival time given initial conditions')
+    #plt.title('survival time given initial conditions')
     plt.scatter(initial[alive, 1], final[alive, 6] / 365.25e6, s=1, c=cFromFlags(final[alive, 8]))
     plt.ylim([0.00001, 4500])
     plt.xlabel('e')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
 
 elif final[:, 8].max() > 0:
     plt.figure()
-    plt.title('survival time given initial conditions')
+    #plt.title('survival time given initial conditions')
     util.logHist(plt.gca(), initial[alive, 1], final[alive, 6] / 365.25e6, 1)
     plt.xlabel('e')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
 
     plt.figure()
-    plt.title('survival time given initial conditions')
+    #plt.title('survival time given initial conditions')
+    util.dense_scatter(plt.gca(), initial[alive, 0], final[alive, 6] / 365.25e6, initial[alive, 1], label="e", log_y=True, ymin=1, defaultValue=-1)
+    plt.xlabel('a (AU)')
+    plt.ylabel('survival time (MYr)')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+
+
+
+    '''
+    plt.figure()
+    c = []
+    for i in range(final.shape[0]):
+        f = int(final[i, 8])
+        if f == 0:
+            c.append("g")
+        elif f == 1153:
+            c.append("r")
+        elif f == 897:
+            c.append("b")
+    plt.scatter(initial[alive, 0], final[alive, 6] / 365.25e6, s=0.1, c=c)
+    plt.scatter([], [], s=0.1, c="r", label="Absorbed by Neptune")
+    plt.scatter([], [], s=0.1, c="g", label="Alive")
+    plt.scatter([], [], s=0.1, c="b", label="Absorbed by Uranus")
+    plt.xlabel('a_initial (AU)')
+    plt.xlim([24.2, 26.2])
+    plt.ylim([1, 4700])
+    plt.legend()
+    plt.ylabel('survival time (MYr)')
+    plt.yscale("log")
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
+    '''
+
+
+    plt.figure()
+    #plt.title('survival time given initial conditions')
     util.logHist(plt.gca(), initial[alive, 0], final[alive, 6] / 365.25e6, 1)
     plt.xlabel('a (AU)')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
 
 
     plt.figure()
-    plt.title('survival time given initial conditions')
+    #plt.title('survival time given initial conditions')
     order = list(range(initial.shape[0]))
     order.sort(key=lambda x: final[x, 6])
     util.dense_scatter(plt.gca(), initial[alive, 0], initial[alive, 1], final[alive, 6] / 365.25e6, 150, 150, logBar=True, label="Survival time (MYr)", order=order, upperLimitColor='red', defaultValue=final[alive, 6].min() / 365.25e6)
     plt.xlabel('a (AU)')
     plt.ylabel('e')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    #ax.grid()
 
 
     plt.figure()
@@ -170,17 +207,33 @@ elif final[:, 8].max() > 0:
     plt.xlabel('i (deg)')
     plt.yscale('log')
     plt.ylabel('survival time (MYr)')
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
+    ax.grid()
 
 plt.figure()
-alive = final[:, 8] == 0
-plt.title('surviving particle final states')
-plt.scatter(final[alive, 0], final[alive, 1], s=5, c="red", label="Initial states")
+alive = final_int[:, 1] == 0
+alive = np.logical_and(alive, final[:, 0] < 30)
+
+#plt.title('surviving particle final states')
+plt.scatter(final[alive, 0], final[alive, 1], s=5, c="red", label="Final states")
+rect = plt.Rectangle([24.2, 0], 2, 0.05, fill=False, zorder=1, linestyle="--", lw="2.5")
+ax = plt.gca()
+ax.add_patch(rect)
+ax.set_xlim([24.1, 26.3])
+ax.set_ylim([0, 0.06])
+ax.tick_params(axis="y",direction="in")
+ax.tick_params(axis="x",direction="in")
+ax.set_axisbelow(True)
+ax.grid()
 
 if alive.sum() < 1000:
     for i in range(len(alive)):
         if alive[i]:
             plt.plot([initial[i, 0], final[i, 0]], [initial[i, 1], final[i, 1]], lw=1, c="pink", zorder=-100)
-plt.scatter(initial[alive, 0], initial[alive, 1], s=5, c="blue", label="Final states")
+plt.scatter(initial[alive, 0], initial[alive, 1], s=5, c="blue", label="Initial states")
 
 plt.xlabel('a (AU)')
 plt.legend()
@@ -190,14 +243,19 @@ plot_orbits()
 
 plt.figure()
 alive = final[:, 8] == 0
-plt.title('surviving particle final states')
-plt.scatter(final[alive, 0], final[alive, 2] / math.pi * 180, s=5, c="red", label="Initial states")
+#plt.title('surviving particle final states')
+plt.scatter(final[alive, 0], final[alive, 2] / math.pi * 180, s=5, c="red", label="Final states")
+ax = plt.gca()
+ax.tick_params(axis="y",direction="in")
+ax.tick_params(axis="x",direction="in")
+ax.set_axisbelow(True)
+ax.grid()
 
 if alive.sum() < 1000:
     for i in range(len(alive)):
         if alive[i]:
-            plt.plot([initial[i, 0], final[i, 0]], [initial[i, 2] / math.pi * 180, final[i, 1] / math.pi * 180], lw=1, c="pink", zorder=-100)
-plt.scatter(initial[alive, 0], initial[alive, 2] / math.pi * 180, s=5, c="blue", label="Final states")
+            plt.plot([initial[i, 0], final[i, 0]], [initial[i, 2] / math.pi * 180, final[i, 2] / math.pi * 180], lw=1, c="pink", zorder=-100)
+plt.scatter(initial[alive, 0], initial[alive, 2] / math.pi * 180, s=5, c="blue", label="Initial states")
 
 plt.xlabel('a (AU)')
 plt.legend()

@@ -2,76 +2,103 @@ import math
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import matplotlib.colors
 
-def dense_scatter(ax, x, y, data, ny=400, nx=400, logBar=False, label=None, order=None, defaultValue=np.nan, defaultColor=None, upperLimitColor=None):
+def dense_scatter(ax, x, y, data, ny=400, nx=400, logBar=False, label=None, order=None, defaultValue=np.nan, defaultColor=None, upperLimitColor=None, use_cbar=True, log_y=False, ymin=None, vmax=None):
     xmax = x.max()
     xmin = x.min()
     ymax = y.max()
-    ymin = y.min()
 
-    yedges, xedges = np.linspace(ymin, ymax, ny+1), np.linspace(xmin, xmax, nx+1)
+    if not ymin:
+        ymin = y.min()
+
+    if log_y:
+        yedges, xedges = np.exp(np.linspace(np.log(ymin), np.log(ymax), ny+1)), np.linspace(xmin, xmax, nx+1)
+    else:
+        yedges, xedges = np.linspace(ymin, ymax, ny+1), np.linspace(xmin, xmax, nx+1)
 
     H = np.empty((nx, ny))
     H[:] = defaultValue
     X, Y = np.meshgrid(xedges, yedges)
 
-    dx = (xmax - xmin) / nx
-    dy = (ymax - ymin) / ny
+    if log_y:
+        dx = (xmax - xmin) / nx
+        dy = (np.log(ymax) - np.log(ymin)) / ny
+    else:
+        dx = (xmax - xmin) / nx
+        dy = (ymax - ymin) / ny
 
-    if order:
+    def load(x, y):
+        if log_y:
+            xc = int(math.floor((xi - xmin) / dx))
+            yc = int(math.floor((np.log(yi) - np.log(ymin)) / dy))
+            if yc == ny: yc -= 1
+            if xc == nx: xc -= 1
+        else:
+            xc = int(math.floor((xi - xmin) / dx))
+            yc = int(math.floor((yi - ymin) / dy))
+            if yc == ny: yc -= 1
+            if xc == nx: xc -= 1
+        return xc, yc
+
+    if order is not None:
         for i in order:
             xi = x[i]
             yi = y[i]
             dat = data[i]
-            xc = int(math.floor((xi - xmin) / dx))
-            yc = int(math.floor((yi - ymin) / dy))
-
-            if yc == ny: yc -= 1
-            if xc == nx: xc -= 1
-
-            H[xc, yc] = dat
+            tup = load(xi, yi)
+            if tup[1] < 0:
+                continue
+            H[tup[0], tup[1]] = dat
     else:
         for xi, yi, dat in zip(x, y, data):
-            xc = int(math.floor((xi - xmin) / dx))
-            yc = int(math.floor((yi - ymin) / dy))
-
-            if yc == ny: yc -= 1
-            if xc == nx: xc -= 1
-
-            H[xc, yc] = dat
+            tup = load(xi, yi)
+            if tup[1] < 0:
+                continue
+            H[tup[0], tup[1]] = dat
 
 
     H = H.T[::-1, :]
     ax.grid(False)
 
-    vmax = data.max()
+    if not vmax:
+        vmax = data.max()
 
-    cm = matplotlib.cm.get_cmap("viridis")
+    import copy
+    cm = copy.copy(matplotlib.cm.get_cmap("viridis"))
 
     if defaultColor:
         cm.set_bad(color=defaultColor)
 
-    if np.isnan(defaultValue):
-        H = np.ma.masked_array(H, np.isnan(H))
+    if not use_cbar:
+        cmap = None
 
-    if upperLimitColor:
-        print(vmax)
+    if upperLimitColor is not None:
         vmax = np.nextafter(vmax, np.NINF)
-        vmax -= 1
-        print(vmax)
+        # vmax *= 0.99
         cm.set_over(color=upperLimitColor)
 
     if logBar:
         norm = matplotlib.colors.LogNorm(vmax=vmax)
     else:
-        norm = matplotlib.colors.LinearNorm(vmax=vmax)
+        import pdb; pdb.set_trace()
+        norm = matplotlib.colors.Normalize(vmax=vmax, clip=upperLimitColor is None)
 
-    import pdb; pdb.set_trace()
+    if log_y:
+        X, Y = np.meshgrid(xedges, yedges)
+        H = np.ma.masked_array(H, H < 0)
+        a = ax.pcolormesh(X, Y, H[::-1], zorder=0, cmap=cm)
+        ax.set_yscale("log")
+    else:
+        if np.isnan(defaultValue):
+            H = np.ma.masked_array(H, np.isnan(H))
+        a = ax.imshow(H, aspect='auto', zorder=0, extent=(xmin, xmax, ymin, ymax), norm=norm, cmap=cm)
 
-    a = ax.imshow(H, aspect='auto', zorder=0, extent=(xmin, xmax, ymin, ymax), norm=norm, cmap=cm)
+    if use_cbar:
+        cbar = plt.colorbar(a, ax=ax)
+        cbar.set_label(label)
 
-    cbar = plt.colorbar(a, ax=ax)
-    cbar.set_label(label)
+    return a
 
 def nologHist(ax, x, y, ny=150, nx=150, logBar=True):
     H, xedges, yedges = np.histogram2d(x, y, bins=[nx, ny])
@@ -220,3 +247,62 @@ def get_M(data):
     E = E * np.sign(data[5])
     M = E - data[1] * np.sin(E)
     return M
+
+def read_state(filename, to_elements=True, read_planets=False, sort=True):
+    with open(filename) as p:
+        npl = int(p.readline().strip())
+        pl = np.zeros((npl, 7))
+        pl_int = np.zeros((npl, 1), dtype=np.int32)
+        pl_a = 0;
+
+        for i in range(npl):
+            m = float(p.readline().strip())
+            if i == 0:
+                smass = m
+
+            xyz = list([float(i) for i in p.readline().strip().split()])
+            vxyz = list([float(i) for i in p.readline().strip().split()])
+
+            Id = int(p.readline().strip().split()[0]) 
+            pl_int[i, 0] = Id
+            if xyz[0] * xyz[0] + xyz[1] * xyz[1] + xyz[2] * xyz[2] < 1e-14:
+                pl[i, :6] = 0
+            else:
+                pl[i, :6] = rv2el(smass, np.array(xyz + vxyz))
+            pl[i, 6] = m
+
+        n = int(p.readline().strip())
+        final = np.zeros((n, 7))
+        final_int = np.zeros((n, 2), dtype=np.int32)
+        for i in range(n):
+            xyz = list([float(i) for i in p.readline().split()])
+            vxyz = list([float(i) for i in p.readline().split()])
+            flags = p.readline().strip().split()
+
+            dtime = float(flags[2])
+            pid = int(flags[0])
+
+            final[i, 0] = xyz[0]
+            final[i, 1] = xyz[1]
+            final[i, 2] = xyz[2]
+            final[i, 3] = vxyz[0]
+            final[i, 4] = vxyz[1]
+            final[i, 5] = vxyz[2]
+            final[i, 6] = dtime
+            final_int[i, 0] = pid
+            final_int[i, 1] = int(flags[1])
+
+    if to_elements:
+        print("rv2el") 
+        for i in range(final.shape[0]):
+            final[i, :6] = rv2el(smass, final[i, :6])
+
+    if sort:
+        ind = np.lexsort((final_int[:, 0],))
+        final = final[ind, :]
+        final_int = final_int[ind, :]
+
+    if read_planets:
+        return pl, pl_int, final, final_int
+    else:
+        return final, final_int

@@ -1,7 +1,7 @@
 """plot_emax.py
 
 Usage:
-    plot_emax.py [options] <initial-state> <emax-file>
+    plot_emax.py [options] <initial-state> <final-state> <emax-file>
 
 Options:
     -h, --help                     Show this screen.
@@ -36,42 +36,16 @@ with open(args["<emax-file>"]) as p:
 planet_ids = list([int(x) for x in args['--plot-mmr'].split(',')]) if args['--plot-mmr'] else []
 planet_as = {}
 
-with open(args["<initial-state>"]) as p:
-    npl = int(p.readline().strip())
-    pl_a = 0;
-    for i in range(npl):
-        p.readline()
-        xyz = list([float(i) for i in p.readline().strip().split()])
-        vxyz = list([float(i) for i in p.readline().strip().split()])
-        Id = int(p.readline().strip().split()[0]) 
+pl, pl_int, initial, initial_int = util.read_state(args["<initial-state>"], read_planets=True)
+final, final_int = util.read_state(args["<final-state>"])
 
-        if Id in planet_ids:
-            els = util.rv2el(smass, np.array(xyz + vxyz))
-            planet_as[Id] = els[0]
+if not np.equal(final_int[:, 0], initial_int[:, 0]).all():
+    print("?")
+    sys.exit(-1)
 
-    n = int(p.readline().strip())
-
-    initial = np.zeros((n, 9))
-    for i in range(n):
-        xyz = list([float(i) for i in p.readline().strip().split()])
-        vxyz = list([float(i) for i in p.readline().strip().split()])
-        flags = p.readline().strip().split()
-
-        dtime = float(flags[2])
-        pid = int(flags[0])
-
-        initial[i, 0] = xyz[0]
-        initial[i, 1] = xyz[1]
-        initial[i, 2] = xyz[2]
-        initial[i, 3] = vxyz[0]
-        initial[i, 4] = vxyz[1]
-        initial[i, 5] = vxyz[2]
-        initial[i, 6] = dtime
-        initial[i, 7] = pid
-        initial[i, 8] = int(flags[1])
-
-for i in range(initial.shape[0]):
-    initial[i, :6] = util.rv2el(smass, initial[i, :6])
+for i in range(pl.shape[0]):
+    if pl_int[i, 0] in planet_ids:
+        planet_as[pl_int[i, 0]] = pl[i, 0]
 
 emax = np.zeros(max(dc.keys())+1)
 emax2 = np.zeros(max(dc.keys())+1)
@@ -132,18 +106,20 @@ def f(ax):
         '''
 
 fig, ax = plt.subplots(2, 2)
+final[final[:, 6] == 0, 6] = final[:, 6].max() * 1.1
 
-util.nologHist(ax[0, 0], initial[:, 0], emax[initial[:, 7].astype(np.int32)], 150, 300, False)
+util.nologHist(ax[0, 0], initial[:, 0], emax[initial_int[:, 0]], 150, 300, False)
 ax[0, 0].set_xlabel("a_i (AU)")
 ax[0, 0].set_ylabel("e_max")
 f(ax[0, 0])
 
-util.nologHist(ax[1, 0], initial[:, 0], emax2[initial[:, 7].astype(np.int32)] / 365e6, 150, 300, False)
+# util.nologHist(ax[1, 0], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, 150, 300, False)
+util.dense_scatter(ax[1, 0], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, emax[initial_int[:, 0]], label="e_max", ny=400, nx=400, vmax=0.32)
 ax[1, 0].set_xlabel("a_i (AU)")
 ax[1, 0].set_ylabel("e_max_t (MYr)")
 f(ax[1, 0])
 
-util.dense_scatter(ax[0, 1], initial[:, 0], emax[initial[:, 7].astype(np.int32)], initial[:, 1], label="e_i")
+util.dense_scatter(ax[0, 1], initial[:, 0], emax[initial_int[:, 0]], initial[:, 1], label="e_i")
 ax[0, 1].set_xlabel("a_i (AU)")
 ax[0, 1].set_ylabel("e_max")
 f(ax[0, 1])
@@ -154,7 +130,8 @@ if len(planet_as) > 0:
         ax[0, 1].plot([], [], label="Planet {0}".format(Id), ls=styles[index % len(styles)], transform=ax[0, 1].transAxes)
     ax[0, 1].legend()
 
-util.dense_scatter(ax[1, 1], initial[:, 0], emax2[initial[:, 7].astype(np.int32)] / 365e6, initial[:, 1], label="e_i")
+# util.dense_scatter(ax[1, 1], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, initial[:, 1], label="e_i")
+util.dense_scatter(ax[1, 1], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, final[:, 6] / 365e6, label="deathtime (MYr)", upperLimitColor="r")
 ax[1, 1].set_xlabel("a_i (AU)")
 ax[1, 1].set_ylabel("e_max_t (MYr)")
 f(ax[1, 1])

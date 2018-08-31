@@ -8,7 +8,7 @@ Options:
     -h, --help                        Show this screen.
     -i, --info                        Show info about the provided track.
     -w <list>, --watch <list>         Plot the comma-separated list of particles, or "all"
-    -P, --no-planets                  Don't plot planets.
+    -P <list>                         Plot the comma-separated list of planets [default: all]
     -s <n>, --skip <n>                Take every n time steps [default: 1]
     -t <t>, --tmax <t>                Take only up to given time
     --plot-angles                     ..
@@ -48,7 +48,7 @@ if args["--planet-names"]:
 style.use('ggplot')
 
 times = []
-particlewatch = []
+particle_index_to_id = []
 
 def get_planet_name(ind):
     if ind in planet_names:
@@ -58,17 +58,17 @@ def get_planet_name(ind):
 
 if args["--watch"]:
     if args["--watch"] == "all":
-        particlewatch = []
+        particle_index_to_id = []
         take_all_particles = True
     else:
         take_all_particles = False
-        particlewatch = [int(x) for x in args["--watch"].split(',')]
+        particle_index_to_id = [int(x) for x in args["--watch"].split(',')]
 else:
     take_all_particles = False
-    particlewatch = []
+    particle_index_to_id = []
 
-particlewatch_rev = {}
-particles = [[] for i in range(len(particlewatch) * 6)]
+particle_index_to_id_rev = {}
+particles = [[] for i in range(len(particle_index_to_id) * 6)]
 
 def bsearch(f, npa, partnum):
     base = f.tell()
@@ -96,7 +96,7 @@ info = args["--info"]
 
 if info:
     take_every = 1
-    particlewatch_rev = {}
+    particle_index_to_id_rev = {}
     take_all_particles = True
 
 planets = None
@@ -153,7 +153,7 @@ while True:
 
                 if (counter % take_every) == 0 and (not info or counter == 0):
                     if take_all_particles:
-                        if len(particlewatch) == 0:
+                        if len(particle_index_to_id) == 0:
                             firstrun = True
                         else:
                             firstrun = False
@@ -164,13 +164,13 @@ while True:
                             pid, a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))
 
                             if firstrun:
-                                particlewatch_rev[pid] = len(particlewatch)
-                                particlewatch.append(pid)
+                                particle_index_to_id_rev[pid] = len(particle_index_to_id)
+                                particle_index_to_id.append(pid)
                                 for j in range(6):
                                     particles.append([])
 
                             foundparticles.add(pid)
-                            ind = particlewatch_rev[pid]
+                            ind = particle_index_to_id_rev[pid]
 
 
                             particles[6*ind].append(a)
@@ -180,8 +180,8 @@ while True:
                             particles[6*ind+4].append(o)
                             particles[6*ind+5].append(F)
 
-                        for i in set(particlewatch) - foundparticles:
-                            ind = particlewatch_rev[i]
+                        for i in set(particle_index_to_id) - foundparticles:
+                            ind = particle_index_to_id_rev[i]
 
                             particles[6*ind].append(math.nan)
                             particles[6*ind+1].append(math.nan)
@@ -191,7 +191,7 @@ while True:
                             particles[6*ind+5].append(math.nan)
 
                     else:
-                        for index, partnum in enumerate(particlewatch):
+                        for index, partnum in enumerate(particle_index_to_id):
                             part = bsearch(f, npa, partnum)
                             if part:
                                 particles[6*index].append(part[1])
@@ -219,9 +219,9 @@ while True:
         break
 
 if info:
-    print("This track contains {0} planets and {1} particles".format(npl, len(particlewatch)))
-    if len(particlewatch) < 20:
-        print("Particle ids {0}".format(", ".join([str(i) for i in particlewatch])))
+    print("This track contains {0} planets and {1} particles".format(npl, len(particle_index_to_id)))
+    if len(particle_index_to_id) < 20:
+        print("Particle ids {0}".format(", ".join([str(i) for i in particle_index_to_id])))
     print("Planet ids {0}".format(", ".join([str(i) for i in planet_id_to_index.keys()])))
     print("dt = {0}".format(times[1] - times[0]))
     print("t_f = {0}".format(times[-1]))
@@ -246,12 +246,13 @@ if skip_planets:
     npl = 0
 
 def do_for(callback, pllist=None, palist=None):
-    for i in (pllist if pllist is not None else range(1, npl + 1)):
-        c = cc[(i - 1) % len(cc)]
-        callback(planets[6*(i-1):6*i], c, planet_id_to_index[i], True)
-    for i in (palist if palist is not None else range(len((particlewatch)))):
-        c = cc[(i + (len(pllist) if pllist is not None else npl)) % len(cc)]
-        callback(particles[6*i:6*i+6], c, particlewatch[i], False)
+    for index,Id in enumerate(pllist if pllist is not None else planet_id_to_index.keys()):
+        c = cc[index % len(cc)]
+        i = planet_id_to_index[Id]
+        callback(planets[6*i:6*i+6], c, Id, True)
+    for index,Id in enumerate(palist if palist is not None else particle_index_to_id):
+        c = cc[(index + (len(pllist) if pllist is not None else npl)) % len(cc)]
+        callback(particles[6*index:6*index+6], c, Id, False)
 
 if args["--plot-qQ"]:
     plt.figure()
@@ -441,6 +442,7 @@ if args["--plot-mmr-arg"]:
 
     for mmr in mmrs:
         fig, axes = plt.subplots(1, 1)
+        fig, axes2 = plt.subplots(3, 1)
 
         def plot_arg(data, c, ind, is_planet):
             param = get_mmr_angle(data, mmr)
@@ -449,6 +451,16 @@ if args["--plot-mmr-arg"]:
                 axes.scatter([], [], c=c, label=get_planet_name(ind))
             else:
                 axes.scatter([], [], c=c, label="Particle {0}".format(ind))
+
+            M = util.get_M(data)
+            pid = planet_id_to_index[mmr[2]]
+
+            data_pl = planets[6 * pid : 6 * pid + 6]
+            Mpl = util.get_M(data_pl)
+
+            axes2[0].scatter(stimes, util.get_principal_angle(data[3] + data[4] + M), s=1, c=c)
+            axes2[1].scatter(stimes, util.get_principal_angle(data_pl[3] + data_pl[4] + Mpl), s=1, c=c)
+            axes2[2].scatter(stimes, util.get_principal_angle(data[3] + data[4]), s=1, c=c)
 
         do_for(plot_arg, [])
         axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2]))
@@ -471,6 +483,7 @@ if args["--plot-individual-history"]:
         axes[3].scatter(stimes, data[3], c=c, s=1)
         axes[3].set_ylabel("Ω")
 
+        '''
         axes[4].scatter(stimes, data[3], c=c, s=1)
         axes[4].set_ylabel("ω~")
 
@@ -483,7 +496,6 @@ if args["--plot-individual-history"]:
         axes[4].set_ylabel("ω~")
         axes[5].scatter(stimes, util.get_principal_angle(data[4] + data[3] - times / 365 / 360 / 3600 * 28 * 2 * math.pi), c=c, s=1)
         axes[5].set_ylabel("ω~")
-        '''
 
 
         axes[5].set_xlabel(timelabel)

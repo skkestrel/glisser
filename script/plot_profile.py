@@ -55,11 +55,16 @@ with open('{0}/timeblock-prof.csv'.format(Dir)) as p:
         Y.append(time / npa / nstep * 100000 * 10000)
         X.append(nblock)
     plt.figure()
+    plt.grid()
     plt.xlabel('Timeblock size')
     plt.ylabel('s / 100k particles / 10k timesteps')
     plt.yscale('log')
     plt.xscale('log')
-    plt.scatter(X, Y)
+    plt.scatter(X, Y, s=3, c="k")
+    ax = plt.gca()
+    ax.tick_params(axis="y",direction="in")
+    ax.tick_params(axis="x",direction="in")
+    ax.set_axisbelow(True)
 with open('{0}/planet-prof.csv'.format(Dir)) as p:
     X = []
     Y = []
