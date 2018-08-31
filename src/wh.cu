@@ -9,7 +9,7 @@ namespace wh
 {
 	using namespace sr::data;
 
-	const size_t MAXKEP = 5;
+	const size_t MAXKEP = 2;
 	const float64_t TOLKEP = 1E-14;
 
 	struct MVSKernel

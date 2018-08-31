@@ -171,6 +171,7 @@ namespace data
 		wh_ce_r2 = 3.5;
 		cull_radius = 0.5;
 
+		resync_every = 1;
 		print_every = 10;
 		energy_every = 1;
 		track_every = 0;
@@ -252,6 +253,8 @@ namespace data
 					out->max_particle = std::stou(second);
 				else if (first == "Log-Interval")
 					out->print_every = std::stou(second);
+				else if (first == "Resync-Interval")
+					out->resync_every = std::stou(second);
 				else if (first == "Status-Interval")
 					out->energy_every = std::stou(second);
 				else if (first == "Track-Interval")
@@ -347,6 +350,7 @@ namespace data
 		outstream << "Log-Interval " << out.print_every << std::endl;
 		outstream << "Status-Interval " << out.energy_every << std::endl;
 		outstream << "Track-Interval " << out.track_every << std::endl;
+		outstream << "Resync-Interval " << out.resync_every << std::endl;
 		outstream << "Write-Barycentric-Track" << out.write_bary_track << std::endl;
 		outstream << "Split-Track-File " << out.split_track_file << std::endl;
 		outstream << "Dump-Interval " << out.dump_every << std::endl;
@@ -364,60 +368,60 @@ namespace data
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
 	}
 
-	bool load_planet_data(HostData& hd, const Configuration& config, std::istream& plin)
+	bool load_planet_data(HostPlanetPhaseSpace& pl, const Configuration& config, std::istream& plin)
 	{
 		size_t npl;
 		plin >> npl;
 
-		hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
+		pl = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
 
 		for (size_t i = 0; i < npl; i++)
 		{
-			plin >> hd.planets.m()[i];
-			plin >> hd.planets.r()[i].x >> hd.planets.r()[i].y >> hd.planets.r()[i].z;
-			plin >> hd.planets.v()[i].x >> hd.planets.v()[i].y >> hd.planets.v()[i].z;
+			plin >> pl.m()[i];
+			plin >> pl.r()[i].x >> pl.r()[i].y >> pl.r()[i].z;
+			plin >> pl.v()[i].x >> pl.v()[i].y >> pl.v()[i].z;
 
-			hd.planets.id()[i] = static_cast<uint32_t>(i);
+			pl.id()[i] = static_cast<uint32_t>(i);
 		}
 
 		return false;
 	}
 
-	bool load_data_nohybrid(HostData& hd, const Configuration& config, std::istream& plin, std::istream& icsin)
+	bool load_data_nohybrid(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config, std::istream& plin, std::istream& icsin)
 	{
-		load_planet_data(hd, config, plin);
+		load_planet_data(pl, config, plin);
 
 		size_t npart;
 		icsin >> npart;
 		npart = std::min(npart, static_cast<size_t>(config.max_particle));
 
-		hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
+		pa = HostParticlePhaseSpace(npart, !config.use_gpu);
 
 		for (size_t i = 0; i < npart; i++)
 		{
-			icsin >> hd.particles.r()[i].x >> hd.particles.r()[i].y >> hd.particles.r()[i].z;
-			icsin >> hd.particles.v()[i].x >> hd.particles.v()[i].y >> hd.particles.v()[i].z;
+			icsin >> pa.r()[i].x >> pa.r()[i].y >> pa.r()[i].z;
+			icsin >> pa.v()[i].x >> pa.v()[i].y >> pa.v()[i].z;
 
 			std::string s;
 			icsin >> s;
 			if (!isdigit(s[0]))
 			{
 				icsin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-				hd.particles.deathtime()[i] = 0;
-				hd.particles.id()[i] = static_cast<uint32_t>(i);
-				hd.particles.deathflags()[i] = 0;
+				pa.deathtime()[i] = 0;
+				pa.id()[i] = static_cast<uint32_t>(i);
+				pa.deathflags()[i] = 0;
 			}
 			else
 			{
-				hd.particles.deathtime()[i] = std::stof(s);
-				icsin >> hd.particles.deathflags()[i] >> hd.particles.id()[i];
+				pa.deathtime()[i] = std::stof(s);
+				icsin >> pa.deathflags()[i] >> pa.id()[i];
 			}
 		}
 
 		return false;
 	}
 
-	bool load_data_hybrid(HostData& hd, const Configuration& config, std::istream& in)
+	bool load_data_hybrid(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config, std::istream& in)
 	{
 		std::string s;
 
@@ -426,26 +430,26 @@ namespace data
 		size_t npl;
 		ss >> npl;
 		
-		hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
+		pl = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
 
 		for (size_t i = 0; i < npl; i++)
 		{
 			std::getline(in, s);
 			ss = std::istringstream(s);
-			ss >> hd.planets.m()[i];
+			ss >> pl.m()[i];
 
 			std::getline(in, s);
 			ss = std::istringstream(s);
-			ss >> hd.planets.r()[i].x >> hd.planets.r()[i].y >> hd.planets.r()[i].z;
+			ss >> pl.r()[i].x >> pl.r()[i].y >> pl.r()[i].z;
 
 			std::getline(in, s);
 			ss = std::istringstream(s);
-			ss >> hd.planets.v()[i].x >> hd.planets.v()[i].y >> hd.planets.v()[i].z;
+			ss >> pl.v()[i].x >> pl.v()[i].y >> pl.v()[i].z;
 
 			std::getline(in, s);
 			ss = std::istringstream(s);
 			
-			ss >> hd.planets.id()[i];
+			ss >> pl.id()[i];
 		}
 
 		std::getline(in, s);
@@ -453,66 +457,66 @@ namespace data
 		size_t npart;
 		ss >> npart;
 		npart = std::min(npart, static_cast<size_t>(config.max_particle));
-		hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
+		pa = HostParticlePhaseSpace(npart, !config.use_gpu);
 
 		for (size_t i = 0; i < npart; i++)
 		{
 			std::getline(in, s);
 			ss = std::istringstream(s);
-			ss >> hd.particles.r()[i].x >> hd.particles.r()[i].y >> hd.particles.r()[i].z;
+			ss >> pa.r()[i].x >> pa.r()[i].y >> pa.r()[i].z;
 
 			std::getline(in, s);
 			ss = std::istringstream(s);
-			ss >> hd.particles.v()[i].x >> hd.particles.v()[i].y >> hd.particles.v()[i].z;
+			ss >> pa.v()[i].x >> pa.v()[i].y >> pa.v()[i].z;
 
 			std::getline(in, s);
 			ss = std::istringstream(s);
-			ss >> hd.particles.id()[i] >> hd.particles.deathflags()[i] >> hd.particles.deathtime()[i];
+			ss >> pa.id()[i] >> pa.deathflags()[i] >> pa.deathtime()[i];
 		}
 
 		return false;
 	}
 
-	bool load_data_hybrid_binary(HostData& hd, const Configuration& config, std::istream& in)
+	bool load_data_hybrid_binary(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config, std::istream& in)
 	{
 		uint64_t templl;
 		read_binary<uint64_t>(in, templl);
 		size_t npl = static_cast<size_t>(templl);
-		hd.planets = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
+		pl = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
 
-		for (size_t i = 0; i < hd.planets.n(); i++)
+		for (size_t i = 0; i < pl.n(); i++)
 		{
-			read_binary<uint32_t>(in, hd.planets.id()[i]);
-			read_binary<double>(in, hd.planets.m()[i]);
-			read_binary<double>(in, hd.planets.r()[i].x);
-			read_binary<double>(in, hd.planets.r()[i].y);
-			read_binary<double>(in, hd.planets.r()[i].z);
-			read_binary<double>(in, hd.planets.v()[i].x);
-			read_binary<double>(in, hd.planets.v()[i].y);
-			read_binary<double>(in, hd.planets.v()[i].z);
+			read_binary<uint32_t>(in, pl.id()[i]);
+			read_binary<double>(in, pl.m()[i]);
+			read_binary<double>(in, pl.r()[i].x);
+			read_binary<double>(in, pl.r()[i].y);
+			read_binary<double>(in, pl.r()[i].z);
+			read_binary<double>(in, pl.v()[i].x);
+			read_binary<double>(in, pl.v()[i].y);
+			read_binary<double>(in, pl.v()[i].z);
 		}
 
 		read_binary<uint64_t>(in, templl);
 		size_t npart = std::min(static_cast<size_t>(templl), static_cast<size_t>(config.max_particle));
-		hd.particles = HostParticlePhaseSpace(npart, !config.use_gpu);
+		pa = HostParticlePhaseSpace(npart, !config.use_gpu);
 
-		for (size_t i = 0; i < hd.particles.n(); i++)
+		for (size_t i = 0; i < pa.n(); i++)
 		{
-			read_binary<uint32_t>(in, hd.particles.id()[i]);
-			read_binary<double>(in, hd.particles.r()[i].x);
-			read_binary<double>(in, hd.particles.r()[i].y);
-			read_binary<double>(in, hd.particles.r()[i].z);
-			read_binary<double>(in, hd.particles.v()[i].x);
-			read_binary<double>(in, hd.particles.v()[i].y);
-			read_binary<double>(in, hd.particles.v()[i].z);
-			read_binary<uint16_t>(in, hd.particles.deathflags()[i]);
-			read_binary<float>(in, hd.particles.deathtime()[i]);
+			read_binary<uint32_t>(in, pa.id()[i]);
+			read_binary<double>(in, pa.r()[i].x);
+			read_binary<double>(in, pa.r()[i].y);
+			read_binary<double>(in, pa.r()[i].z);
+			read_binary<double>(in, pa.v()[i].x);
+			read_binary<double>(in, pa.v()[i].y);
+			read_binary<double>(in, pa.v()[i].z);
+			read_binary<uint16_t>(in, pa.deathflags()[i]);
+			read_binary<float>(in, pa.deathtime()[i]);
 		}
 
 		return !in;
 	}
 
-	bool load_data(HostData& hd, const Configuration& config)
+	bool load_data(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config)
 	{
 		bool ret;
 		if (config.readsplit)
@@ -531,7 +535,7 @@ namespace data
 			}
 			
 			std::ifstream plinfile(config.plin), icsinfile(config.icsin);
-			ret = load_data_nohybrid(hd, config, plinfile, icsinfile);
+			ret = load_data_nohybrid(pl, pa, config, plinfile, icsinfile);
 		}
 		else
 		{
@@ -545,118 +549,142 @@ namespace data
 			if (config.readbinary)
 			{
 				std::ifstream in(config.hybridin, std::ios_base::binary);
-				ret = load_data_hybrid_binary(hd, config, in);
+				ret = load_data_hybrid_binary(pl, pa, config, in);
 			}
 			else
 			{
 				std::ifstream in(config.hybridin);
-				ret = load_data_hybrid(hd, config, in);
+				ret = load_data_hybrid(pl, pa, config, in);
 			}
 		}
 
 		if (!ret)
 		{
-			for (size_t i = 0; i < hd.planets.n(); i++)
+			for (size_t i = 0; i < pl.n(); i++)
 			{
 				if (config.readmomenta)
 				{
-					hd.planets.v()[i] /= hd.planets.m()[i];
+					pl.v()[i] /= pl.m()[i];
 				}
 
-				hd.planets.m()[i] *= config.big_g;
+				pl.m()[i] *= config.big_g;
 			}
 
-			hd.particles.stable_partition_alive(0, hd.particles.n());
+			pa.stable_partition_alive(0, pa.n());
 		}
 
 		return ret;
 	}
 
-	void save_data_hybrid_binary(const HostData& hd, const Configuration& config, std::ostream& out)
+	void save_data_hybrid_binary(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, std::ostream& out)
 	{
 		(void) config;
-		write_binary(out, static_cast<uint64_t>(hd.planets.n_alive()));
-		for (size_t i = 0; i < hd.planets.n_alive(); i++)
+		write_binary(out, static_cast<uint64_t>(pl.n_alive));
+		for (size_t i = 0; i < pl.n_alive; i++)
 		{
-			double m = hd.planets_snapshot.m[i];
-			write_binary(out, hd.planets_snapshot.id[i]);
+			double m = pl.m[i];
+			write_binary(out, pl.id[i]);
 			write_binary(out, m);
 
 			if (!config.writemomenta) m = 1;
-			write_binary(out, hd.planets_snapshot.r[i].x);
-			write_binary(out, hd.planets_snapshot.r[i].y);
-			write_binary(out, hd.planets_snapshot.r[i].z);
-			write_binary(out, hd.planets_snapshot.v[i].x * m);
-			write_binary(out, hd.planets_snapshot.v[i].y * m);
-			write_binary(out, hd.planets_snapshot.v[i].z * m);
+			write_binary(out, pl.r[i].x);
+			write_binary(out, pl.r[i].y);
+			write_binary(out, pl.r[i].z);
+			write_binary(out, pl.v[i].x * m);
+			write_binary(out, pl.v[i].y * m);
+			write_binary(out, pl.v[i].z * m);
 		}
 
-		write_binary(out, static_cast<uint64_t>(hd.particles.n()));
-		for (size_t i = 0; i < hd.particles.n(); i++)
+		write_binary(out, static_cast<uint64_t>(pa.n()));
+		for (size_t i = 0; i < pa.n(); i++)
 		{
-			write_binary(out, hd.particles.id()[i]);
-			write_binary(out, hd.particles.r()[i].x);
-			write_binary(out, hd.particles.r()[i].y);
-			write_binary(out, hd.particles.r()[i].z);
-			write_binary(out, hd.particles.v()[i].x);
-			write_binary(out, hd.particles.v()[i].y);
-			write_binary(out, hd.particles.v()[i].z);
-			write_binary(out, hd.particles.deathflags()[i]);
-			write_binary(out, hd.particles.deathtime()[i]);
+			write_binary(out, pa.id()[i]);
+			write_binary(out, pa.r()[i].x);
+			write_binary(out, pa.r()[i].y);
+			write_binary(out, pa.r()[i].z);
+			write_binary(out, pa.v()[i].x);
+			write_binary(out, pa.v()[i].y);
+			write_binary(out, pa.v()[i].z);
+			write_binary(out, pa.deathflags()[i]);
+			write_binary(out, pa.deathtime()[i]);
 		}
 	}
 
-	void save_data_hybrid(const HostData& hd, const Configuration& config, std::ostream& out)
+	void save_data_hybrid(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, std::ostream& out)
 	{
 		(void) config;
-		out << hd.planets_snapshot.n_alive << std::endl;
+		out << pl.n_alive << std::endl;
 		out << std::setprecision(17);
-		for (size_t i = 0; i < hd.planets_snapshot.n_alive; i++)
+		for (size_t i = 0; i < pl.n_alive; i++)
 		{
-			double m = hd.planets_snapshot.m[i];
+			double m = pl.m[i];
 			out << m << std::endl;
 			if (!config.writemomenta) m = 1;
-			out << hd.planets_snapshot.r[i].x << " " << hd.planets_snapshot.r[i].y << " " << hd.planets_snapshot.r[i].z << std::endl;
-			out << hd.planets_snapshot.v[i].x * m << " " << hd.planets_snapshot.v[i].y * m << " " << hd.planets_snapshot.v[i].z * m << std::endl;
-			out << hd.planets_snapshot.id[i] << std::endl;
+			out << pl.r[i].x << " " << pl.r[i].y << " " << pl.r[i].z << std::endl;
+			out << pl.v[i].x * m << " " << pl.v[i].y * m << " " << pl.v[i].z * m << std::endl;
+			out << pl.id[i] << std::endl;
 		}
 
-		out << hd.particles.n() << std::endl;
+		out << pa.n() << std::endl;
 		out << std::setprecision(17);
-		for (size_t i = 0; i < hd.particles.n(); i++)
+		for (size_t i = 0; i < pa.n(); i++)
 		{
-			out << hd.particles.r()[i].x << " " << hd.particles.r()[i].y << " " << hd.particles.r()[i].z << std::endl;
-			out << hd.particles.v()[i].x << " " << hd.particles.v()[i].y << " " << hd.particles.v()[i].z << std::endl;
-			out << hd.particles.id()[i] << " " << hd.particles.deathflags()[i] << " " << hd.particles.deathtime()[i] << std::endl;
+			out << pa.r()[i].x << " " << pa.r()[i].y << " " << pa.r()[i].z << std::endl;
+			out << pa.v()[i].x << " " << pa.v()[i].y << " " << pa.v()[i].z << std::endl;
+			out << pa.id()[i] << " " << pa.deathflags()[i] << " " << pa.deathtime()[i] << std::endl;
 		}
 	}
 
-	void save_data_nohybrid(const HostData& hd, const Configuration& config, std::ostream& plout, std::ostream& icsout)
+	void save_data_nohybrid(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, std::ostream& plout, std::ostream& icsout)
 	{
 		(void) config;
-		plout << hd.planets_snapshot.n_alive << std::endl;
+		plout << pl.n_alive << std::endl;
 		plout << std::setprecision(17);
-		for (size_t i = 0; i < hd.planets_snapshot.n_alive; i++)
+		for (size_t i = 0; i < pl.n_alive; i++)
 		{
-			double m = hd.planets_snapshot.m[i];
+			double m = pl.m[i];
 			plout << m << std::endl;
 
 			if (!config.writemomenta) m = 1;
-			plout << hd.planets_snapshot.r[i].x << " " << hd.planets_snapshot.r[i].y << " " << hd.planets_snapshot.r[i].z << std::endl;
-			plout << hd.planets_snapshot.v[i].x * m << " " << hd.planets_snapshot.v[i].y * m << " " << hd.planets_snapshot.v[i].z * m << std::endl;
+			plout << pl.r[i].x << " " << pl.r[i].y << " " << pl.r[i].z << std::endl;
+			plout << pl.v[i].x * m << " " << pl.v[i].y * m << " " << pl.v[i].z * m << std::endl;
 		}
 
-		icsout << hd.particles.n() << std::endl;
+		icsout << pa.n() << std::endl;
 		icsout << std::setprecision(17);
-		for (size_t i = 0; i < hd.particles.n(); i++)
+		for (size_t i = 0; i < pa.n(); i++)
 		{
-			icsout << hd.particles.r()[i].x << " " << hd.particles.r()[i].y << " " << hd.particles.r()[i].z << std::endl;
-			icsout << hd.particles.v()[i].x << " " << hd.particles.v()[i].y << " " << hd.particles.v()[i].z << std::endl;
-			icsout << hd.particles.deathtime()[i] << " " << hd.particles.deathflags()[i] << " " << hd.particles.id()[i] << std::endl;
+			icsout << pa.r()[i].x << " " << pa.r()[i].y << " " << pa.r()[i].z << std::endl;
+			icsout << pa.v()[i].x << " " << pa.v()[i].y << " " << pa.v()[i].z << std::endl;
+			icsout << pa.deathtime()[i] << " " << pa.deathflags()[i] << " " << pa.id()[i] << std::endl;
 		}
 	}
 
-	void save_data(const HostData& hd, const Configuration& config, const std::string& outfile)
+	void save_data_swift(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, std::ostream& plout, std::ostream& icsout)
+	{
+		plout << pl.n_alive << std::endl;
+		plout << std::setprecision(17);
+		for (size_t i = 0; i < pl.n_alive; i++)
+		{
+			double m = pl.m[i];
+			plout << m << std::endl;
+
+			plout << pl.r[i].x << " " << pl.r[i].y << " " << pl.r[i].z << std::endl;
+			plout << pl.v[i].x << " " << pl.v[i].y << " " << pl.v[i].z << std::endl;
+		}
+
+		icsout << pa.n() << std::endl;
+		icsout << std::setprecision(17);
+		for (size_t i = 0; i < pa.n(); i++)
+		{
+			icsout << pa.r()[i].x << " " << pa.r()[i].y << " " << pa.r()[i].z << std::endl;
+			icsout << pa.v()[i].x << " " << pa.v()[i].y << " " << pa.v()[i].z << std::endl;
+			icsout << "0 0 0 0 0 0 0 0 0 0 0 0 0" << std::endl;
+			icsout << "0.0 0.0 0.0 0.0 0.0" << std::endl << "0.0 0.0 0.0 0.0 0.0" << std::endl << "0.0 0.0 0.0" << std::endl;
+		}
+	}
+
+	void save_data(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, const std::string& outfile)
 	{
 		if (!config.writesplit)
 		{
@@ -665,18 +693,18 @@ namespace data
 			if (config.writebinary)
 			{
 				std::ofstream out(outfile, std::ios_base::binary);
-				save_data_hybrid_binary(hd, config, out);
+				save_data_hybrid_binary(pl, pa, config, out);
 			}
 			else
 			{
 				std::ofstream out(outfile);
-				save_data_hybrid(hd, config, out);
+				save_data_hybrid(pl, pa, config, out);
 			}
 		}
 		else
 		{
 			std::ofstream ploutfile(sr::util::joinpath(config.outfolder, "pl.out")), icsoutfile(sr::util::joinpath(config.outfolder, "ics.out"));
-			save_data_nohybrid(hd, config, ploutfile, icsoutfile);
+			save_data_nohybrid(pl, pa, config, ploutfile, icsoutfile);
 		}
 	}
 

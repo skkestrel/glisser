@@ -65,7 +65,7 @@ int main(int argc, char** argv)
 				config.readbinary = binary;
 				config.readmomenta = momentum;
 
-				load_data(hd, config);
+				load_data(hd.planets, hd.particles, config);
 
 				if (hd.planets.r()[0].lensq() < EPS && hd.planets.r()[0].lensq() < EPS) ishelio = true;
 				else
@@ -84,7 +84,7 @@ int main(int argc, char** argv)
 				config.readbinary = false;
 				config.readsplit = true;
 
-				load_data(hd, config);
+				load_data(hd.planets, hd.particles, config);
 
 				if (hd.planets.r()[0].lensq() < EPS && hd.planets.r()[0].lensq() < EPS) ishelio = true;
 				else
@@ -94,14 +94,25 @@ int main(int argc, char** argv)
 
 				i += 2;
 			}
+			else if (arg == "write-swift")
+			{
+				std::string plout = commands[i + 1];
+				std::string icsout = commands[i + 2];
+				std::ofstream o1(plout);
+				std::ofstream o2(icsout);
+
+
+				save_data_swift(hd.planets.base, hd.particles, o1, o2);
+
+				i += 2;
+			}
 			else if (arg == "write")
 			{
 				config.hybridout = commands[i + 1];
 				config.writebinary = binary;
 				config.writemomenta = momentum;
 
-				hd.planets_snapshot = hd.planets.base;
-				save_data(hd, config, config.hybridout);
+				save_data(hd.planets.base, hd.particles, config, config.hybridout);
 
 				i++;
 			}

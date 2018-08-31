@@ -161,7 +161,7 @@ int main(int argc, char** argv)
 		config.readbinary = args["--binary"].asBool();
 		config.readmomenta = false;
 
-		load_data(hd, config);
+		load_data(hd.planets, hd.particles, config);
 		hd.particles.sort_by_id(0, hd.particles.n());
 		if (args["--barycentric"])
 		{
@@ -177,7 +177,7 @@ int main(int argc, char** argv)
 		if (has_init)
 		{
 			config.hybridin = args["--initial-state"].asString();
-			load_data(hd_init, config);
+			load_data(hd_init.planets, hd_init.particles, config);
 
 			hd_init.particles.sort_by_id(0, hd_init.particles.n());
 
@@ -303,9 +303,7 @@ int main(int argc, char** argv)
 
 			sr::data::Configuration outcfg;
 			outcfg.hybridout = outfile;
-			hd_out.planets_snapshot = hd_out.planets.base;
-
-			sr::data::save_data(hd_out, outcfg, outcfg.hybridout);
+			sr::data::save_data(hd_out.planets.base, hd_out.particles, outcfg, outcfg.hybridout);
 		}
 
 		std::cout << "ID    | a        e        i       Om       om       f       ";
