@@ -670,7 +670,7 @@ namespace data
 			plout << m << std::endl;
 
 			plout << pl.r[i].x << " " << pl.r[i].y << " " << pl.r[i].z << std::endl;
-			plout << pl.v[i].x * m << " " << pl.v[i].y * m << " " << pl.v[i].z * m << std::endl;
+			plout << pl.v[i].x << " " << pl.v[i].y << " " << pl.v[i].z << std::endl;
 		}
 
 		icsout << pa.n() << std::endl;

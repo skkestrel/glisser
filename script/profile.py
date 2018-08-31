@@ -1,4 +1,5 @@
 import shutil
+import random
 import subprocess
 import sys
 import math
@@ -15,6 +16,7 @@ Track-Interval 0
 Log-Interval 128
 Status-Interval 1
 Resync-Interval {4}
+CPU-Thread-Count 1
 Enable-GPU {3}
 Output-Folder temp-data
 Limit-Particle-Count {1}
@@ -47,6 +49,9 @@ def resync_every(tbsize):
 
 binary = "bin/sr" if use_gpu else "bin/sr_cpu"
 
+def randmul():
+	return 1 + random.uniform(-1, 1) * 0.00000001
+
 def genstate(npl, npa):
 	with open('temp-state.in', 'w') as stateout:
 		stateout.write("{0}\n".format(npl + 1))
@@ -54,12 +59,12 @@ def genstate(npl, npa):
 		for i in range(npl):
 			r = i + 1
 			v = math.sqrt(1. / (i + 1))
-			stateout.write("0.00001\n{0} {1} 0\n{2} {3} 0\n{4}\n"
-					.format(r, 0, 0, v, i + 1))
+			stateout.write("0.0000001\n{0} {1} 0\n{2} {3} 0\n{4}\n"
+					.format(r, 0, 0, v * randmul(), i + 1))
 		stateout.write("{0}\n".format(npa))
 		for i in range(npa):
-			stateout.write("{0} 0 0\n{1} 0 0\n{2} 0 0\n"
-					.format(npl + 1, math.sqrt(1. / (npl + 1)), i + 1))
+			stateout.write("{0} 0 0\n0 {1} 0\n{2} 0 0\n"
+					.format(npl + 1, randmul() * math.sqrt(1. / (npl + 1)), i + 1))
 
 def run():
 	shutil.rmtree('temp-data', True)

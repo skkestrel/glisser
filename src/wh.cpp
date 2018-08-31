@@ -687,14 +687,22 @@ namespace wh
 		for (size_t j = 1; j < pl.n_alive(); j++)
 		{
 			f64_3 dr = pa.r()[particle_index] - pl.r_log().get<!encounter, old>()[pl.log_index_at<old>(timestep_index, j)];
+#ifdef USE_FMA
 			float64_t planet_rji2 = std::fma(dr.x, dr.x, std::fma(dr.y, dr.y, dr.z * dr.z));
+#else
+			float64_t planet_rji2 = dr.lensq();
+#endif
 
 			float64_t irij3 = 1. / (planet_rji2 * std::sqrt(planet_rji2));
 			float64_t fac = pl.m()[j] * irij3;
 
+#ifdef USE_FMA
 			a.x = std::fma(-dr.x, fac, a.x);
 			a.y = std::fma(-dr.y, fac, a.y);
 			a.z = std::fma(-dr.z, fac, a.z);
+#else
+			a -= dr * fac;
+#endif
 
 			uint8_t detection = WHIntegrator::detect_encounter(planet_rji2, planet_rh[j], encounter_r1, encounter_r2);
 			if (detection > max_encounter) max_encounter = detection;
@@ -1033,6 +1041,7 @@ namespace wh
 		}
 
 		// Drift all the particles along their Jacobi Kepler ellipses
+		// Can change false to true to use fixed iterations
 		drift<true>(dt, pa.r(), pa.v(), begin, length, particle_dist, particle_energy, particle_vdotr, particle_mu, particle_mask);
 
 		// find the accelerations of the heliocentric velocities

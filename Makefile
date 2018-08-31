@@ -22,7 +22,7 @@ LDFLAGS = -pthread # -lasan
 
 sr:
 	@mkdir -p $(BIN_DIR)
-	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/sr -O3
+	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/sr -O3
 
 clean:
 	rm -r $(OBJ_DIR)/* 

@@ -74,19 +74,32 @@ namespace exec
 		work.clear();
 
 		std::vector<std::thread> threads;
-		for (size_t i = 0; i < config.num_thread; i++)
+		if (config.num_thread > 1)
 		{
-			threads.push_back(std::thread([i, this]()
-				{
-					size_t total = hd.particles.n_alive() - hd.particles.n_encounter();
-					integrator.integrate_particles_timeblock(
-							hd.planets,
-							hd.particles,
-							total * i / config.num_thread,
-							// The length is not exactly total / config.num_thread due to roundoff
-							total * (i + 1) / config.num_thread - total * i / config.num_thread,
-							t);
-				}));
+			for (size_t i = 0; i < config.num_thread; i++)
+			{
+				threads.push_back(std::thread([i, this]()
+					{
+						size_t total = hd.particles.n_alive() - hd.particles.n_encounter();
+						integrator.integrate_particles_timeblock(
+								hd.planets,
+								hd.particles,
+								total * i / config.num_thread,
+								// The length is not exactly total / config.num_thread due to roundoff
+								total * (i + 1) / config.num_thread - total * i / config.num_thread,
+								t);
+					}));
+			}
+		}
+		else
+		{
+			size_t total = hd.particles.n_alive() - hd.particles.n_encounter();
+			integrator.integrate_particles_timeblock(
+					hd.planets,
+					hd.particles,
+					0,
+					total,
+					t);
 		}
 
 		size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
