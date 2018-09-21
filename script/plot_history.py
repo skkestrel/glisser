@@ -11,6 +11,7 @@ Options:
     -p <list>, --planets <list>       Plot the comma-separated list of planets, or "none" [default: all]
     -s <n>, --skip <n>                Take every n time steps [default: 1]
     -t <t>, --tmax <t>                Take only up to given time
+    --print-mean-a
     --plot-angles                     ..
     --plot-mmr-arg <mmr>              <mmr> = "3:4@3" for neptune, for example
     --plot-aei                        ..
@@ -20,6 +21,7 @@ Options:
     --plot-qQ-mmr                     ..
     --plot-e-smooth                   ..
     --plot-individual-history-sec     ..
+    --plot-mmr-bands                  ..
     --plot-individual-history <mmr>   ..
     --planet-names <mmr>              0=Jupiter,1=Saturn, ...
     --plot-diffusion                  ..
@@ -29,12 +31,8 @@ import sys
 import os
 import math
 import numpy as np
-import matplotlib
-matplotlib.use("Qt5Agg")
-import matplotlib.pyplot as plt
 import struct
-import util
-import matplotlib.style as style
+import util2
 import docopt
 
 args = docopt.docopt(__doc__)
@@ -45,8 +43,6 @@ if args["--planet-names"]:
     for i in args["--planet-names"].split(","):
         j = i.split("=")
         planet_names[int(j[0])] = j[1]
-
-style.use('ggplot')
 
 times = []
 particle_index_to_id = []
@@ -254,8 +250,6 @@ times = np.array(times)
 planets = np.array(planets)
 particles = np.array(particles)
 
-cc = plt.rcParams['axes.prop_cycle'].by_key()['color']
-
 if times[-1] > 365e6:
     stimes = times / 365e6
     timelabel = "Time (Myr)"
@@ -276,6 +270,18 @@ def do_for(callback, pllist=None, palist=None):
     for index,Id in enumerate(palist if palist is not None else particle_index_to_id):
         c = cc[(index + (len(pllist) if pllist is not None else npl)) % len(cc)]
         callback(particles[6*index:6*index+6], c, Id, False)
+
+if args["--print-mean-a"]:
+    for i,Id in planet_id_to_index.items():
+	    print("Planet {0}: {1} AU".format(i, planets[6 * Id].mean()))
+
+import matplotlib
+# matplotlib.use("Qt5Agg")
+import matplotlib.pyplot as plt
+import matplotlib.style as style
+style.use('ggplot')
+
+cc = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
 if args["--plot-qQ"]:
     plt.figure()
@@ -448,11 +454,11 @@ def parse_mmr(string):
     return ((int(split1[0]), int(split2[0]), int(split2[1])))
 
 def get_mmr_angle(data, mmr):
-    M = util.get_M(data)
+    M = util2.get_M(data)
     pid = planet_id_to_index[mmr[2]]
 
     data_pl = planets[6 * pid : 6 * pid + 6]
-    Mpl = util.get_M(data_pl)
+    Mpl = util2.get_M(data_pl)
 
     arg = mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (mmr[1] - mmr[0]) * (data[3] + data[4])
     return arg
@@ -469,21 +475,21 @@ if args["--plot-mmr-arg"]:
 
         def plot_arg(data, c, ind, is_planet):
             param = get_mmr_angle(data, mmr)
-            axes.scatter(stimes, util.get_principal_angle(param), c=c, s=1)
+            axes.scatter(stimes, util2.get_principal_angle(param), c=c, s=1)
             if is_planet:
                 axes.scatter([], [], c=c, label=get_planet_name(ind))
             else:
                 axes.scatter([], [], c=c, label="Particle {0}".format(ind))
 
-            M = util.get_M(data)
+            M = util2.get_M(data)
             pid = planet_id_to_index[mmr[2]]
 
             data_pl = planets[6 * pid : 6 * pid + 6]
-            Mpl = util.get_M(data_pl)
+            Mpl = util2.get_M(data_pl)
 
-            axes2[0].scatter(stimes, util.get_principal_angle(data[3] + data[4] + M), s=1, c=c)
-            axes2[1].scatter(stimes, util.get_principal_angle(data_pl[3] + data_pl[4] + Mpl), s=1, c=c)
-            axes2[2].scatter(stimes, util.get_principal_angle(data[3] + data[4]), s=1, c=c)
+            axes2[0].scatter(stimes, util2.get_principal_angle(data[3] + data[4] + M), s=1, c=c)
+            axes2[1].scatter(stimes, util2.get_principal_angle(data_pl[3] + data_pl[4] + Mpl), s=1, c=c)
+            axes2[2].scatter(stimes, util2.get_principal_angle(data[3] + data[4]), s=1, c=c)
 
         do_for(plot_arg, [])
         axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2]))
@@ -504,9 +510,9 @@ if args["--plot-individual-history-sec"]:
         axes[3].scatter(stimes, data[3], c=c, s=1)
         axes[3].set_ylabel("Ω")
 
-        axes[4].scatter(stimes, util.get_principal_angle(data[4] + data[3]), c=c, s=1)
+        axes[4].scatter(stimes, util2.get_principal_angle(data[4] + data[3]), c=c, s=1)
         axes[4].set_ylabel("ω~")
-        axes[5].scatter(stimes, util.get_principal_angle(data[4] + data[3] - times / 365 / 360 / 3600 * (4.284+3.089) * 2 * math.pi), c=c, s=1)
+        axes[5].scatter(stimes, util2.get_principal_angle(data[4] + data[3] - times / 365 / 360 / 3600 * (4.284+3.089) * 2 * math.pi), c=c, s=1)
         axes[5].set_ylabel("ω~")
 
         axes[5].set_xlabel(timelabel)
@@ -535,13 +541,76 @@ if args["--plot-individual-history"]:
         axes[4].set_ylabel("ω~")
 
         param = get_mmr_angle(data, mmr)
-        axes[5].scatter(stimes, util.get_principal_angle(param), c=c, s=1)
+        axes[5].scatter(stimes, util2.get_principal_angle(param), c=c, s=1)
         axes[5].set_ylabel("{0}:{1}@{2}".format(*mmr))
 
         axes[5].set_xlabel(timelabel)
         axes[0].set_title("Particle {0}".format(ind))
 
     do_for(plot_stuff, [])
+
+if args["--plot-mmr-bands"]:
+    fig, ax = plt.subplots(1, 1)
+    bands = []
+    def load_mmr_bands(data, c, ind, is_planet):
+        lo = data[0].min()
+        hi = data[0].max()
+
+        def mmr(a1, deg):
+            return (deg * (a1 ** (3/2))) ** (2/3)
+        def f2(a, b):
+            lo_ = mmr(lo, a/b)
+            hi_ = mmr(hi, a/b)
+            if hi_ < 30 and lo_ > 20:
+                bands.append((lo_, hi_, ind, c, a, b, b-a))
+
+            lo_ = mmr(lo, b/a)
+            hi_ = mmr(hi, b/a)
+            if hi_ < 30 and lo_ > 20:
+                bands.append((lo_, hi_, ind, c, a, b, b-a))
+
+        for i in range(1, 50):
+            f2(i, i+1)
+        for i in range(1, 50):
+            if i % 2 == 0: continue
+            f2(i, i+2)
+        for i in range(1, 50):
+            if i % 3 == 0: continue
+            f2(i, i+3)
+        for i in range(1, 50):
+            if i % 2 == 0: continue
+            f2(i, i+4)
+        for i in range(1, 50):
+            if i % 5 == 0: continue
+            f2(i, i+5)
+        
+        # ax.scatter(data[0], data[1], c=c, s=1, label="Particle {0}".format(ind))
+
+    do_for(load_mmr_bands, None, [])
+    import operator
+    bands.sort(key=operator.itemgetter(6, 0))
+    print(bands)
+
+    y = 0
+    while len(bands) > 0:
+        lasthi = np.NINF
+        i = 0
+        while i < len(bands):
+            lo, hi, ind, c, a, b, _ = bands[i]
+            if lo > lasthi:
+                rect = matplotlib.patches.Rectangle([lo, y], hi - lo, 0.1, fill=True, color=c)
+                ax.add_patch(rect)
+                lasthi = hi
+                ax.text((hi - lo) / 2 + lo, y + 0.05, "{0}:{1}@{2}".format(a, b, ind), zorder=1, ha="center", va="center")
+                del bands[i]
+            else:
+                i += 1
+        y += 0.1
+
+    ax.set_xlabel("a (AU)")
+    ax.set_xlim([24.2, 26.2])
+
+    ax.legend()
 
 if args["--plot-diffusion"]:
     fig, ax = plt.subplots(1, 1)

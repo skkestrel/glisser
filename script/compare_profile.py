@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import matplotlib
-matplotlib.use("Qt5Agg")
+#matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import math
@@ -54,6 +54,19 @@ with open('cpu_prof/particle-prof.csv') as p:
         X.append(npa)
 
     plt.scatter(X, Y, s=3, c="r", label="GLISSE (CPU)")
+with open('swift_prof/particle-prof.csv') as p:
+    X = []
+    Y = []
+    for line in p:
+        tokens = [float(x) for x in line.strip().split(',')]
+        npa = tokens[1]
+        nstep = tokens[3]
+        time = tokens[4]
+        # Y.append(time / npa / nstep * 100000 * 10000)
+        Y.append(time / nstep * 10000)
+        X.append(npa)
+
+    plt.scatter(X, Y, s=3, c="r", label="SWIFT (CPU)")
 
 plt.grid()
 
