@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import matplotlib
-matplotlib.use("Qt5Agg")
+#matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import math
