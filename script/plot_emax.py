@@ -46,6 +46,11 @@ if not np.equal(final_int[:, 0], initial_int[:, 0]).all():
 for i in range(pl.shape[0]):
     if pl_int[i, 0] in planet_ids:
         planet_as[pl_int[i, 0]] = pl[i, 0]
+#planet_as[4] = 30.1098
+#planet_as[3] = 19.2183
+planet_as[4] = 29.9871
+planet_as[3] = 19.3173
+print(planet_as)
 
 emax = np.zeros(max(dc.keys())+1)
 emax2 = np.zeros(max(dc.keys())+1)

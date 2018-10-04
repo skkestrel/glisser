@@ -54,6 +54,19 @@ with open('cpu_prof/particle-prof.csv') as p:
         X.append(npa)
 
     plt.scatter(X, Y, s=3, c="r", label="GLISSE (CPU)")
+with open('swift_prof/particle-prof.csv') as p:
+    X = []
+    Y = []
+    for line in p:
+        tokens = [float(x) for x in line.strip().split(',')]
+        npa = tokens[1]
+        nstep = tokens[3]
+        time = tokens[4]
+        # Y.append(time / npa / nstep * 100000 * 10000)
+        Y.append(time / nstep * 10000)
+        X.append(npa)
+
+    plt.scatter(X, Y, s=3, c="g", label="SWIFT (CPU)")
 
 plt.grid()
 
@@ -62,7 +75,7 @@ plt.xlabel('Number of particles')
 plt.ylabel('s / 10k timesteps')
 # plt.yscale('log')
 # plt.xscale('log')
-plt.ylim([0.01, 40])
+plt.ylim([0.1, 100])
 plt.xlim([-5000, 140000])
 plt.yscale("log")
 ax = plt.gca()

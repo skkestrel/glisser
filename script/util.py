@@ -81,7 +81,6 @@ def dense_scatter(ax, x, y, data, ny=400, nx=400, logBar=False, label=None, orde
     if logBar:
         norm = matplotlib.colors.LogNorm(vmax=vmax)
     else:
-        import pdb; pdb.set_trace()
         norm = matplotlib.colors.Normalize(vmax=vmax, clip=upperLimitColor is None)
 
     if log_y:
