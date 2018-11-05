@@ -74,8 +74,8 @@ def dense_scatter(ax, x, y, data, ny=400, nx=400, logBar=False, label=None, orde
         cmap = None
 
     if upperLimitColor is not None:
-        vmax = np.nextafter(vmax, np.NINF)
-        # vmax *= 0.99
+        # vmax = np.nextafter(vmax, np.NINF)
+        vmax *= 0.99
         cm.set_over(color=upperLimitColor)
 
     if logBar:

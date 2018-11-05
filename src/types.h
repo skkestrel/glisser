@@ -30,7 +30,7 @@ struct v_3
 	__host__ __device__
 	inline v_3(const v_3<T>& other) : x(other.x), y(other.y), z(other.z) { }
 	__host__ __device__
-	inline v_3() { }
+	inline v_3() = default;
 	__host__ __device__
 	explicit inline v_3(T t) : x(t), y(t), z(t) { }
 	__host__ __device__

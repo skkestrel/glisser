@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 def rv2el(m, parts):
 	x = parts[0]
@@ -6,8 +7,7 @@ def rv2el(m, parts):
 	z = parts[2]
 	vx = parts[3]
 	vy = parts[4]
-	vz = parts[5]
-
+	vz = parts[5] 
 	prec = 1e-13
 	pi = math.pi
 
@@ -102,11 +102,11 @@ def rv2el(m, parts):
 	else: 		#		/* PANIC: radial orbit */
 		esign = 1			# /* call it hyperbolic */
 		a = math.sqrt(x*x + y*y + z*z)
-		e = 1/0.
-		i = math.asin(z/sqrt(x*x + y*y + z*z) )	#/* latitude above plane */
+		e = np.inf
+		i = math.asin(z/math.sqrt(x*x + y*y + z*z) )	#/* latitude above plane */
 		capom = math.atan2(y,x)			#/* azimuth */
-		om = 1/0.
-		f = 1/0.
+		om = np.inf
+		f = np.inf
 	return (a, e, i, capom, om, f)
 
 
@@ -147,6 +147,8 @@ def read_state(filename, to_elements=True, read_planets=False, sort=True):
                 pl[i, :6] = 0
             else:
                 pl[i, :6] = rv2el(smass, np.array(xyz + vxyz))
+                if not np.all(np.isfinite(pl[i, :6])):
+                    print("unbound planet {0}".format(i))
             pl[i, 6] = m
 
         n = int(p.readline().strip())
@@ -173,6 +175,8 @@ def read_state(filename, to_elements=True, read_planets=False, sort=True):
     if to_elements:
         print("rv2el") 
         for i in range(final.shape[0]):
+            if not np.all(np.isfinite(final[i, :6])):
+                print("unbound particle {0}".format(i))
             final[i, :6] = rv2el(smass, final[i, :6])
 
     if sort:

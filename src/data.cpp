@@ -165,6 +165,7 @@ namespace data
 		t_f = 365e4;
 		dt = 122;
 		tbsize = 1024;
+		write_bary_track = false;
 		wh_ce_n1 = 8;
 		wh_ce_n2 = 4;
 		wh_ce_r1 = 1;
@@ -321,6 +322,10 @@ namespace data
 		if (!out->writesplit && out->hybridout == "")
 		{
 			throw std::runtime_error("Error: Output-File was not specified");
+		}
+		if (!out->resync_every != 1 && out->resolve_encounters)
+		{
+			throw std::runtime_error("Error: Resync-Interval must be 1 when Resolve-Encounters is enabled");
 		}
 		if (!out->writesplit && out->hybridin == "")
 		{

@@ -15,6 +15,7 @@ Options:
     --plot-angles                     ..
     --plot-mmr-arg <mmr>              <mmr> = "3:4@3" for neptune, for example
     --plot-aei                        ..
+    --plot-aet                        ..
     --plot-ae                         ..
     --plot-ftrect                     ..
     --plot-qQ                         ..
@@ -22,6 +23,7 @@ Options:
     --plot-e-smooth                   ..
     --plot-individual-history-sec     ..
     --plot-mmr-bands                  ..
+    --plot-mmr-bands-line             ..
     --plot-individual-history <mmr>   ..
     --planet-names <mmr>              0=Jupiter,1=Saturn, ...
     --plot-diffusion                  ..
@@ -257,7 +259,7 @@ elif times[-1] > 365e3:
     stimes = times / 365e3
     timelabel = "Time (kyr)"
 else:
-    stimes = times
+    stimes = times / 365
     timelabel = "Time (yr)"
 
 npl = planets.shape[0] // 6
@@ -362,8 +364,27 @@ if args["--plot-ftrect"]:
     axes[1].set_xlabel("arcsec / yr")
     axes[0].legend()
 
+if args["--plot-aet"]:
+    fig, axes = plt.subplots(2, 1, sharex=True)
+
+    def plot_aei(data, c, ind, is_planet):
+        axes[0].plot(stimes, data[0] - data[0].mean(), c=c)
+        axes[1].plot(stimes, data[1], c=c)
+        if is_planet:
+            axes[0].plot([], [], c=c, label=get_planet_name(ind))
+            print(data[0].mean())
+        else:
+            axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
+
+    do_for(plot_aei)
+    axes[0].set_ylabel("Δa")
+    axes[1].set_ylabel("e")
+    axes[1].set_xlabel(timelabel)
+    axes[0].legend()
+
+
 if args["--plot-aei"]:
-    fig, axes = plt.subplots(3, 1, sharex=True)
+    fig, axes = plt.subplots(2, 1, sharex=True)
 
     def plot_aei(data, c, ind, is_planet):
         axes[0].plot(stimes, data[0] - data[0].mean(), c=c)
@@ -375,11 +396,13 @@ if args["--plot-aei"]:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
     do_for(plot_aei)
-    axes[0].set_title("δa")
-    axes[1].set_title("e")
-    axes[2].set_title("i")
+    axes[0].set_ylabel("δa")
+    axes[1].set_ylabel("e")
+    axes[2].set_ylabel("i")
     axes[2].set_xlabel(timelabel)
     axes[0].legend()
+
+
 
 if args["--plot-ae"]:
     fig, axes = plt.subplots(1, 1)
@@ -609,6 +632,56 @@ if args["--plot-mmr-bands"]:
 
     ax.set_xlabel("a (AU)")
     ax.set_xlim([24.2, 26.2])
+
+    ax.legend()
+
+if args["--plot-mmr-bands-line"]:
+    fig, ax = plt.subplots(1, 1)
+    bands = []
+    def load_mmr_bands(data, c, ind, is_planet):
+        hist, bin_edges = np.histogram(data[0], bins=50)
+        hist = hist / hist.max()
+        bin_centers = (bin_edges[:-1] + bin_edges[1:])/2
+        lo = data[0].min()
+        hi = data[0].max()
+
+        def mmr(a1, deg):
+            return (deg * (a1 ** (3/2))) ** (2/3)
+        def f2(a, b):
+            deg = abs(a-b)
+            lo_ = mmr(lo, a/b)
+            hi_ = mmr(hi, a/b)
+            if hi_ < 30 and lo_ > 20:
+                plt.plot(mmr(bin_centers, a/b), hist * (5-deg), c=c)
+
+            lo_ = mmr(lo, b/a)
+            hi_ = mmr(hi, b/a)
+            if hi_ < 30 and lo_ > 20:
+                plt.plot(mmr(bin_centers, b/a), hist * (5-deg), c=c)
+
+
+        for i in range(1, 50):
+            f2(i, i+1)
+        for i in range(1, 50):
+            if i % 2 == 0: continue
+            f2(i, i+2)
+        for i in range(1, 50):
+            if i % 3 == 0: continue
+            f2(i, i+3)
+        for i in range(1, 50):
+            if i % 2 == 0: continue
+            f2(i, i+4)
+
+        plt.plot([], [], c=c, label=get_planet_name(ind))
+        
+    plt.yticks([4, 3, 2, 1], ["1st order", "2nd order", "3rd order", "4th order"])
+    do_for(load_mmr_bands, [3, 4], [])
+    ax.set_xlabel("a (AU)")
+    ax.set_ylim([0, 4.2])
+    ax.set_xlim([23.5, 26.5])
+    ax.plot([24.2, 24.2], [4.2, 0], c="b", lw=3)
+    ax.plot([26.2, 26.2], [4.2, 0], c="b", lw=3)
+
 
     ax.legend()
 

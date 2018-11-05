@@ -9,9 +9,10 @@ Options:
 """
 
 import matplotlib
-matplotlib.use("Qt5Agg")
+# matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 import matplotlib.colors
+import util2
 import math
 import sys
 import numpy as np
@@ -36,8 +37,8 @@ with open(args["<emax-file>"]) as p:
 planet_ids = list([int(x) for x in args['--plot-mmr'].split(',')]) if args['--plot-mmr'] else []
 planet_as = {}
 
-pl, pl_int, initial, initial_int = util.read_state(args["<initial-state>"], read_planets=True)
-final, final_int = util.read_state(args["<final-state>"])
+pl, pl_int, initial, initial_int = util2.read_state(args["<initial-state>"], read_planets=True)
+final, final_int = util2.read_state(args["<final-state>"])
 
 if not np.equal(final_int[:, 0], initial_int[:, 0]).all():
     print("?")
@@ -140,5 +141,18 @@ util.dense_scatter(ax[1, 1], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, fi
 ax[1, 1].set_xlabel("a_i (AU)")
 ax[1, 1].set_ylabel("e_max_t (MYr)")
 f(ax[1, 1])
+
+fig, ax = plt.subplots(2, 1)
+final[final[:, 6] == 0, 6] = final[:, 6].max() * 1.1
+
+# util.nologHist(ax[1, 0], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, 150, 300, False)
+util.dense_scatter(ax[0], initial[:, 0], emax[initial_int[:, 0]], initial[:, 1], label="e_i")
+ax[0].set_xlabel("a_i (AU)")
+ax[0].set_ylabel("e_max")
+
+# util.dense_scatter(ax[1, 1], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, initial[:, 1], label="e_i")
+util.dense_scatter(ax[1], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, final[:, 6] / 365e6, label="deathtime (MYr)", upperLimitColor="crimson")
+ax[1].set_xlabel("a_i (AU)")
+ax[1].set_ylabel("e_max_t (MYr)")
 
 plt.show()
