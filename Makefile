@@ -20,9 +20,9 @@ CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -O3 -DNO_
 
 LDFLAGS = -pthread # -lasan
 
-sr:
+glisse:
 	@mkdir -p $(BIN_DIR)
-	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/sr -O3
+	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/glisse -O3
 
 clean:
 	rm -r $(OBJ_DIR)/* 
@@ -51,7 +51,7 @@ $(info LD $(BIN_DIR)/$2)
 endef
 
 cpu: $(OBJ_FILES)
-	$(call make-target,main,sr_cpu)
+	$(call make-target,main,glisse_cpu)
 
 convert-state: $(OBJ_FILES)
 	$(call make-target,convert_state,convert-state)

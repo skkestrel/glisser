@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Usage: python3 script/gen_librators.py /data/keavin/52.3.4gyr.out/state.in 52.3.4gyr.librators.out
 import matplotlib
 # matplotlib.use("Qt5Agg")
 

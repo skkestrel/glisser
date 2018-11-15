@@ -190,19 +190,19 @@ ax[1].grid()
 
 
 plt.figure()
-y, edges = np.histogram(initial[:, 1], bins=100)
+y, edges = np.histogram(initial[:, 1], bins=100, range=[0, 0.8])
 centers = (edges[1:] + edges[:-1]) / 2
 y = y / y.sum()
 plt.plot(centers, y, '-', label="Initial distribution")
 
 for i in range(final.shape[0]):
     ft[i] = int(final[i][8]) == 0 and (flib[i] or flib2[i])
-y, edges = np.histogram(final[ft, 1], bins=100)
+y, edges = np.histogram(final[ft, 1], bins=100, range=[0, 0.8])
 y = y / y.sum()
 centers = (edges[1:] + edges[:-1]) / 2
 plt.plot(centers, y, '-', label="Final distribution")
 plt.ylabel("Fraction of total librating particles")
-plt.ylim([0, 0.035])
+plt.ylim([0, 0.06])
 plt.xlim([0, 0.8])
 plt.xlabel("e")
 plt.legend()
