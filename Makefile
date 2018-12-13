@@ -73,3 +73,6 @@ find-librators: $(OBJ_FILES)
 
 track-info: $(OBJ_FILES)
 	$(call make-target,track_info,track-info)
+
+export-track: $(OBJ_FILES)
+	$(call make-target,export_track,export-track)

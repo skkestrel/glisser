@@ -23,7 +23,7 @@ import docopt
 
 args = docopt.docopt(__doc__)
 
-style.use('ggplot')
+# style.use('ggplot')
 
 smass = 4 * math.pi * math.pi / math.pow(365.25, 2)
 
@@ -154,5 +154,11 @@ ax[0].set_ylabel("e_max")
 util.dense_scatter(ax[1], initial[:, 0], emax2[initial_int[:, 0]] / 365e6, final[:, 6] / 365e6, label="deathtime (MYr)", upperLimitColor="crimson")
 ax[1].set_xlabel("a_i (AU)")
 ax[1].set_ylabel("e_max_t (MYr)")
+ax[0].tick_params(axis="y",direction="in")
+ax[0].tick_params(axis="x",direction="in")
+ax[0].set_axisbelow(True)
+ax[1].tick_params(axis="y",direction="in")
+ax[1].tick_params(axis="x",direction="in")
+ax[1].set_axisbelow(True)
 
 plt.show()

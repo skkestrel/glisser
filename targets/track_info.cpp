@@ -44,7 +44,7 @@ int main(int argc, char** argv)
 					}
 					std::cout << std::endl;
 
-					std::cout << "There are " << pl.n << " particles:" << std::endl;
+					std::cout << "There are " << pa.n << " particles:" << std::endl;
 					for (size_t i = 0; i < std::min(static_cast<size_t>(20), pa.n); i++)
 					{
 						std::cout << pa.id[i] << ", ";

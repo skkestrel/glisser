@@ -29,8 +29,8 @@ namespace data
 		/**
 		 * The number of alive particles. The alive particles always come before
 		 * dead particles in the array in order to speed up CUDA calls.
-		 * However, when running in CPU-only mode, the array can be out of order
-		 * between the integrator->step_particles_timeblock() call and the resync() call.
+		 * However, when running in CPU-only mode, the array maybe out of order
+		 * after integrator->step_particles_timeblock() is called and before resync() is called.
 		 */
 		size_t n_alive;
 

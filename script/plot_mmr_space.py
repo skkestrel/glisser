@@ -81,7 +81,7 @@ with open(sys.argv[3]) as p:
         flib2[final_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[2])
 
 rcenter = 55.46
-# 62.63
+# rcenter = 62.63
 
 print("rv2el")
 
@@ -128,8 +128,8 @@ ax[0].legend()
 ax[0].set_xlim([rcenter - 1, rcenter + 1])
 ax[1].set_xlim([rcenter - 1, rcenter + 1])
 
-ax[0].set_ylim([0, 0.7])
-ax[1].set_ylim([0, 0.7])
+ax[0].set_ylim([0, 0.85])
+ax[1].set_ylim([0, 0.85])
 
 ax[0].set_title("Initial 1Myr librators")
 ax[1].set_title("Final 4Gyr survivors")

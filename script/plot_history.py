@@ -281,7 +281,13 @@ import matplotlib
 # matplotlib.use("Qt5Agg")
 import matplotlib.pyplot as plt
 import matplotlib.style as style
-style.use('ggplot')
+# style.use('ggplot')
+
+def format_ax(ax):
+	ax.tick_params(axis="y",direction="in")
+	ax.tick_params(axis="x",direction="in")
+	ax.set_axisbelow(True)
+	ax.grid(True)
 
 cc = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
@@ -366,6 +372,8 @@ if args["--plot-ftrect"]:
 
 if args["--plot-aet"]:
     fig, axes = plt.subplots(2, 1, sharex=True)
+    format_ax(axes[0]);
+    format_ax(axes[1]);
 
     def plot_aei(data, c, ind, is_planet):
         axes[0].plot(stimes, data[0] - data[0].mean(), c=c)
@@ -637,6 +645,8 @@ if args["--plot-mmr-bands"]:
 
 if args["--plot-mmr-bands-line"]:
     fig, ax = plt.subplots(1, 1)
+    format_ax(ax)
+
     bands = []
     def load_mmr_bands(data, c, ind, is_planet):
         hist, bin_edges = np.histogram(data[0], bins=50)
@@ -671,6 +681,17 @@ if args["--plot-mmr-bands-line"]:
         for i in range(1, 50):
             if i % 2 == 0: continue
             f2(i, i+4)
+        if ind == 3:
+            ax.text(25.3, 3.8, "3:2", color=c)
+            ax.text(24.3, 2.1, "10:7", color=c)
+            ax.text(24.53, 1.1, "13:9", color=c)
+            ax.text(25.9, 1.1, "11:7", color=c)
+        if ind == 4:
+            ax.text(24.6, 3.8, "3:4", color=c)
+            ax.text(24.5, 1.3, "11:15", color=c)
+            ax.text(24.3, 2.3, "8:11", color=c)
+            ax.text(25.35, 3.05, "7:9", color=c)
+            ax.text(25.7, 3.8, "4:5", color=c)
 
         plt.plot([], [], c=c, label=get_planet_name(ind))
         
@@ -678,9 +699,9 @@ if args["--plot-mmr-bands-line"]:
     do_for(load_mmr_bands, [3, 4], [])
     ax.set_xlabel("a (AU)")
     ax.set_ylim([0, 4.2])
-    ax.set_xlim([23.5, 26.5])
-    ax.plot([24.2, 24.2], [4.2, 0], c="b", lw=3)
-    ax.plot([26.2, 26.2], [4.2, 0], c="b", lw=3)
+    ax.set_xlim([23.9, 26.5])
+    ax.plot([24.2, 24.2], [4.2, 0], c="k", lw=3)
+    ax.plot([26.2, 26.2], [4.2, 0], c="k", lw=3)
 
 
     ax.legend()

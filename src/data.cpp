@@ -323,7 +323,7 @@ namespace data
 		{
 			throw std::runtime_error("Error: Output-File was not specified");
 		}
-		if (!out->resync_every != 1 && out->resolve_encounters)
+		if (out->resync_every != 1 && out->resolve_encounters)
 		{
 			throw std::runtime_error("Error: Resync-Interval must be 1 when Resolve-Encounters is enabled");
 		}
@@ -719,14 +719,14 @@ namespace data
 
 		if (pl.n_alive > 0)
 		{
-			sr::data::write_binary(trackout, static_cast<uint64_t>(pl.n_alive - 1));
+			sr::data::write_binary(trackout, static_cast<uint64_t>(pl.n_alive));
 		}
 		else
 		{
 			sr::data::write_binary(trackout, static_cast<uint64_t>(0));
 		}
 
-		for (uint32_t i = 1; i < pl.n_alive; i++)
+		for (uint32_t i = 0; i < pl.n_alive; i++)
 		{
 			if (to_elements)
 			{
@@ -837,9 +837,6 @@ namespace data
 		uint64_t templl;
 		sr::data::read_binary<uint64_t>(input, templl);
 
-		// sun doesn't have an entry in the track so add its empty slot
-		templl++;
-
 		n_planets = static_cast<size_t>(templl);
 		state = State::PlanetsEnd;
 	}
@@ -853,7 +850,7 @@ namespace data
 		planets = HostPlanetSnapshot(static_cast<size_t>(filter ? filter->size() : n_planets));
 
 		int index = 0;
-		for (uint32_t i = 1; i < n_planets; i++)
+		for (uint32_t i = 0; i < n_planets; i++)
 		{
 			uint32_t id;
 			sr::data::read_binary<uint32_t>(input, id);
@@ -877,6 +874,10 @@ namespace data
 				planets.v[index].z = tempfloat;
 				index++;
 			}
+			else
+			{
+				input.seekg(4 * 6, std::ios_base::cur);
+			}
 		}
 
 		input.seekg(pos);
@@ -886,7 +887,7 @@ namespace data
 	{
 		check_state(State::PlanetsEnd);
 
-		input.seekg(TRACK_PLANET_STRIDE * (n_planets - 1), std::ios_base::cur);
+		input.seekg(TRACK_PLANET_STRIDE * n_planets, std::ios_base::cur);
 		state = State::ParticlesBegin;
 	}
 
