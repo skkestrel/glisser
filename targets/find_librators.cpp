@@ -80,7 +80,7 @@ int main(int argc, char** argv)
 		std::unordered_map<uint32_t, ParticleInfo> map;
 
 		sr::data::TrackReaderOptions opt;
-		opt.remove_planets = false;
+		opt.take_all_planets = true;
 		opt.take_all_particles = true;
 
 		if (args["--time"])
