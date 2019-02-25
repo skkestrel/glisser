@@ -76,3 +76,6 @@ track-info: $(OBJ_FILES)
 
 export-track: $(OBJ_FILES)
 	$(call make-target,export_track,export-track)
+
+export-swift: $(OBJ_FILES)
+	$(call make-target,export_swift,export-swift)
