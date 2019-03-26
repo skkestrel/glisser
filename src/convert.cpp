@@ -356,5 +356,12 @@ namespace convert
 		if (omout) *omout = om;
 		if (fout) *fout = f;
 	}
+
+	double get_mean_anomaly(double e, double f)
+	{
+		double E = std::acos((e + std::cos(f)) / (1 + e * std::cos(f)));
+		if (f < 0) E = -E;
+		return E - e * std::sin(E);
+	}
 }
 }

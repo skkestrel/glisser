@@ -199,7 +199,7 @@ namespace data
 		inline HostParticlePhaseSpace() { }
 
 		/** Ctor with size argument and cpu_only. cpu_only must be set to true when CPU block integration is required. */
-		inline HostParticlePhaseSpace(size_t siz, bool cpu_only) : base(siz), _n_encounter(0), _deathflags(siz), _deathtime(siz), _cpu_only(cpu_only)
+		inline HostParticlePhaseSpace(size_t siz, bool cpu_only = false) : base(siz), _n_encounter(0), _deathflags(siz), _deathtime(siz), _cpu_only(cpu_only)
 		{ 
 			if (cpu_only)
 			{
@@ -312,6 +312,11 @@ namespace data
 		inline const sr::util::LogQuartet<Vf64_3>& v_log() const { return _v_log; }
 
 		inline HostPlanetPhaseSpace() { }
+		inline HostPlanetPhaseSpace(size_t siz) :
+			base(siz), _n_alive_old(siz)
+		{
+		}
+
 		inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor) :
 			base(siz), _n_alive_old(siz)
 		{
@@ -371,14 +376,19 @@ namespace data
 		double t_0, t_f, dt, big_g;
 		uint32_t num_thread;
 		uint32_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
+
 		double wh_ce_r1, wh_ce_r2;
 		uint32_t wh_ce_n1, wh_ce_n2;
 		uint32_t split_track_file;
 
+
 		uint32_t resync_every;
+		uint32_t swift_hist_every;
 
 		bool use_gpu;
 		bool write_bary_track;
+		bool interp_planets;
+		std:: string planet_history_file;
 
 		double cull_radius;
 
@@ -386,6 +396,7 @@ namespace data
 
 		std::string icsin, plin, hybridin, hybridout;
 		std::string outfolder;
+		std::string swift_path;
 
 		inline uint32_t fast_timestep_factor() const
 		{
@@ -546,12 +557,26 @@ namespace data
 		o.write(reinterpret_cast<const char*>(&c), sizeof(c));
 	}
 
+	inline void pad_binary(std::ostream& o, const size_t n)
+	{
+		for (size_t i = 0; i < n; i++)
+		{
+			uint8_t zero = 0;
+			o.write(reinterpret_cast<const char*>(&zero), sizeof(zero));
+		}
+	}
+
 	template<typename T>
 	inline T read_binary(std::istream& i)
 	{
 		T t;
 		i.read(reinterpret_cast<char*>(&t), sizeof(T));
 		return to_little_endian(t);
+	}
+
+	inline void skip_binary(std::istream& i, size_t n)
+	{
+		i.seekg(n, std::ios_base::cur);
 	}
 
 	template<typename T>
@@ -592,6 +617,8 @@ namespace data
 	void write_configuration(std::ostream& in, const Configuration& config);
 
 	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_elements);
+	void begin_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl);
+	void save_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, double time);
 
 	struct TrackReader
 	{

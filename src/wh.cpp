@@ -505,12 +505,11 @@ namespace wh
 		encounter_r1 = config.wh_ce_r1;
 		encounter_r2 = config.wh_ce_r2;
 
-		tbsize = config.tbsize;
 		resolve_encounters = config.resolve_encounters;
 		dt = config.dt;
 
 		size_t ce_factor = resolve_encounters ? encounter_n1 * encounter_n2 : 1;
-		planet_h0_log = sr::util::LogQuartet<Vf64_3>(tbsize, ce_factor);
+		planet_h0_log = sr::util::LogQuartet<Vf64_3>(config.tbsize, ce_factor);
 
 		planet_eta[0] = pl.m()[0];
 		for (size_t i = 1; i < pl.n(); i++)
@@ -570,13 +569,13 @@ namespace wh
 		planet_h0_log.swap_logs();
 	}
 
-	void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t)
+	void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, uint32_t nsteps, float64_t t)
 	{
 		if (resolve_encounters)
 		{
 			size_t fast_factor = encounter_n1 * encounter_n2;
 
-			for (size_t i = 0; i < tbsize * fast_factor; i++)
+			for (size_t i = 0; i < nsteps * fast_factor; i++)
 			{
 				step_planets(pl, t, i);
 				// take the planet positions at the end of every timestep
@@ -599,12 +598,16 @@ namespace wh
 		}
 		else
 		{
-			for (size_t i = 0; i < tbsize; i++)
+			for (size_t i = 0; i < nsteps; i++)
 			{
 				step_planets(pl, t, i);
 				t += dt;
 			}
 		}
+
+		pl.r_log().len_old = nsteps;
+		pl.v_log().len_old = nsteps;
+		planet_h0_log.len_old = nsteps;
 	}
 
 	void WHIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t)
@@ -619,7 +622,7 @@ namespace wh
 			this->particle_mu[i] = pl.m()[0];
 		}
 
-		for (size_t i = 0; i < tbsize; i++)
+		for (size_t i = 0; i < pl.r_log().len; i++)
 		{
 			step_particles(pl, pa, begin, length, t, i);
 			t += dt;
@@ -1189,7 +1192,7 @@ namespace wh
 			// need to do this integration to bring it to the time at the end of the
 			// timeblock where it died
 			size_t i = particle_deathtime_index * tfactor;
-			while (i < tbsize * tfactor)
+			while (i < pl.r_log().len_old * tfactor)
 			{
 				size_t adv = integrate_encounter_particle_step<true>(pl, pa, particle_index, i, &enc_level, t);
 				t += dt * static_cast<double>(adv) / static_cast<double>(tfactor);
@@ -1198,7 +1201,7 @@ namespace wh
 		}
 
 		size_t i = 0;
-		while (i < tbsize * tfactor)
+		while (i < pl.r_log().len * tfactor)
 		{
 			size_t adv = integrate_encounter_particle_step<false>(pl, pa, particle_index, i, &enc_level, t);
 			t += dt * static_cast<double>(adv) / static_cast<double>(tfactor);

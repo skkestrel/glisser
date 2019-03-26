@@ -13,6 +13,7 @@ namespace data
 		Dvu32 deathtime_index;
 		Dvu32 id;
 
+		// temporary array for putting indices onto the GPU
 		Dvu32 gather_indices;
 
 		size_t n_total;
@@ -38,6 +39,7 @@ namespace data
 	{
 		Dvf64 m;
 		Dvf64_3 r_log;
+		size_t log_len;
 
 		size_t n_total;
 		size_t n_alive;

@@ -1,4 +1,3 @@
-#include "integrator.h"
 #include "wh.h"
 #include <ctime>
 #include <chrono>

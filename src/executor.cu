@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <thread>
 
+#include "swift.h"
 #include "util.cuh"
 #include "util.h"
 #include "types.h"
@@ -72,6 +73,7 @@ namespace exec
 		cudaEventCreate(&cpu_finish_event);
 		cudaEventCreate(&gpu_finish_event);
 
+		rollback_state = DeviceParticlePhaseSpace(hd.particles.n());
 		dd.particles = DeviceParticlePhaseSpace(hd.particles.n());
 
 		dd.planets0 = DevicePlanetPhaseSpace(hd.planets.n(), config.tbsize);
@@ -100,7 +102,7 @@ namespace exec
 			*encounter_output << std::setprecision(17);
 		}
 
-		step_and_upload_planets();
+		update_planets();
 	}
 
 	void Executor::swap_logs()
@@ -109,11 +111,30 @@ namespace exec
 		integrator.swap_logs();
 	}
 
-	void Executor::step_and_upload_planets()
+	void Executor::update_planets()
 	{
-		integrator.integrate_planets_timeblock(hd.planets, t);
+		if (/* read planet log */ false)
+		{
+			swap_logs();
+			prev_tbsize = cur_tbsize;
+			// read the planetary log file here, change tbsize if needed
+		}
+		else
+		{
+			prev_tbsize = cur_tbsize;
+			cur_tbsize = config.tbsize;
+			
+			if (config.interp_planets)
+			{
 
-		swap_logs();
+			}
+			else
+			{
+				integrator.integrate_planets_timeblock(hd.planets, cur_tbsize, t);
+			}
+
+			swap_logs();
+		}
 
 		// We only upload the planet log if any particles are going to use the planet log on the GPU
 		// Cases where the planet log is not used by the particles:
@@ -154,6 +175,8 @@ namespace exec
 
 		Vu32 prev_ids(hd.particles.id().begin(), hd.particles.id().end());
 
+		// download only the alive particle data - the dead particle data is handled in resync()
+		// also, the particles that the GPU thinks are dead might be in encounter
 		memcpy_dth(hd.particles.r(), particles.r, dth_stream, 0, 0, particles.n_alive);
 		cudaStreamSynchronize(dth_stream);
 		memcpy_dth(hd.particles.v(), particles.v, dth_stream, 0, 0, particles.n_alive);
@@ -167,6 +190,15 @@ namespace exec
 		// error, by swapping particle indices on the host, but that sounds annoying...
 		if (prev_ids != hd.particles.id())
 		{
+			/*
+			for (int i = 0; i < prev_ids.size(); i++)
+			{
+				if (prev_ids[i] != hd.particles.id()[i])
+				{
+					std::cout << i << " " << prev_ids[i] << " " << hd.particles.id()[i] << std::endl;
+				}
+			}
+			*/
 			output << "WARNING! ID MISMATCH! WARNING!" << std::endl;
 
 			if (!ignore_errors)
@@ -185,6 +217,7 @@ namespace exec
 
 		memcpy_htd(planets.r_log, hd.planets.r_log().slow, htd_stream);
 		cudaStreamSynchronize(htd_stream);
+		planets.log_len = hd.planets.r_log().len;
 
 		integrator.upload_planet_log_cuda(htd_stream, dd.planet_data_id);
 	}
@@ -199,10 +232,23 @@ namespace exec
 
 	void Executor::loop(double* cputimeout, double* gputimeout)
 	{
+		// t = the time at the start of the block that is about to be calculated
 		std::thread cpu_thread;
 		
 		if (dd.particle_phase_space().n_alive > 0)
 		{
+			if (config.resolve_encounters)
+			{
+				memcpy_dtd(rollback_state.r, dd.particle_phase_space().r, main_stream);
+				memcpy_dtd(rollback_state.v, dd.particle_phase_space().v, main_stream);
+				memcpy_dtd(rollback_state.deathflags, dd.particle_phase_space().deathflags, main_stream);
+				memcpy_dtd(rollback_state.deathtime_index, dd.particle_phase_space().deathtime_index, main_stream);
+				memcpy_dtd(rollback_state.id, dd.particle_phase_space().id, main_stream);
+
+				rollback_state.n_alive = dd.particle_phase_space().n_alive;
+				rollback_state.n_total = dd.particle_phase_space().n_total;
+			}
+
 			cudaEventRecord(start_event, main_stream);
 			integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space());
 			cudaEventRecord(gpu_finish_event, main_stream);
@@ -212,32 +258,51 @@ namespace exec
 		for (auto& i : work) i();
 		work.clear();
 
-
-		size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
-		for (size_t i = encounter_start; i < hd.particles.n_alive(); i++)
+		if (config.resolve_encounters)
 		{
-			integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
-					ed.deathtime_index[i - encounter_start],
-					t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i - encounter_start])
-				);
+			if (true)
+			{
+				sr::swift::SwiftEncounterIntegrator enc(config, t, prev_tbsize, cur_tbsize);
+
+				if (config.interp_planets)
+				{
+				}
+				else
+				{
+				}
+
+				enc.begin_integrate(hd.planets, hd.particles);
+				enc.end_integrate(hd.particles);
+			}
+			else
+			{
+				size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
+				for (size_t i = encounter_start; i < hd.particles.n_alive(); i++)
+				{
+					integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
+							exdata.deathtime_index[i - encounter_start],
+							t - config.dt * static_cast<double>(config.tbsize - exdata.deathtime_index[i - encounter_start])
+							);
+				}
+
+				auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter());
+				integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter());
+				upload_data(encounter_start, hd.particles.n_encounter());
+
+				// Fill deathtime index with 0 so that the continuation will work
+				thrust::fill(thrust::cuda::par.on(htd_stream), dd.particles.deathtime_index.begin() + encounter_start,
+						dd.particles.deathtime_index.begin() + encounter_start + hd.particles.n_encounter(), 0);
+			}
+
 		}
 
-		auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter());
-		integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter());
-		upload_data(encounter_start, hd.particles.n_encounter());
-
-		// Fill deathtime index with 0 so that the continuation will work
-		thrust::fill(thrust::cuda::par.on(htd_stream), dd.particles.deathtime_index.begin() + encounter_start,
-				dd.particles.deathtime_index.begin() + encounter_start + hd.particles.n_encounter(), 0);
 
 		// The snapshot contains the planet states at the end of the previous timestep - 
 		// consider removing this? We can use hd.planets.*_log_old()[-1] to replicate this functionality
-
-		// Copy assignment ctor
 		hd.planets_snapshot = hd.planets.base;
 
 		t += config.dt * static_cast<double>(config.tbsize);
-		step_and_upload_planets();
+		update_planets();
 
 		if (dd.particle_phase_space().n_alive > 0)
 		{
@@ -257,7 +322,7 @@ namespace exec
 			// - The MVS kernel does not revive particles, so resync() will never INCREASE n_alive
 			// - dd.particles.n_alive is adjusted by the close encounter handler just BEFORE this call
 
-			
+
 			resync_counter++;
 
 			if (resync_counter % config.resync_every == 0)
@@ -270,82 +335,131 @@ namespace exec
 	void Executor::resync()
 	{
 		auto& particles = dd.particle_phase_space();
+
 		size_t prev_alive = particles.n_alive;
 
-		auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), integrator.device_begin()));
-		particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
-				partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+		// first partition on the GPU - this moves "gpu-marked" dead particles to the end
+		// also partition the rollback if doing close encounters
+
+		if (config.resolve_encounters)
+		{
+			// if handling encounters, partition the rollback as well
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
+			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
+					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+		}
+		else
+		{
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), integrator.device_begin()));
+			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
+					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+		}
+
 		cudaStreamSynchronize(main_stream);
 
 		size_t diff = prev_alive - particles.n_alive;
 
-		ed = ExecutorData(diff);
+		// copying dead particles to CPU
+		// executor data shows us particle data for diffed particles
+		// - we don't need to know about every single particle on the GPU, only the changed ones
 
-		memcpy_dth(ed.r, particles.r, dth_stream, 0, particles.n_alive, diff);
+		exdata = ExecutorData(diff);
+
+		memcpy_dth(exdata.r, particles.r, dth_stream, 0, particles.n_alive, diff);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(ed.v, particles.v, dth_stream, 0, particles.n_alive, diff);
+		memcpy_dth(exdata.v, particles.v, dth_stream, 0, particles.n_alive, diff);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(ed.id, particles.id, dth_stream, 0, particles.n_alive, diff);
+		memcpy_dth(exdata.id, particles.id, dth_stream, 0, particles.n_alive, diff);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(ed.deathtime_index, particles.deathtime_index, dth_stream, 0, particles.n_alive, diff);
+		memcpy_dth(exdata.deathtime_index, particles.deathtime_index, dth_stream, 0, particles.n_alive, diff);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(ed.deathflags, particles.deathflags, dth_stream, 0, particles.n_alive, diff);
+		memcpy_dth(exdata.deathflags, particles.deathflags, dth_stream, 0, particles.n_alive, diff);
 		cudaStreamSynchronize(dth_stream);
 
+		rollback_exdata = ExecutorData(diff);
+
+		memcpy_dth(rollback_exdata.r, rollback_state.r, dth_stream, 0, rollback_state.n_alive, diff);
+		cudaStreamSynchronize(dth_stream);
+		memcpy_dth(rollback_exdata.v, rollback_state.v, dth_stream, 0, rollback_state.n_alive, diff);
+		cudaStreamSynchronize(dth_stream);
+		memcpy_dth(rollback_exdata.id, rollback_state.id, dth_stream, 0, rollback_state.n_alive, diff);
+		cudaStreamSynchronize(dth_stream);
+		memcpy_dth(rollback_exdata.deathtime_index, rollback_state.deathtime_index, dth_stream, 0, rollback_state.n_alive, diff);
+		cudaStreamSynchronize(dth_stream);
+		memcpy_dth(rollback_exdata.deathflags, rollback_state.deathflags, dth_stream, 0, rollback_state.n_alive, diff);
+		cudaStreamSynchronize(dth_stream);
+
+		// rewrite deathflags in the case of an encounter - in any case, iterate over all of the dead particles
 		for (size_t i = 0; i < diff; i++)
 		{
-			if ((ed.deathflags[i] & 0x00FF) == 0x0001)
+			if ((exdata.deathflags[i] & 0x00FF) == 0x0001)
 			{
 				if (config.resolve_encounters)
 				{
+					// if encounter handling, do nothing
+					// probably don't need to do anything here
 				}
 				else
 				{
 					// If encounters are not being dealt with, kill the particle!
-					ed.deathflags[i] |= 0x0080;
+					exdata.deathflags[i] |= 0x0080;
 				}
 			}
 
-			if ((ed.deathflags[i] & 0x00FF) == 0x0004)
+			if (exdata.deathflags[i] & 0x0004)
 			{
-				output << "Warning: simulation did not converge on particle " << ed.id[i] << std::endl;
+				
+				output << "Warning: simulation did not converge on particle " << exdata.id[i] << std::endl;
 			}
 
-			if ((ed.deathflags[i] & 0x00FF) == 0x0004)
+			if (exdata.deathflags[i] & 0x0002)
 			{
-				output << "Warning: particle " << ed.id[i] << " OOB" << std::endl;
+				output << "Warning: particle " << exdata.id[i] << " OOB" << std::endl;
 			}
 		}
 
+		// now we need to partition the "gpu-marked" dead particles - some of them may have been "revived" i.e. we need to handle the encounter
 		std::unique_ptr<std::vector<size_t>> ed_indices;
-		stable_partition_alive_indices(ed.deathflags, 0, diff, &ed_indices);
-		gather(ed.r, *ed_indices, 0, diff);
-		gather(ed.v, *ed_indices, 0, diff);
-		gather(ed.id, *ed_indices, 0, diff);
-		gather(ed.deathflags, *ed_indices, 0, diff);
-		gather(ed.deathtime_index, *ed_indices, 0, diff);
+		stable_partition_alive_indices(exdata.deathflags, 0, diff, &ed_indices);
+		gather(exdata.r, *ed_indices, 0, diff);
+		gather(exdata.v, *ed_indices, 0, diff);
+		gather(exdata.id, *ed_indices, 0, diff);
+		gather(exdata.deathflags, *ed_indices, 0, diff);
+		gather(exdata.deathtime_index, *ed_indices, 0, diff);
 
+		// map from particle index to array index
 		std::unordered_map<size_t, size_t> indices;
 		for (size_t i = 0; i < prev_alive; i++)
 		{
 			indices[hd.particles.id()[i]] = i;
 		}
 
+		// for each particle in the GPU/CPU diff, set its deathtime
+		// also, update the death r/v of the particle
 		for (size_t i = 0; i < diff; i++)
 		{
-			size_t index = indices[ed.id[i]];
-			hd.particles.r()[index] = ed.r[i];
-			hd.particles.v()[index] = ed.v[i];
-			hd.particles.deathflags()[index] = ed.deathflags[i];
+			size_t index = indices[exdata.id[i]];
+			hd.particles.r()[index] = exdata.r[i];
+			hd.particles.v()[index] = exdata.v[i];
+			hd.particles.deathflags()[index] = exdata.deathflags[i];
 
-			if (ed.deathflags[i])
+			if (exdata.deathflags[i])
 			{
-				hd.particles.deathtime()[index] = static_cast<float>(t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i]));
+				hd.particles.deathtime()[index] = static_cast<float>(t - config.dt * static_cast<double>(config.tbsize - exdata.deathtime_index[i]));
 			}
 		}
 
-		auto gather_indices = hd.particles.stable_partition_alive(0, prev_alive);
+		// first partition by unflagged to match the partition on the GPU
+		auto gather_indices = hd.particles.stable_partition_unflagged(0, prev_alive);
 		integrator.gather_particles(*gather_indices, 0, prev_alive);
+
+		// then, partition by alive - this only needs to be done if doing encounter
+		// since if enoucnters are disabled, unflagged is synonymous with alive
+		if (config.resolve_encounters)
+		{
+			auto gather_indices2 = hd.particles.stable_partition_alive(0, prev_alive);
+			integrator.gather_particles(*gather_indices2, 0, prev_alive);
+		}
 
 		hd.particles.n_encounter() = hd.particles.n_alive() - particles.n_alive;
 
@@ -361,7 +475,7 @@ namespace exec
 						*encounter_output << hd.particles.v()[encounter_start + i] << std::endl;
 						*encounter_output << hd.particles.id()[encounter_start + i] << " "
 							<< hd.particles.deathflags()[encounter_start + i] << " "
-							<< t - config.dt * static_cast<double>(config.tbsize - ed.deathtime_index[i]) << " death"
+							<< t - config.dt * static_cast<double>(config.tbsize - exdata.deathtime_index[i]) << " death"
 							<< std::endl;
 						*encounter_output << hd.planets.n_alive() << std::endl;
 
@@ -372,8 +486,8 @@ namespace exec
 						for (size_t j = 1; j < hd.planets.n_alive(); j++)
 						{
 							*encounter_output << hd.planets.m()[j] << std::endl;
-							*encounter_output << hd.planets.r_log().slow[ed.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
-							*encounter_output << hd.planets.v_log().slow[ed.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.r_log().slow[exdata.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.v_log().slow[exdata.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
 							*encounter_output << hd.planets.id()[j] << std::endl;
 						}
 					}

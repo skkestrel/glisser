@@ -132,6 +132,9 @@ namespace util
 	template<typename Vector>
 	struct LogQuartet
 	{
+		size_t len;
+		size_t len_old;
+
 		Vector log;
 		Vector old;
 		Vector slow;
@@ -153,6 +156,7 @@ namespace util
 		{
 			std::swap(log, old);
 			std::swap(slow, slow_old);
+			std::swap(len, len_old);
 		}
 
 		template<bool slow, bool old>

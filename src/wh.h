@@ -1,7 +1,6 @@
 #pragma once
 #include "data.h"
 #include "util.h"
-#include "integrator.h"
 
 #include <unordered_map>
 
@@ -22,7 +21,7 @@ namespace wh
 		std::unordered_map<uint32_t, uint8_t> id_to_enc_level;
 	};
 
-	class WHIntegrator : public sr::integrator::Integrator
+	class WHIntegrator
 	{
 	public:
 		WHIntegratorEncounterContinuationContext ecc;
@@ -44,7 +43,6 @@ namespace wh
 
 		Vf64 planet_rh;
 
-		size_t tbsize;
 		size_t encounter_n1, encounter_n2;
 		double encounter_r1, encounter_r2;
 
@@ -55,13 +53,14 @@ namespace wh
 		WHIntegrator();
 		WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
 
-		void swap_logs() override;
+		void swap_logs();
 
-		void integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t) override;
-		void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t) override;
-		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length) override;
+		void integrate_planets_timeblock(HostPlanetPhaseSpace& pl, uint32_t nsteps, float64_t t);
+		// integrates for as many steps as are in the planet log
+		void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t);
+		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length);
 
-		void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t) override;
+		void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t);
 
 		template<bool old>
 		size_t integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, uint8_t* encounter_level, double t);

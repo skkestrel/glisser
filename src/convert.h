@@ -20,5 +20,7 @@ namespace convert
 
 	void from_elements(double mu, double a, double e, double i, double capom, double om, double f, f64_3* r, f64_3* v);
 	void to_elements(double mu, f64_3 r, f64_3 v, int* esign = nullptr, double* a = nullptr, double* e = nullptr, double* i = nullptr, double* capom = nullptr, double* om = nullptr, double* f = nullptr);
+
+	double get_mean_anomaly(double e, double f);
 }
 }

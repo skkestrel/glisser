@@ -53,7 +53,7 @@ namespace exec
 
 	void CPUExecutor::step_planets()
 	{
-		integrator.integrate_planets_timeblock(hd.planets, t);
+		integrator.integrate_planets_timeblock(hd.planets, config.tbsize, t);
 	}
 
 	void CPUExecutor::add_job(const std::function<void()>& job)

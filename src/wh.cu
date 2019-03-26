@@ -269,9 +269,9 @@ done: ;
 		base.gather_particles(indices, begin, length);
 	}
 
-	void WHCudaIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, float64_t t)
+	void WHCudaIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, size_t nstep, float64_t t)
 	{
-		base.integrate_planets_timeblock(pl, t);
+		base.integrate_planets_timeblock(pl, nstep, t);
 	}
 
 	void WHCudaIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t)
@@ -299,7 +299,7 @@ done: ;
 	{
 #ifndef CUDA_USE_SHARED_MEM_CACHE
 		auto it = thrust::make_zip_iterator(thrust::make_tuple(pa.begin(), device_begin()));
-		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.encounter_r2, static_cast<uint32_t>(base.tbsize), base.dt));
+		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.encounter_r2, static_cast<uint32_t>(pl.log_len), base.dt));
 #else
 		cudaDeviceProp prop;
 		cudaGetDeviceProperties(&prop, 0);
@@ -317,7 +317,7 @@ done: ;
 
 		MVSKernel_<<<grid_size, block_size, shared_mem, stream>>>
 			(pa.r.data().get(), pa.v.data().get(), pa.deathflags.data().get(), device_particle_a.data().get(), pa.deathtime_index.data().get(),
-			static_cast<uint32_t>(pa.n_alive), static_cast<uint32_t>(base.tbsize), static_cast<uint32_t>(pl.n_alive), device_h0_log(planet_data_id).data().get(), pl.r_log.data().get(), pl.m.data().get(),
+			static_cast<uint32_t>(pa.n_alive), static_cast<uint32_t>(pl.log_len), static_cast<uint32_t>(pl.n_alive), device_h0_log(planet_data_id).data().get(), pl.r_log.data().get(), pl.m.data().get(),
 			device_planet_rh.data().get(), base.encounter_r2, base.dt, pl.m[0]);
 #endif
 	}

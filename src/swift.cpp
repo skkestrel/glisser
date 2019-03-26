@@ -1,9 +1,13 @@
 #include "swift.h"
 #include "convert.h"
+#include "util.h"
 #include <cstring>
 #include <libgen.h>
 #include <fstream>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 namespace sr
 {
@@ -37,17 +41,21 @@ namespace swift
 			size_t chunk_begin = encounter_start + n_encounter * i / config.num_thread;
 			size_t chunk_end = encounter_start + n_encounter * (i + 1) / config.num_thread;
 
-			std::string history_path = "/tmp/hist" + std::to_string(i);
-			std::string param_path = "/tmp/param" + std::to_string(i);
-			std::string tp_path = "/tmp/tp" + std::to_string(i);
-			std::string pl_path = "/tmp/pl";
+			std::string mypid = std::to_string(::getpid());
+
+			sr::util::make_dir("/tmp/glisse");
+
+			std::string history_path = "/tmp/glisse/" + mypid + "hist" + std::to_string(i);
+			std::string param_path = "/tmp/glisse/" + mypid + "param" + std::to_string(i);
+			std::string tp_path = "/tmp/glisse/" + mypid + "tp" + std::to_string(i);
+			std::string pl_path = "/tmp/glisse/" + mypid + "pl";
 
 			// write_planetary_history(pl, history_path);
 			write_param_in(param_path);
 			write_tp_in(pa, chunk_begin, chunk_end, tp_path);
 			write_pl_in(pl, pl_path);
 
-			pid_t pid = fork();
+			::pid_t pid = ::fork();
 			if (pid == (pid_t) -1)
 			{
 				throw std::runtime_error("fork error");
@@ -55,7 +63,9 @@ namespace swift
 			else if (pid == 0)
 			{
 				// child process
-				execl(config.swift_path.c_str(), swift_basename.c_str(), param_path.c_str(), tp_path.c_str(), pl_path.c_str(), nullptr);
+				int null = ::open("/dev/null", O_WRONLY);
+				::dup2(null, 1);
+				::execl(config.swift_path.c_str(), swift_basename.c_str(), param_path.c_str(), pl_path.c_str(), tp_path.c_str(), nullptr);
 				exit(-1);
 			}
 			else
@@ -75,7 +85,12 @@ namespace swift
 
 		for (const pid_t& pid : _children)
 		{
-			waitpid(pid, nullptr, 0);
+			int status;
+			::waitpid(pid, &status, 0);
+			if (WEXITSTATUS(status) != 0)
+			{
+				throw std::runtime_error("swift did not terminate normally");
+			}
 		}
 
 		// TODO read particle data and insert back into pa
@@ -99,7 +114,14 @@ namespace swift
 
 		for (size_t i = 0; i < pl.n_alive(); i++)
 		{
-			file << pl.m()[i] << std::endl;
+			if (i == 0)
+			{
+				file << pl.m()[i] << std::endl;
+			}
+			else
+			{
+				file << pl.m()[i] << " " << config.cull_radius << std::endl;
+			}
 
 			if (i == 0 && (pl.r()[i].lensq() != 0 || pl.v()[i].lensq() != 0))
 			{
@@ -122,9 +144,7 @@ namespace swift
 		}
 		
 		file << "0 0 0 0 0 0 0 0 0 0 0 0 0" << std::endl;
-		file << "0 0 0 0 0" << std::endl;
-		file << "0 0 0 0 0" << std::endl;
-		file << "0 0 0" << std::endl;
+		file << "0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0 0.0" << std::endl;
 	}
 
 	void SwiftEncounterIntegrator::write_planetary_history(const sr::data::HostPlanetPhaseSpace& pl, double time, std::string dest) const

@@ -173,10 +173,14 @@ namespace data
 		cull_radius = 0.5;
 
 		resync_every = 1;
+		swift_hist_every = 0;
 		print_every = 10;
 		energy_every = 1;
 		track_every = 0;
 		split_track_file = 0;
+
+		interp_planets = false;
+		planet_history_file = "";
 
 		use_gpu = true;
 
@@ -195,6 +199,7 @@ namespace data
 		outfolder = "output/";
 		readmomenta = false;
 		writemomenta = false;
+		swift_path = "";
 	}
 
 	Configuration Configuration::output_config() const
@@ -256,10 +261,18 @@ namespace data
 					out->print_every = std::stou(second);
 				else if (first == "Resync-Interval")
 					out->resync_every = std::stou(second);
+				else if (first == "Read-Planet-History")
+					out->interp_planets = std::stoi(second) != 0;
+				else if (first == "Planet-History-File")
+					out->planet_history_file = second;
+				else if (first == "Swift-Path")
+					out->swift_path = second;
 				else if (first == "Status-Interval")
 					out->energy_every = std::stou(second);
 				else if (first == "Track-Interval")
 					out->track_every = std::stou(second);
+				else if (first == "Swift-History-Interval")
+					out->swift_hist_every = std::stou(second);
 				else if (first == "Write-Barycentric-Track")
 					out->write_bary_track = std::stoi(second) != 0;
 				else if (first == "Split-Track-File")
@@ -356,7 +369,8 @@ namespace data
 		outstream << "Status-Interval " << out.energy_every << std::endl;
 		outstream << "Track-Interval " << out.track_every << std::endl;
 		outstream << "Resync-Interval " << out.resync_every << std::endl;
-		outstream << "Write-Barycentric-Track" << out.write_bary_track << std::endl;
+		outstream << "Swift-Path " << out.swift_path << std::endl;
+		outstream << "Write-Barycentric-Track " << out.write_bary_track << std::endl;
 		outstream << "Split-Track-File " << out.split_track_file << std::endl;
 		outstream << "Dump-Interval " << out.dump_every << std::endl;
 		outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
@@ -371,6 +385,9 @@ namespace data
 		outstream << "Output-Folder " << out.outfolder << std::endl;
 		outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
+		outstream << "Read-Planet-History" << out.interp_planets << std::endl;
+		outstream << "Swift-History-Interval " << out.swift_hist_every << std::endl;
+		outstream << "Planet-History-File" << out.planet_history_file << std::endl;
 	}
 
 	bool load_planet_data(HostPlanetPhaseSpace& pl, const Configuration& config, std::istream& plin)
@@ -812,6 +829,70 @@ namespace data
 		trackout.flush();
 	}
 
+	void begin_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl)
+	{
+		// multiply all masses by 365.25^2 - convert to days
+		// sun mass
+		sr::data::write_binary(trackout, static_cast<double>(pl.m[0] * 365.24 * 365.24));
+		sr::data::pad_binary(trackout, 32 - 8);
+	}
+
+	void save_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, double time)
+	{
+		// multiply all masses by 365.25^2 - convert to days
+		sr::data::write_binary(trackout, static_cast<double>(time / 365.24));
+
+		if (pl.n_alive > 0)
+		{
+			sr::data::write_binary(trackout, static_cast<uint32_t>(pl.n_alive - 1));
+		}
+		else
+		{
+			sr::data::write_binary(trackout, static_cast<uint32_t>(0));
+		}
+
+		sr::data::pad_binary(trackout, 32 - 8 - 4);
+		// record finished
+
+		for (uint32_t i = 1; i < pl.n_alive; i++)
+		{
+			double center_mass = pl.m[0];
+			f64_3 center_r = pl.r[0] * pl.m[0];
+			f64_3 center_v = pl.v[0] * pl.m[0];
+
+			// barycentric elements
+			if (true)
+			{
+				for (uint32_t j = 1; j < pl.n_alive; j++)
+				{
+					if (j != i)
+					{
+						center_mass += pl.m[j];
+						center_r += pl.r[j] * pl.m[j];
+						center_v += pl.v[j] * pl.m[j];
+					}
+				}
+			}
+			center_r /= center_mass;
+			center_v /= center_mass;
+
+			double a, e, in, capom, om, f;
+			sr::convert::to_elements(pl.m[i] + center_mass, pl.r[i] - center_r, pl.v[i] - center_v,
+				nullptr, &a, &e, &in, &capom, &om, &f);
+
+			sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
+			sr::data::write_binary(trackout, static_cast<float>(pl.m[i] * 365.24 * 365.24));
+			sr::data::write_binary(trackout, static_cast<float>(a));
+			sr::data::write_binary(trackout, static_cast<float>(e));
+			sr::data::write_binary(trackout, static_cast<float>(in));
+			sr::data::write_binary(trackout, static_cast<float>(capom));
+			sr::data::write_binary(trackout, static_cast<float>(om));
+			sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
+		}
+
+		trackout.flush();
+	}
+
 	void TrackReader::check_state(const State& expected)
 	{
 		if (state != expected)
@@ -1112,5 +1193,6 @@ namespace data
 			throw std::runtime_error("Path does not exist");
 		}
 	}
+
 }
 }

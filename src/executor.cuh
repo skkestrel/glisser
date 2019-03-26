@@ -1,6 +1,5 @@
 #include "data.cuh"
 #include "data.h"
-#include "integrator.cuh"
 #include "wh.cuh"
 #include <ctime>
 #include <chrono>
@@ -33,13 +32,19 @@ namespace exec
 		DeviceData& dd;
 		sr::wh::WHCudaIntegrator integrator;
 
-		ExecutorData ed;
+		ExecutorData exdata;
+		ExecutorData rollback_exdata;
 
 		cudaStream_t main_stream, dth_stream, htd_stream, par_stream;
 		cudaEvent_t start_event, cpu_finish_event, gpu_finish_event;
 
 		float64_t t;
 		float64_t e_0;
+
+		DeviceParticlePhaseSpace rollback_state;
+
+		size_t prev_tbsize;
+		size_t cur_tbsize;
 
 		std::ostream& output;
 		std::ostream* encounter_output;
@@ -66,7 +71,7 @@ namespace exec
 		void resync();
 		void finish();
 		void swap_logs();
-		void step_and_upload_planets();
+		void update_planets();
 	};
 }
 }
