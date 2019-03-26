@@ -1,6 +1,7 @@
 #include "data.cuh"
 #include "data.h"
 #include "wh.cuh"
+#include "interp.h"
 #include <ctime>
 #include <chrono>
 #include <functional>
@@ -31,6 +32,7 @@ namespace exec
 		HostData& hd;
 		DeviceData& dd;
 		sr::wh::WHCudaIntegrator integrator;
+		sr::interp::Interpolator interpolator;
 
 		ExecutorData exdata;
 		ExecutorData rollback_exdata;

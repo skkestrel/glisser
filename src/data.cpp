@@ -171,6 +171,7 @@ namespace data
 		wh_ce_r1 = 1;
 		wh_ce_r2 = 3.5;
 		cull_radius = 0.5;
+		enable_swift = true;
 
 		resync_every = 1;
 		swift_hist_every = 0;
@@ -265,6 +266,8 @@ namespace data
 					out->interp_planets = std::stoi(second) != 0;
 				else if (first == "Planet-History-File")
 					out->planet_history_file = second;
+				else if (first == "Enable-Swift-Encounter")
+					out->enable_swift = std::stoi(second) != 0;
 				else if (first == "Swift-Path")
 					out->swift_path = second;
 				else if (first == "Status-Interval")
@@ -383,6 +386,7 @@ namespace data
 		outstream << "Particle-Input-File " << out.icsin << std::endl;
 		outstream << "Planet-Input-File " << out.plin << std::endl;
 		outstream << "Output-Folder " << out.outfolder << std::endl;
+		outstream << "Enable-Swift-Encounter " << out.enable_swift << std::endl;
 		outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
 		outstream << "Read-Planet-History" << out.interp_planets << std::endl;

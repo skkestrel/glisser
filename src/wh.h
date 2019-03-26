@@ -48,25 +48,24 @@ namespace wh
 
 		bool resolve_encounters;
 
-		double dt;
-
 		WHIntegrator();
 		WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
 
 		void swap_logs();
 
-		void integrate_planets_timeblock(HostPlanetPhaseSpace& pl, uint32_t nsteps, float64_t t);
+		void integrate_planets_timeblock(HostPlanetPhaseSpace& pl, uint32_t nsteps, float64_t t, float64_t dt);
 		// integrates for as many steps as are in the planet log
-		void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t);
+		void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, float64_t dt);
 		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length);
 
-		void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t);
+		void load_h0(const HostPlanetPhaseSpace& pl);
+		void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t, double dt);
 
 		template<bool old>
-		size_t integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, uint8_t* encounter_level, double t);
+		size_t integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, uint8_t* encounter_level, double t, double dt);
 
-		void step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t timestep_index);
-		void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index);
+		void step_planets(HostPlanetPhaseSpace& pl, float64_t t, double dt, size_t timestep_index);
+		void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, double dt, size_t timestep_index);
 
 		template<bool danby>
 		static bool drift_single(float64_t t, float64_t mu, f64_3* r, f64_3* v);

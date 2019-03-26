@@ -123,6 +123,7 @@ done: ;
 					a = h0_log[step];
 
 					// planet 0 is not counted
+#warning TODO need to set planet flag by planet ID, not by planet index
 					for (uint32_t i = 1; i < static_cast<uint32_t>(planet_n); i++)
 					{
 						f64_3 dr = r - r_log[step * (planet_n - 1) + i - 1];
@@ -269,19 +270,24 @@ done: ;
 		base.gather_particles(indices, begin, length);
 	}
 
-	void WHCudaIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, size_t nstep, float64_t t)
+	void WHCudaIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, size_t nstep, float64_t t, double dt)
 	{
-		base.integrate_planets_timeblock(pl, nstep, t);
+		base.integrate_planets_timeblock(pl, nstep, t, double dt);
 	}
 
-	void WHCudaIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t)
+	void WHCudaIntegrator::load_h0(const HostPlanetPhaseSpace& pl)
 	{
-		base.integrate_particles_timeblock(pl, pa, begin, length, t);
+		base.load_h0(pl);
 	}
 
-	void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t)
+	void WHCudaIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, double dt)
 	{
-		base.integrate_encounter_particle_catchup(pl, pa, particle_index, particle_deathtime_index, t);
+		base.integrate_particles_timeblock(pl, pa, begin, length, t, double dt);
+	}
+
+	void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t, double dt)
+	{
+		base.integrate_encounter_particle_catchup(pl, pa, particle_index, particle_deathtime_index, t, dt);
 	}
 
 	void WHCudaIntegrator::swap_logs()
@@ -295,11 +301,11 @@ done: ;
 		cudaStreamSynchronize(stream);
 	}
 
-	void WHCudaIntegrator::integrate_particles_timeblock_cuda(cudaStream_t stream, size_t planet_data_id, const DevicePlanetPhaseSpace& pl, DeviceParticlePhaseSpace& pa)
+	void WHCudaIntegrator::integrate_particles_timeblock_cuda(cudaStream_t stream, size_t planet_data_id, const DevicePlanetPhaseSpace& pl, DeviceParticlePhaseSpace& pa, double dt)
 	{
 #ifndef CUDA_USE_SHARED_MEM_CACHE
 		auto it = thrust::make_zip_iterator(thrust::make_tuple(pa.begin(), device_begin()));
-		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.encounter_r2, static_cast<uint32_t>(pl.log_len), base.dt));
+		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.encounter_r2, static_cast<uint32_t>(pl.log_len), dt));
 #else
 		cudaDeviceProp prop;
 		cudaGetDeviceProperties(&prop, 0);

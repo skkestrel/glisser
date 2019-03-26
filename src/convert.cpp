@@ -151,6 +151,90 @@ namespace convert
 		}
 	}
 
+	// ehie - see orbel/orbel_ehie.f in swift
+	double ehie(double e, double m)
+	{
+		int iflag = 0;
+		int nper = static_cast<int>(m / (2 * M_PI));
+		m = m - nper * 2 * M_PI;
+		if (m < 0) m += 2 * M_PI;
+		if (m > M_PI)
+		{
+			m = 2 * M_PI - m;
+			iflag = 1;
+		}
+		
+		// make a first guess
+		double x = std::pow(6 * m, 1. / 3) - m;
+
+		// NMAX = 3
+		for (size_t i = 0; i < 3; i++)
+		{
+			double sa = std::sin(x + m);
+			double ca = std::cos(x + m);
+			double esa = e * sa;
+			double eca = e * ca;
+			double f = x - esa;
+			double fp = 1 - eca;
+			double dx = -f / fp;
+			dx = -f / (fp + dx * esa / 2);
+			dx = -f / (fp + dx * (esa + eca * dx / 3) / 2);
+			x = x + dx;
+		}
+
+		if (iflag)
+		{
+			return 2 * M_PI - m - x;
+			m = 2 * M_PI - m;
+		}
+		else
+		{
+			return m + x;
+		}
+	}
+
+	template<int n>
+	double eget(double e, double m)
+	{
+		double sm = std::sin(m);
+		double cm = std::cos(m);
+		double x = m + e * sm * (1 + e * (cm + e * (1 - 1.5 * sm * sm)));
+
+		for (size_t i = 0; i < n; i++)
+		{
+			double sx = std::sin(x);
+			double cx = std::cos(x);
+			double es = e*sx;
+			double ec = e*cx;
+			double f = x - es - m;
+			double fp = 1 - ec;
+			double fpp = es;
+			double fppp = ec;
+			double dx = -f / fp;
+			dx = -f / (fp + dx * fpp / 2);
+			dx = -f / (fp + dx * fpp / 2 + dx * dx * fppp / 6);
+
+			x = x + dx;
+		}
+		return x;
+	}
+	
+	double ehybrid(double e, double m)
+	{
+		if (e < 0.18) return eget<1>(e, m);
+		else if (e < 0.8) return eget<2>(e, m);
+		else return ehie(e, m);
+	}
+
+	void from_elements_M(double mu, double a, double e, double i, double capom, double om, double M, f64_3* r_, f64_3* v)
+	{
+		double E = ehybrid(e, M);
+		double f = std::acos((std::cos(E) - e) / (1 + e * std::cos(E)));
+		if (E < 0) f = -f;
+		
+		from_elements(mu, a, e, i, capom, om, f, r_, v);
+	}
+
 	void from_elements(double mu, double a, double e, double i, double capom, double om, double f, f64_3* r_, f64_3* v)
 	{
 		using namespace std;

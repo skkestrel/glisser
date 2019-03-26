@@ -53,7 +53,7 @@ namespace exec
 
 	void CPUExecutor::step_planets()
 	{
-		integrator.integrate_planets_timeblock(hd.planets, config.tbsize, t);
+		integrator.integrate_planets_timeblock(hd.planets, config.tbsize, t, config.dt);
 	}
 
 	void CPUExecutor::add_job(const std::function<void()>& job)
@@ -87,7 +87,8 @@ namespace exec
 								total * i / config.num_thread,
 								// The length is not exactly total / config.num_thread due to roundoff
 								total * (i + 1) / config.num_thread - total * i / config.num_thread,
-								t);
+								t, 
+								config.dt);
 					}));
 			}
 		}
@@ -99,7 +100,8 @@ namespace exec
 					hd.particles,
 					0,
 					total,
-					t);
+					t,
+					config.dt);
 		}
 
 		size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
@@ -107,7 +109,8 @@ namespace exec
 		{
 			integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
 					hd.particles.deathtime_index()[i],
-					t - config.dt * static_cast<double>(config.tbsize - hd.particles.deathtime_index()[i])
+					t - config.dt * static_cast<double>(config.tbsize - hd.particles.deathtime_index()[i]),
+					config.dt
 				);
 			hd.particles.deathtime_index()[i] = 0;
 		}

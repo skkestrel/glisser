@@ -18,6 +18,7 @@ namespace convert
 	void to_bary(HostData& hd);
 	void to_helio(HostData& hd);
 
+	void from_elements_M(double mu, double a, double e, double i, double capom, double om, double M, f64_3* r_, f64_3* v);
 	void from_elements(double mu, double a, double e, double i, double capom, double om, double f, f64_3* r, f64_3* v);
 	void to_elements(double mu, f64_3 r, f64_3 v, int* esign = nullptr, double* a = nullptr, double* e = nullptr, double* i = nullptr, double* capom = nullptr, double* om = nullptr, double* f = nullptr);
 

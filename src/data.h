@@ -385,6 +385,8 @@ namespace data
 		uint32_t resync_every;
 		uint32_t swift_hist_every;
 
+		bool enable_swift;
+
 		bool use_gpu;
 		bool write_bary_track;
 		bool interp_planets;
@@ -402,6 +404,7 @@ namespace data
 		{
 			return resolve_encounters ? (wh_ce_n1 * wh_ce_n2) : 1;
 		}
+
 
 		Configuration();
 

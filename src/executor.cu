@@ -55,6 +55,11 @@ namespace exec
 		to_helio(hd);
 
 		integrator = sr::wh::WHCudaIntegrator(hd.planets, hd.particles, config);
+		if (config.interp_planets)
+		{
+			interpolator = sr::interp::Interpolator(config, hd.planets, config.planet_history_file);
+		}
+
 		calculate_planet_metrics(hd.planets, &e_0, nullptr);
 
 		output << std::setprecision(7);
@@ -126,11 +131,12 @@ namespace exec
 			
 			if (config.interp_planets)
 			{
-
+				interpolator.fill(hd.planets, cur_tbsize, t, dt);
+				integrator.fill_h0(hd.planets);
 			}
 			else
 			{
-				integrator.integrate_planets_timeblock(hd.planets, cur_tbsize, t);
+				integrator.integrate_planets_timeblock(hd.planets, cur_tbsize, t, dt);
 			}
 
 			swap_logs();
@@ -250,7 +256,7 @@ namespace exec
 			}
 
 			cudaEventRecord(start_event, main_stream);
-			integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space());
+			integrator.integrate_particles_timeblock_cuda(main_stream, dd.planet_data_id, dd.planet_phase_space(), dd.particle_phase_space(), config.dt);
 			cudaEventRecord(gpu_finish_event, main_stream);
 		}
 
@@ -260,16 +266,9 @@ namespace exec
 
 		if (config.resolve_encounters)
 		{
-			if (true)
+			if (config.enable_swift)
 			{
 				sr::swift::SwiftEncounterIntegrator enc(config, t, prev_tbsize, cur_tbsize);
-
-				if (config.interp_planets)
-				{
-				}
-				else
-				{
-				}
 
 				enc.begin_integrate(hd.planets, hd.particles);
 				enc.end_integrate(hd.particles);
@@ -281,7 +280,8 @@ namespace exec
 				{
 					integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
 							exdata.deathtime_index[i - encounter_start],
-							t - config.dt * static_cast<double>(config.tbsize - exdata.deathtime_index[i - encounter_start])
+							t - config.dt * static_cast<double>(config.tbsize - exdata.deathtime_index[i - encounter_start]),
+							config.dt
 							);
 				}
 

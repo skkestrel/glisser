@@ -506,7 +506,6 @@ namespace wh
 		encounter_r2 = config.wh_ce_r2;
 
 		resolve_encounters = config.resolve_encounters;
-		dt = config.dt;
 
 		size_t ce_factor = resolve_encounters ? encounter_n1 * encounter_n2 : 1;
 		planet_h0_log = sr::util::LogQuartet<Vf64_3>(config.tbsize, ce_factor);
@@ -569,7 +568,7 @@ namespace wh
 		planet_h0_log.swap_logs();
 	}
 
-	void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, uint32_t nsteps, float64_t t)
+	void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, uint32_t nsteps, float64_t t, float64_t dt)
 	{
 		if (resolve_encounters)
 		{
@@ -577,7 +576,7 @@ namespace wh
 
 			for (size_t i = 0; i < nsteps * fast_factor; i++)
 			{
-				step_planets(pl, t, i);
+				step_planets(pl, t, dt, i);
 				// take the planet positions at the end of every timestep
 
 				if ((i + 1) % (fast_factor) == 0)
@@ -600,7 +599,7 @@ namespace wh
 		{
 			for (size_t i = 0; i < nsteps; i++)
 			{
-				step_planets(pl, t, i);
+				step_planets(pl, t, dt, i);
 				t += dt;
 			}
 		}
@@ -610,7 +609,7 @@ namespace wh
 		planet_h0_log.len_old = nsteps;
 	}
 
-	void WHIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t)
+	void WHIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, float64_t dt)
 	{
 		if (pa.deathtime_index().empty())
 		{
@@ -624,7 +623,7 @@ namespace wh
 
 		for (size_t i = 0; i < pl.r_log().len; i++)
 		{
-			step_particles(pl, pa, begin, length, t, i);
+			step_particles(pl, pa, begin, length, t, dt, i);
 			t += dt;
 		}
 	}
@@ -1031,7 +1030,7 @@ namespace wh
 		}
 	}
 
-	void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, size_t timestep_index)
+	void WHIntegrator::step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, float64_t dt, size_t timestep_index)
 	{
 		for (size_t i = begin; i < begin + length; i++)
 		{
@@ -1061,7 +1060,7 @@ namespace wh
 	}
 
 	template<bool old>
-	size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, uint8_t* encounter_level, double t)
+	size_t WHIntegrator::integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, uint8_t* encounter_level, double t, double dt)
 	{
 		size_t tfactor = encounter_n1 * encounter_n2;
 
@@ -1159,7 +1158,7 @@ namespace wh
 		}
 	}
 
-	void WHIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t)
+	void WHIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t, double dt)
 	{
 		uint8_t planet_index = HostParticlePhaseSpace::encounter_planet(pa.deathflags()[particle_index]);
 		size_t tfactor = encounter_n1 * encounter_n2;
@@ -1194,7 +1193,7 @@ namespace wh
 			size_t i = particle_deathtime_index * tfactor;
 			while (i < pl.r_log().len_old * tfactor)
 			{
-				size_t adv = integrate_encounter_particle_step<true>(pl, pa, particle_index, i, &enc_level, t);
+				size_t adv = integrate_encounter_particle_step<true>(pl, pa, particle_index, i, &enc_level, t, dt);
 				t += dt * static_cast<double>(adv) / static_cast<double>(tfactor);
 				i += adv;
 			}
@@ -1203,7 +1202,7 @@ namespace wh
 		size_t i = 0;
 		while (i < pl.r_log().len * tfactor)
 		{
-			size_t adv = integrate_encounter_particle_step<false>(pl, pa, particle_index, i, &enc_level, t);
+			size_t adv = integrate_encounter_particle_step<false>(pl, pa, particle_index, i, &enc_level, t, dt);
 			t += dt * static_cast<double>(adv) / static_cast<double>(tfactor);
 			i += adv;
 		}
@@ -1224,7 +1223,60 @@ namespace wh
 		gather(particle_a, indices, begin, length);
 	}
 
-	void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, size_t timestep_index)
+	void WHIntegrator::load_h0(const HostPlanetPhaseSpace& pl)
+	{
+		const Vf64_3* r_log = &pl.r_log().slow_old;
+		if (resolve_encounters)
+		{
+			r_log = &pl.r_log().old;
+		}
+
+		size_t tfactor = resolve_encounters ? encounter_n1 * encounter_n2 : 1;
+
+		for (size_t index = 0; index < pl.r_log().len_old * tfactor; index++)
+		{
+			f64_3 h0(0);
+			f64_3 a_common(0);
+			for (size_t i = 1; i < pl.n_alive(); i++)
+			{
+				f64_3 r = (*r_log)[pl.log_index_at<true>(index, i)];
+				float64_t r2 = r.lensq();
+				double inv_r3 = 1. / (std::sqrt(r2) * r2);
+
+				if (i == 1)
+				{
+					h0 = -r * pl.m()[1] * inv_r3;
+				}
+
+				if (i > 1)
+				{
+					float64_t mfac = pl.m()[i] * inv_r3;
+					a_common -= r * mfac;
+				}
+			}
+
+			h0 += a_common;
+		
+			if (resolve_encounters)
+			{
+				planet_h0_log.old[index] = h0;
+
+				if ((index + 1) % (tfactor) == 0)
+				{
+					size_t slow_index = index / tfactor;
+					planet_h0_log.slow_old[slow_index] = planet_h0_log.old[index];
+				}
+			}
+			else
+			{
+				planet_h0_log.slow_old[index] = h0;
+			}
+		}
+
+		planet_h0_log.len_old = pl.r_log().len_old;
+	}
+
+	void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, double dt, size_t timestep_index)
 	{
 		// std::cerr << "pl. " << t << " " << pl.r()[1] << " " << pl.v()[1] << std::endl;
 
