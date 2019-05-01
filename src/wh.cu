@@ -64,7 +64,9 @@ namespace wh
 			}
 
 			flags = static_cast<uint16_t>(flags | ((fabs(delta) > TOLKEP) << 3));
+#ifdef CUDA_KEPEQ_CHECK_CONVERGENCE
 done: ;
+#endif
 		}
 
 		__host__ __device__
@@ -272,7 +274,7 @@ done: ;
 
 	void WHCudaIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, size_t nstep, float64_t t, double dt)
 	{
-		base.integrate_planets_timeblock(pl, nstep, t, double dt);
+		base.integrate_planets_timeblock(pl, nstep, t, dt);
 	}
 
 	void WHCudaIntegrator::load_h0(const HostPlanetPhaseSpace& pl)
@@ -282,7 +284,7 @@ done: ;
 
 	void WHCudaIntegrator::integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, double dt)
 	{
-		base.integrate_particles_timeblock(pl, pa, begin, length, t, double dt);
+		base.integrate_particles_timeblock(pl, pa, begin, length, t, dt);
 	}
 
 	void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t, double dt)

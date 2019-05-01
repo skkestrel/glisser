@@ -3,6 +3,8 @@
 #include <unordered_map>
 #include <algorithm>
 #include <thread>
+#include <unistd.h>
+#include <ctime>
 
 #include "swift.h"
 #include "util.cuh"
@@ -75,7 +77,6 @@ namespace exec
 		cudaStreamCreate(&dth_stream);
 
 		cudaEventCreate(&start_event);
-		cudaEventCreate(&cpu_finish_event);
 		cudaEventCreate(&gpu_finish_event);
 
 		rollback_state = DeviceParticlePhaseSpace(hd.particles.n());
@@ -118,29 +119,43 @@ namespace exec
 
 	void Executor::update_planets()
 	{
-		if (/* read planet log */ false)
+		prev_tbsize = cur_tbsize;
+		cur_tbsize = config.tbsize;
+
+		if (config.interp_planets)
 		{
-			swap_logs();
-			prev_tbsize = cur_tbsize;
-			// read the planetary log file here, change tbsize if needed
+			interpolator.fill(hd.planets, cur_tbsize, t, config.dt);
+			integrator.load_h0(hd.planets);
 		}
 		else
 		{
-			prev_tbsize = cur_tbsize;
-			cur_tbsize = config.tbsize;
-			
-			if (config.interp_planets)
-			{
-				interpolator.fill(hd.planets, cur_tbsize, t, dt);
-				integrator.fill_h0(hd.planets);
-			}
-			else
-			{
-				integrator.integrate_planets_timeblock(hd.planets, cur_tbsize, t, dt);
-			}
-
-			swap_logs();
+			integrator.integrate_planets_timeblock(hd.planets, cur_tbsize, t, config.dt);
 		}
+
+		swap_logs();
+
+		/*
+		for (size_t i = 0; i < hd.planets.r_log().len; i++)
+		{
+			output << "npl = " << hd.planets.n_alive() << std::endl;
+			for (size_t j = 1; j < hd.planets.n_alive(); j++)
+			{
+				f64_3 r, v;
+				r = hd.planets.r_log().slow[hd.planets.log_index_at<false>(i, j)];
+				v = hd.planets.v_log().slow[hd.planets.log_index_at<false>(i, j)];
+				output << r << " " << v << std::endl;
+				
+				double a, e, I, O, o, f;
+
+				sr::convert::to_elements(hd.planets.m()[0] + hd.planets.m()[j], r, v, nullptr, &a, &e, &I, &O, &o, &f);
+
+				output << a << " " << e << " " << I << " " << O << " " << o << " " << f << std::endl;
+
+			}
+			output << "h0 = " << integrator.base.planet_h0_log.slow[i] << std::endl;
+		}
+		*/
+
 
 		// We only upload the planet log if any particles are going to use the planet log on the GPU
 		// Cases where the planet log is not used by the particles:
@@ -238,6 +253,7 @@ namespace exec
 
 	void Executor::loop(double* cputimeout, double* gputimeout)
 	{
+		std::clock_t c_start = std::clock();
 		// t = the time at the start of the block that is about to be calculated
 		std::thread cpu_thread;
 		
@@ -278,7 +294,10 @@ namespace exec
 				size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
 				for (size_t i = encounter_start; i < hd.particles.n_alive(); i++)
 				{
-					integrator.integrate_encounter_particle_catchup(hd.planets, hd.particles, i,
+					integrator.integrate_encounter_particle_catchup(
+							hd.planets,
+							hd.particles,
+							i,
 							exdata.deathtime_index[i - encounter_start],
 							t - config.dt * static_cast<double>(config.tbsize - exdata.deathtime_index[i - encounter_start]),
 							config.dt
@@ -304,16 +323,16 @@ namespace exec
 		t += config.dt * static_cast<double>(config.tbsize);
 		update_planets();
 
+		float cputime = static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000;
+		if (cputimeout) *cputimeout = cputime;
+
 		if (dd.particle_phase_space().n_alive > 0)
 		{
 			cudaStreamSynchronize(htd_stream);
-			cudaEventRecord(cpu_finish_event, par_stream);
 			cudaEventSynchronize(gpu_finish_event);
 
-			float cputime, gputime;
-			cudaEventElapsedTime(&cputime, start_event, cpu_finish_event);
+			float gputime;
 			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
-			if (cputimeout) *cputimeout = cputime;
 			if (gputimeout) *gputimeout = gputime;
 
 			// There's nothing to resync if all the particles on the device are dead!

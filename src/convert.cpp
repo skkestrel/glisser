@@ -1,5 +1,6 @@
 #include "convert.h"
 #include <cmath>
+#include <iostream>
 
 namespace sr
 {
@@ -229,9 +230,20 @@ namespace convert
 	void from_elements_M(double mu, double a, double e, double i, double capom, double om, double M, f64_3* r_, f64_3* v)
 	{
 		double E = ehybrid(e, M);
-		double f = std::acos((std::cos(E) - e) / (1 + e * std::cos(E)));
+		double f = std::acos((std::cos(E) - e) / (1 - e * std::cos(E)));
+
+		E = E - static_cast<int>(E / 2 / M_PI) * 2 * M_PI;
+		if (E > M_PI) E -= 2 * M_PI;
+		else if (E < -M_PI) E += 2 * M_PI;
+
+		// fix the sign of f
 		if (E < 0) f = -f;
-		
+
+		/*
+		std::cout << "M = " << M << " f = " << f << std::endl;
+		std::cout << "E - e sin E = " << E - e * std::sin(E) << std::endl;
+		*/
+
 		from_elements(mu, a, e, i, capom, om, f, r_, v);
 	}
 

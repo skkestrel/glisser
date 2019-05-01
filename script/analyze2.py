@@ -254,9 +254,11 @@ plt.figure()
 alive = final_int[:, 1] == 0
 alive = np.logical_and(alive, final[:, 0] < 30)
 
+# alive = np.logical_or(alive, final[:, 6] > 365 * 4.5 * 1e9)
+
 #plt.title('surviving particle final states')
 
-plt.scatter(final[alive, 0], final[alive, 1], s=5, c="blue", label="Final states")
+# plt.scatter(final[alive, 0], final[alive, 1], s=5, c="blue", label="Final states")
 rect = plt.Rectangle([24.2, 0], 2, 0.05, fill=False, zorder=1, linestyle="--", lw="2.5")
 ax = plt.gca()
 ax.add_patch(rect)
@@ -270,7 +272,8 @@ ax.grid()
 if alive.sum() < 1000:
     for i in range(len(alive)):
         if alive[i]:
-            plt.plot([initial[i, 0], final[i, 0]], [initial[i, 1], final[i, 1]], lw=1, c="pink", zorder=-100)
+            pass
+            # plt.plot([initial[i, 0], final[i, 0]], [initial[i, 1], final[i, 1]], lw=1, c="pink", zorder=-100)
 plt.scatter(initial[alive, 0], initial[alive, 1], s=5, c="red", label="Initial states")
 
 plt.xlabel('a_i (AU)')

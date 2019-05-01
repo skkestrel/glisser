@@ -53,7 +53,7 @@ namespace wh
 
 		void swap_logs();
 
-		void integrate_planets_timeblock(HostPlanetPhaseSpace& pl, uint32_t nsteps, float64_t t, float64_t dt);
+		void integrate_planets_timeblock(HostPlanetPhaseSpace& pl, size_t nsteps, float64_t t, float64_t dt);
 		// integrates for as many steps as are in the planet log
 		void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, float64_t dt);
 		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length);

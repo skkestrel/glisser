@@ -13,8 +13,11 @@ Options:
     -t <t>, --tmax <t>                Take only up to given time
     --print-mean-a
     --plot-angles                     ..
+    --plot-tiss
     --plot-mmr-arg <mmr>              <mmr> = "3:4@3" for neptune, for example
+    --plot-aei-special
     --plot-aei                        ..
+    --plot-oom                        ..
     --plot-aet                        ..
     --plot-ae                         ..
     --plot-ftrect                     ..
@@ -392,7 +395,7 @@ if args["--plot-aet"]:
 
 
 if args["--plot-aei"]:
-    fig, axes = plt.subplots(2, 1, sharex=True)
+    fig, axes = plt.subplots(3, 1, sharex=True)
 
     def plot_aei(data, c, ind, is_planet):
         axes[0].plot(stimes, data[0] - data[0].mean(), c=c)
@@ -404,9 +407,48 @@ if args["--plot-aei"]:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
     do_for(plot_aei)
-    axes[0].set_ylabel("δa")
+    axes[0].set_ylabel("$\\delta$ a")
     axes[1].set_ylabel("e")
     axes[2].set_ylabel("i")
+    axes[0].legend()
+
+if args["--plot-aei-special"]:
+    fig, axes = plt.subplots(3, 1, sharex=True)
+
+    def plot_aei(data, c, ind, is_planet):
+        axes[0].plot(stimes, data[0], c=c)
+        axes[1].plot(stimes, data[1], c=c)
+        axes[2].plot(stimes, data[2], c=c)
+        if is_planet:
+            axes[0].plot([], [], c=c, label=get_planet_name(ind))
+        else:
+            axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
+
+    do_for(plot_aei)
+    axes[0].set_ylabel("a")
+    axes[0].set_ylim([19.1, 19.33])
+    axes[1].set_ylabel("e")
+    axes[1].set_ylim([0.036, 0.055])
+    axes[2].set_ylabel("i")
+    axes[2].set_ylim([0.01908, 0.01921])
+    axes[0].legend()
+
+if args["--plot-oom"]:
+    fig, axes = plt.subplots(3, 1, sharex=True)
+
+    def plot_aei(data, c, ind, is_planet):
+        axes[0].plot(stimes, data[3], c=c)
+        axes[1].plot(stimes, data[4], c=c)
+        axes[2].plot(stimes, data[5], c=c)
+        if is_planet:
+            axes[0].plot([], [], c=c, label=get_planet_name(ind))
+        else:
+            axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
+
+    do_for(plot_aei)
+    axes[0].set_ylabel("O")
+    axes[1].set_ylabel("o")
+    axes[2].set_ylabel("m")
     axes[2].set_xlabel(timelabel)
     axes[0].legend()
 
@@ -716,4 +758,19 @@ if args["--plot-diffusion"]:
     do_for(plot_diffusion, [])
     ax.legend()
 
+if args["--plot-tiss"]:
+    fig, axes = plt.subplots(2, 1, sharex=True)
+
+    def plot_tiss(data, c, ind, is_planet):
+        axes[0].plot(stimes, 1/2/data[0] + np.sqrt(data[0]*(1-data[1]**2)) * np.cos(data[2]), c=c)
+        if is_planet:
+            axes[0].plot([], [], c=c, label=get_planet_name(ind))
+        else:
+            axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
+
+    do_for(plot_tiss)
+    axes[0].legend()
+
+
 plt.show()
+

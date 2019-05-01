@@ -17,8 +17,7 @@ Options:
     -h, --help         Show this screen.
 )";
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
 	std::map<std::string, docopt::value> args = docopt::docopt(USAGE, { argv + 1, argv + argc }, true, "export-swift");
 
 	std::string configin = args["<config>"].asString();
@@ -62,8 +61,8 @@ int main(int argc, char** argv)
 	std::ofstream tpin(sr::util::joinpath(out_folder, "tp.in"));
 	std::ofstream paramin(sr::util::joinpath(out_folder, "param.in"));
 
-	paramin << config.t_0 << " " << config.t_f << " " << config.dt << std::endl;
-	paramin << "999999 9999999" << std::endl;
+	paramin << config.t_0 / 365.24 << " " << config.t_f / 365.24 << " " << config.dt / 365.24<< std::endl;
+	paramin << "999999 999999" << std::endl;
 	paramin << "F T F F T F" << std::endl;
 	paramin << "0.5 500 200 -1 T" << std::endl;
 	paramin << "/dev/null" << std::endl;
@@ -72,7 +71,7 @@ int main(int argc, char** argv)
 	plin << hd.planets.n_alive() << std::endl;
 	for (size_t i = 0; i < hd.planets.n_alive(); i++)
 	{
-		plin << hd.planets.m()[i] << std::endl;
+		plin << hd.planets.m()[i] * 365.24 * 365.24 << std::endl;
 
 		if (i == 0 && (hd.planets.r()[i].lensq() != 0 || hd.planets.v()[i].lensq() != 0))
 		{
@@ -80,17 +79,24 @@ int main(int argc, char** argv)
 		}
 
 		plin << hd.planets.r()[i] << std::endl;
-		plin << hd.planets.v()[i] << std::endl;
+		plin << hd.planets.v()[i] * 365.24 << std::endl;
 	}
 
 	tpin << hd.particles.n_alive() << std::endl;
 	for (size_t i = 0; i < hd.particles.n_alive(); i++)
 	{
 		tpin << hd.particles.r()[i] << std::endl;
-		tpin << hd.particles.v()[i] << std::endl;
-		tpin << "0 0 0 0 0 0 0 0 0 0 0 0 0" << std::endl;
-		tpin << "0 0 0 0 0" << std::endl;
-		tpin << "0 0 0 0 0" << std::endl;
-		tpin << "0 0 0" << std::endl;
+		tpin << hd.particles.v()[i] * 365.24 << std::endl;
+		for (size_t j = 0; j < 52; j++)
+		{
+			tpin << "0 ";
+		}
+		tpin << "0" << std::endl;
+
+		for (size_t j = 0; j < 52; j++)
+		{
+			tpin << "0.0 ";
+		}
+		tpin << "0.0" << std::endl;
 	}
 }

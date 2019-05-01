@@ -1,8 +1,8 @@
 #include "wh.h"
 #include "convert.h"
-
 #include <iomanip>
 #include <cmath>
+#include <ctime>
 #include <sstream>
 #include <stdexcept>
 #include <iostream>
@@ -568,7 +568,7 @@ namespace wh
 		planet_h0_log.swap_logs();
 	}
 
-	void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, uint32_t nsteps, float64_t t, float64_t dt)
+	void WHIntegrator::integrate_planets_timeblock(HostPlanetPhaseSpace& pl, size_t nsteps, float64_t t, float64_t dt)
 	{
 		if (resolve_encounters)
 		{

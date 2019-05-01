@@ -16,7 +16,7 @@ WFLAGS = -Wcast-align -Wshadow -Wcast-qual -Wconversion -Wdisabled-optimization 
 -Wstrict-aliasing=2 -Wswitch-default -Wswitch-enum -Wunreachable-code -Wunused \
 -Wunused-parameter -Wvariadic-macros -Wwrite-strings
 
-CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -O3 -DNO_CUDA # -fsanitize=address
+CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -DNO_CUDA -O3 # -fsanitize=address
 
 LDFLAGS = -pthread # -lasan
 
@@ -79,3 +79,6 @@ export-track: $(OBJ_FILES)
 
 export-swift: $(OBJ_FILES)
 	$(call make-target,export_swift,export-swift)
+
+import-swift: $(OBJ_FILES)
+	$(call make-target,import_swift,import-swift)

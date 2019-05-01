@@ -153,6 +153,8 @@ int main(int argc, char** argv)
 	bool crashed = false;
 	std::ofstream trackout;
 
+	std::ofstream swifthistout;
+
 	signal(SIGTERM, term);
 	signal(SIGINT, term);
 
@@ -160,25 +162,31 @@ int main(int argc, char** argv)
 
 	try
 	{
-		trackout = std::ofstream(sr::util::joinpath(config.outfolder, "tracks/track.0.out"), std::ios_base::binary);
+		if (config.track_every != 0)
+		{
+			trackout = std::ofstream(sr::util::joinpath(config.outfolder, "tracks/track.0.out"), std::ios_base::binary);
+		}
+
+		if (config.swift_hist_every != 0)
+		{
+			swifthistout = std::ofstream(sr::util::joinpath(config.outfolder, "plhist.out"), std::ios_base::binary);
+			sr::data::begin_swift_plhist(swifthistout, ex.hd.planets.base);
+			sr::data::save_swift_plhist(swifthistout, ex.hd.planets.base, ex.t);
+		}
 
 		while (ex.t < config.t_f)
 		{
 #ifdef NO_CUDA
 			double cputimeout;
 		       	ex.loop(&cputimeout);
-
-			double timediff = cputimeout;
+			counter++;
+			ex.add_job([&timelog, &tout, &ex, &config, counter, cputimeout]()
 #else
 			double cputimeout, gputimeout;
 		       	ex.loop(&cputimeout, &gputimeout);
-
-			double timediff = gputimeout - cputimeout;
-#endif
-
 			counter++;
-
-			ex.add_job([&timelog, &tout, &ex, &config, counter, timediff]()
+			ex.add_job([&timelog, &tout, &ex, &config, counter, cputimeout, gputimeout]()
+#endif
 				{
 					bool output_energy = config.energy_every != 0 && (counter % config.energy_every == 0);
 					bool log_out = config.print_every != 0 && (counter % config.print_every == 0);
@@ -207,14 +215,19 @@ int main(int argc, char** argv)
 						tout << "Error = " << (e_ - ex.e_0) / ex.e_0 * 100 << ", " <<
 							ex.hd.particles.n_alive() << " particles remaining, " << ex.hd.particles.n_encounter() << " in encounter" << std::endl;
 
-						tout << "GPU took " << std::setprecision(4) << timediff << " ms longer than CPU" << std::endl;
+#ifdef NO_CUDA
+						tout << "CPU time: " << cputimeout << " ms" << std::endl;
+#else
+						tout << "GPU time: " << std::setprecision(4) << gputimeout << ", CPU time: " << cputimeout << " (ms)" << std::endl;
+#endif
 					}
 				});
 			
 			bool dump = config.dump_every != 0 && counter % config.dump_every == 0;
 			bool track = config.track_every != 0 && counter % config.track_every == 0;
+			bool swifthist = config.swift_hist_every != 0 && counter % config.swift_hist_every == 0;
 
-			if (dump || track)
+			if (dump || track || swifthist)
 			{
 #ifndef NO_CUDA
 				ex.download_data();
@@ -259,6 +272,14 @@ int main(int argc, char** argv)
 							sr::data::HostParticleSnapshot snapshot_copy = ex.hd.particles.base;
 							snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
 							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, true, config.write_bary_track);
+						});
+				}
+
+				if (swifthist)
+				{
+					ex.add_job([&swifthistout, &ex, &config]()
+						{
+							sr::data::save_swift_plhist(swifthistout, ex.hd.planets_snapshot, ex.t);
 						});
 				}
 			}
