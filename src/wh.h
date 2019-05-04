@@ -79,9 +79,28 @@ namespace wh
 		template<bool encounter, bool old>
 		uint8_t helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index);
 
+		/*
+		   Calculates the particle accelerations using planet_h0_log and planet_r_log
+		   at the given timestep index. Also detects encounters.
+
+		   Side effects:
+		   particle_a
+		   particles.deathflags
+		   particles.deathtime
+		 */
 		template<bool encounter, bool old>
 		void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t begin, size_t length, float64_t time, size_t timestep_index);
 
+		/*
+		   Calculates accelerations for planets, and stores h0 into
+		   the planetary log at the given index
+
+		   Side effects:
+		   planet_inverse_helio_cubed
+		   planet_inverse_jacobi_cubed
+		   planet_a
+		   planet_h0_log
+	   	*/
 		template<bool slow>
 		void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index);
 

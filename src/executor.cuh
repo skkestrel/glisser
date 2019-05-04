@@ -21,8 +21,6 @@ namespace exec
 		std::vector<uint32_t> id, deathtime_index;
 		std::vector<uint16_t> deathflags;
 
-		std::unique_ptr<std::vector<size_t>> gather_indices;
-
 		ExecutorData();
 		ExecutorData(size_t size);
 	};
@@ -33,9 +31,6 @@ namespace exec
 		DeviceData& dd;
 		sr::wh::WHCudaIntegrator integrator;
 		sr::interp::Interpolator interpolator;
-
-		ExecutorData exdata;
-		ExecutorData rollback_exdata;
 
 		cudaStream_t main_stream, dth_stream, htd_stream, par_stream;
 		cudaEvent_t start_event, cpu_finish_event, gpu_finish_event;
@@ -74,6 +69,9 @@ namespace exec
 		void finish();
 		void swap_logs();
 		void update_planets();
+		void assert_true(bool cond, std::string msg);
+
+		double current_dt();
 	};
 }
 }

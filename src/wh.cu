@@ -118,6 +118,7 @@ done: ;
 				if (flags == 0)
 				{
 					// kick
+					// if step = 0, the acceleration is preloaded - this comes from 
 					v = v + a * (dt / 2);
 
 					drift(r, v, flags, dt, mu);
@@ -125,7 +126,8 @@ done: ;
 					a = h0_log[step];
 
 					// planet 0 is not counted
-#warning TODO need to set planet flag by planet ID, not by planet index
+#warning TODO need to set planet flag by planet ID, not by planet index \
+	this means that we have to pass in a list of planet IDs, most likely
 					for (uint32_t i = 1; i < static_cast<uint32_t>(planet_n); i++)
 					{
 						f64_3 dr = r - r_log[step * (planet_n - 1) + i - 1];
@@ -326,7 +328,7 @@ done: ;
 		MVSKernel_<<<grid_size, block_size, shared_mem, stream>>>
 			(pa.r.data().get(), pa.v.data().get(), pa.deathflags.data().get(), device_particle_a.data().get(), pa.deathtime_index.data().get(),
 			static_cast<uint32_t>(pa.n_alive), static_cast<uint32_t>(pl.log_len), static_cast<uint32_t>(pl.n_alive), device_h0_log(planet_data_id).data().get(), pl.r_log.data().get(), pl.m.data().get(),
-			device_planet_rh.data().get(), base.encounter_r2, base.dt, pl.m[0]);
+			device_planet_rh.data().get(), base.encounter_r2, dt, pl.m[0]);
 #endif
 	}
 }

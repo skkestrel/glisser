@@ -539,8 +539,15 @@ namespace wh
 		sr::convert::helio_to_jacobi_r_planets(pl, planet_eta, planet_rj);
 		sr::convert::helio_to_jacobi_v_planets(pl, planet_eta, planet_vj);
 
+		// copy the planet locations into first entry of the old log - this is used just so that helio_acc_particles works below
 		std::copy(pl.r().begin() + 1, pl.r().end(), pl.r_log().slow_old.begin());
+
+		// calculate initial accelerations for particles - this must be done so that the GPU integration works
+		
+		// this function populates h0 for the given timesteps
 		helio_acc_planets<true>(pl, 0);
+
+		// since we copied planet positions into the slow log, use the same one here: timestep 0, of course
 		helio_acc_particles<false, true>(pl, pa, 0, pa.n_alive(), 0, 0);
 
 		// If there are any encounters at the start of the integration,

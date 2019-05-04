@@ -384,10 +384,12 @@ namespace data
 
 		uint32_t resync_every;
 		uint32_t swift_hist_every;
+		uint32_t num_swift, swift_part_min;
 
 		bool enable_swift;
 
 		bool use_gpu;
+		uint32_t swift_statlen;
 		bool write_bary_track;
 		bool interp_planets;
 		std:: string planet_history_file;

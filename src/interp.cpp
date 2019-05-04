@@ -14,6 +14,7 @@ namespace interp
 	{
 		input.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		resolve_encounters = config.resolve_encounters;
+		user_dt = config.dt;
 		fast_factor = config.resolve_encounters ? config.wh_ce_n1 * config.wh_ce_n2 : 1;
 
 		pl.m()[0] = sr::data::read_binary<float64_t>(input) / 365.24 / 365.24;
@@ -81,12 +82,17 @@ namespace interp
 
 	void Interpolator::fill(sr::data::HostPlanetPhaseSpace& pl, size_t nstep, double t, double dt)
 	{
-#warning TODO which dt should we use?
+		// the first timestep starts at t + dt
+		t += dt;
+
 #warning TODO need to handle the case where planets disappear - need to be smart about array indices
 		// currently cannot handle planets changing, and cannot handle planet indices switching around
 		for (size_t i = 0; i < nstep * fast_factor; i++)
 		{
-			while (t > t1) next(pl);
+			if (t > t1 + 1e-6)
+			{
+				throw std::runtime_error("an error occured with interpolation length");
+			}
 
 			pl.r()[0] = f64_3(0);
 			pl.v()[0] = f64_3(0);
@@ -99,22 +105,6 @@ namespace interp
 				f64_3 r, v;
 
 				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
-
-				/*
-				std::cout << "s0: " << aei0[j] << " " << oom0[j] << std::endl;
-				std::cout << "s1: " << aei1[j] << " " << oom1[j] << std::endl;
-				std::cout << "st: " << aei << " " << oom << std::endl;
-				std::cout << "rv: " << r << " " << v << std::endl;
-
-				double a, e, I, O, o, f;
-
-				sr::convert::to_elements(pl.m()[0] + pl.m()[j], r, v, nullptr, &a, &e, &I, &O, &o, &f);
-
-				std::cout << "back: " << a << " " << e << " " << I << " " << O << " " << o << " " << f << std::endl;
-				int x;
-				std::cin >> x;
-				*/
-
 
 				pl.r()[j] = r;
 				pl.v()[j] = v;
@@ -162,9 +152,12 @@ namespace interp
 
 	void Interpolator::next(sr::data::HostPlanetPhaseSpace& pl)
 	{
+		cur_ts = 0;
+
 		aei0 = aei1;
 		oom0 = oom1;
 		t0 = t1;
+
 		t1 = sr::data::read_binary<float64_t>(input) * 365.24;
 
 		if (!input)
@@ -177,6 +170,10 @@ namespace interp
 
 
 		double dt = t1 - t0;
+
+		// find the closest number of timesteps available and use that as the real timestep
+		n_ts = static_cast<size_t>(std::round(dt / user_dt));
+		eff_dt = dt / static_cast<double>(n_ts);
 
 		sr::data::skip_binary(input, 32 - 8 - 4);
 

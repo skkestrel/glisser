@@ -17,11 +17,7 @@ GLISSE Integrator
 #include <execinfo.h>
 #include <csignal>
 
-#ifdef NO_CUDA
-	#include "../src/cpu_executor.h"
-#else
-	#include "../src/executor_facade.h"
-#endif
+#include "../src/executor_facade.h"
 
 #include "../src/data.h"
 #include "../src/wh.h"
@@ -86,15 +82,6 @@ int main(int argc, char** argv)
 	const sr::data::Configuration& config = config_mut;
 
 
-#ifdef NO_CUDA
-	if (config_mut.use_gpu)
-	{
-		std::cout << "Enable-GPU cannot be enabled when compiling without CUDA!" << std::endl;
-		return -1;
-	}
-#endif
-
-
 	sr::util::make_dir(config.outfolder);
 
 	if (!sr::util::is_dir_empty(config.outfolder))
@@ -125,11 +112,7 @@ int main(int argc, char** argv)
 
 	sr::data::HostData hd;
 
-#ifdef NO_CUDA
-	sr::exec::CPUExecutor ex(hd, config, tout);
-#else
 	sr::exec::ExecutorFacade ex(hd, config, tout);
-#endif
 
 	ex.t = config.t_0;
 
@@ -176,17 +159,10 @@ int main(int argc, char** argv)
 
 		while (ex.t < config.t_f)
 		{
-#ifdef NO_CUDA
-			double cputimeout;
-		       	ex.loop(&cputimeout);
-			counter++;
-			ex.add_job([&timelog, &tout, &ex, &config, counter, cputimeout]()
-#else
 			double cputimeout, gputimeout;
 		       	ex.loop(&cputimeout, &gputimeout);
 			counter++;
 			ex.add_job([&timelog, &tout, &ex, &config, counter, cputimeout, gputimeout]()
-#endif
 				{
 					bool output_energy = config.energy_every != 0 && (counter % config.energy_every == 0);
 					bool log_out = config.print_every != 0 && (counter % config.print_every == 0);
@@ -215,11 +191,7 @@ int main(int argc, char** argv)
 						tout << "Error = " << (e_ - ex.e_0) / ex.e_0 * 100 << ", " <<
 							ex.hd.particles.n_alive() << " particles remaining, " << ex.hd.particles.n_encounter() << " in encounter" << std::endl;
 
-#ifdef NO_CUDA
-						tout << "CPU time: " << cputimeout << " ms" << std::endl;
-#else
 						tout << "GPU time: " << std::setprecision(4) << gputimeout << ", CPU time: " << cputimeout << " (ms)" << std::endl;
-#endif
 					}
 				});
 			
@@ -229,9 +201,7 @@ int main(int argc, char** argv)
 
 			if (dump || track || swifthist)
 			{
-#ifndef NO_CUDA
 				ex.download_data();
-#endif
 
 				if (dump)
 				{
@@ -317,12 +287,10 @@ int main(int argc, char** argv)
 						{
 							tout << "?" << std::endl;
 						}
-#ifndef NO_CUDA
 						if (!dump && !track)
 						{
 							ex.download_data();
 						}
-#endif
 						sr::data::Configuration out_config = config.output_config();
 						out_config.t_f = config.t_f - config.t_0 + ex.t;
 						out_config.t_0 = ex.t;
@@ -356,9 +324,7 @@ int main(int argc, char** argv)
 	}
 
 	ex.finish();
-#ifndef NO_CUDA
 	ex.download_data(true);
-#endif
 
 	tout << "Saving to disk." << std::endl;
 	save_data(hd.planets_snapshot, hd.particles, config, sr::util::joinpath(config.outfolder, "state.out"));

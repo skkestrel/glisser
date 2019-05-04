@@ -175,10 +175,13 @@ namespace data
 
 		resync_every = 1;
 		swift_hist_every = 0;
+		swift_statlen = 13;
 		print_every = 10;
 		energy_every = 1;
 		track_every = 0;
 		split_track_file = 0;
+		num_swift = 1;
+		swift_part_min = 10;
 
 		interp_planets = false;
 		planet_history_file = "";
@@ -247,7 +250,7 @@ namespace data
 				else if (first == "WH-Encounter-N1")
 					out->wh_ce_n1 = std::stou(second);
 				else if (first == "WH-Encounter-N2")
-					out->wh_ce_n2 = std::stou(second);
+				out->wh_ce_n2 = std::stou(second);
 				else if (first == "WH-Encounter-R1")
 					out->wh_ce_r1 = std::stod(second);
 				else if (first == "WH-Encounter-R2")
@@ -276,6 +279,12 @@ namespace data
 					out->track_every = std::stou(second);
 				else if (first == "Swift-History-Interval")
 					out->swift_hist_every = std::stou(second);
+				else if (first == "Swift-Process-Count")
+					out->num_swift = std::stou(second);
+				else if (first == "Swift-Process-Min-Particles")
+					out->swift_part_min = std::stou(second);
+				else if (first == "Swift-Status-Length")
+					out->swift_statlen = std::stou(second);
 				else if (first == "Write-Barycentric-Track")
 					out->write_bary_track = std::stoi(second) != 0;
 				else if (first == "Split-Track-File")
@@ -321,10 +330,6 @@ namespace data
 		{
 			std::cerr << "Warning: Output-Folder was not specified, defaulting to ./" << std::endl;
 			out->outfolder = "./";
-		}
-		if (out->cull_radius != 0.5 && out->resolve_encounters)
-		{
-			std::cerr << "Warning: Cull-Radius was set but Resolve-Encounters was also set: Planets will not be culled with Cull-Radius!" << std::endl;
 		}
 		if (out->readsplit && out->readbinary)
 		{
@@ -390,7 +395,10 @@ namespace data
 		outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
 		outstream << "Read-Planet-History" << out.interp_planets << std::endl;
-		outstream << "Swift-History-Interval " << out.swift_hist_every << std::endl;
+		outstream << "Swift-History-Output-Interval " << out.swift_hist_every << std::endl;
+		outstream << "Swift-Process-Count" << out.num_swift << std::endl;
+		outstream << "Swift-Process-Min-Particles" << out.swift_part_min << std::endl;
+		outstream << "Swift-Status-Length " << out.swift_statlen << std::endl;
 		outstream << "Planet-History-File" << out.planet_history_file << std::endl;
 	}
 
@@ -544,7 +552,8 @@ namespace data
 
 	bool load_data(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config)
 	{
-		bool ret;
+		bool ret; // false if successful
+
 		if (config.readsplit)
 		{
 			if (!sr::util::does_file_exist(config.plin))
@@ -597,6 +606,10 @@ namespace data
 			}
 
 			pa.stable_partition_alive(0, pa.n());
+			
+			// TODO partition based on encounter status as well!
+			// For now: kill all particles that start off in encounter
+			// In the future: need to think about how to start off encoutner particles since they don't have a previous timechunk data
 		}
 
 		return ret;
