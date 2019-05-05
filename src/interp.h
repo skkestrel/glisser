@@ -15,7 +15,9 @@ namespace interp
 		Interpolator();
 		Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file);
 		void next(sr::data::HostPlanetPhaseSpace& pl);
-		void fill(sr::data::HostPlanetPhaseSpace& pl, size_t nstep, double t, double dt);
+
+		// relative_t should be t - t0
+		void fill(sr::data::HostPlanetPhaseSpace& pl, size_t nstep, double relative_t, double dt);
 
 		// This is the effective dt, calculated by taking the nearest timestep to the user-defined timestep
 		// this ensures that itme chunk boundaries always occur on the lookup boundary
@@ -27,9 +29,12 @@ namespace interp
 		// the current timestep number in the current lookup interval
 		size_t cur_ts;
 
-		Vf64_3 aei0, aei1;
-		Vf64_3 oom0, oom1;
-		float64_t t0, t1;
+		// t - t0; this is needed because when t0 is very large, error in t - t0 accumulates extremely quickly
+		float64_t rel_t;
+
+		Vf64_3 aei0, aei1, aei_m1;
+		Vf64_3 oom0, oom1, oom_m1;
+		float64_t t0, t1, t_m1;
 
 		private:
 		std::ifstream input;
@@ -44,8 +49,10 @@ namespace interp
 		size_t fast_factor;
 	};
 
-	class EOSError
+	class EOSError : public std::runtime_error
 	{
+		public:
+			inline EOSError() : std::runtime_error("EOS reached for lookup file.") { }
 	};
 }
 }

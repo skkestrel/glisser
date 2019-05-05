@@ -188,9 +188,8 @@ namespace data
 		inline const Vf32& deathtime() const { return _deathtime; }
 
 		/**
-		 * CPU block integration mode only.
 		 * Gets the index within the timeblock of the death time. This allows
-		 * encounter integration to continue from the correct place.
+		 * encounter integration to continue from the correct place. 
 		 */
 		inline Vu32& deathtime_index() { return _deathtime_index; }
 		inline const Vu32& deathtime_index() const { return _deathtime_index; }
@@ -198,13 +197,9 @@ namespace data
 		/** Default ctor. */
 		inline HostParticlePhaseSpace() { }
 
-		/** Ctor with size argument and cpu_only. cpu_only must be set to true when CPU block integration is required. */
-		inline HostParticlePhaseSpace(size_t siz, bool cpu_only = false) : base(siz), _n_encounter(0), _deathflags(siz), _deathtime(siz), _cpu_only(cpu_only)
+		/** Ctor with size argument */
+		inline HostParticlePhaseSpace(size_t siz) : base(siz), _n_encounter(0), _deathflags(siz), _deathtime(siz), _deathtime_index(siz)
 		{ 
-			if (cpu_only)
-			{
-				_deathtime_index = Vu32(siz);
-			}
 		}
 
 		/** Execute stable partition on alive particles, i.e., `deathflags & 0x00FE = 0` */
@@ -246,7 +241,6 @@ namespace data
 		Vf32 _deathtime;
 
 		Vu32 _deathtime_index;
-		bool _cpu_only;
 	};
 
 	struct HostPlanetPhaseSpace
@@ -385,8 +379,6 @@ namespace data
 		uint32_t resync_every;
 		uint32_t swift_hist_every;
 		uint32_t num_swift, swift_part_min;
-
-		bool enable_swift;
 
 		bool use_gpu;
 		uint32_t swift_statlen;

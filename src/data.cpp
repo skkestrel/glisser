@@ -92,14 +92,9 @@ namespace data
 	{
 		base.filter(filter, out.base);
 		out._n_encounter = 0;
-		out._cpu_only = _cpu_only;
 		out._deathflags = std::vector<uint16_t>(out.base.n);
 		out._deathtime = std::vector<float>(out.base.n);
-
-		if (_cpu_only)
-		{
-			out._deathtime_index = std::vector<uint32_t>(out.base.n);
-		}
+		out._deathtime_index = std::vector<uint32_t>(out.base.n);
 
 		size_t index = 0;
 
@@ -107,11 +102,7 @@ namespace data
 		{
 			out._deathflags[index] = _deathflags[i];
 			out._deathtime[index] = _deathtime[i];
-
-			if (_cpu_only)
-			{
-				out._deathtime_index[index] = _deathtime_index[i];
-			}
+			out._deathtime_index[index] = _deathtime_index[i];
 
 			index++;
 		}
@@ -171,7 +162,6 @@ namespace data
 		wh_ce_r1 = 1;
 		wh_ce_r2 = 3.5;
 		cull_radius = 0.5;
-		enable_swift = true;
 
 		resync_every = 1;
 		swift_hist_every = 0;
@@ -269,8 +259,6 @@ namespace data
 					out->interp_planets = std::stoi(second) != 0;
 				else if (first == "Planet-History-File")
 					out->planet_history_file = second;
-				else if (first == "Enable-Swift-Encounter")
-					out->enable_swift = std::stoi(second) != 0;
 				else if (first == "Swift-Path")
 					out->swift_path = second;
 				else if (first == "Status-Interval")
@@ -391,7 +379,6 @@ namespace data
 		outstream << "Particle-Input-File " << out.icsin << std::endl;
 		outstream << "Planet-Input-File " << out.plin << std::endl;
 		outstream << "Output-Folder " << out.outfolder << std::endl;
-		outstream << "Enable-Swift-Encounter " << out.enable_swift << std::endl;
 		outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
 		outstream << "Read-Planet-History" << out.interp_planets << std::endl;
@@ -429,7 +416,7 @@ namespace data
 		icsin >> npart;
 		npart = std::min(npart, static_cast<size_t>(config.max_particle));
 
-		pa = HostParticlePhaseSpace(npart, !config.use_gpu);
+		pa = HostParticlePhaseSpace(npart);
 
 		for (size_t i = 0; i < npart; i++)
 		{
@@ -491,7 +478,7 @@ namespace data
 		size_t npart;
 		ss >> npart;
 		npart = std::min(npart, static_cast<size_t>(config.max_particle));
-		pa = HostParticlePhaseSpace(npart, !config.use_gpu);
+		pa = HostParticlePhaseSpace(npart);
 
 		for (size_t i = 0; i < npart; i++)
 		{
@@ -532,7 +519,7 @@ namespace data
 
 		read_binary<uint64_t>(in, templl);
 		size_t npart = std::min(static_cast<size_t>(templl), static_cast<size_t>(config.max_particle));
-		pa = HostParticlePhaseSpace(npart, !config.use_gpu);
+		pa = HostParticlePhaseSpace(npart);
 
 		for (size_t i = 0; i < pa.n(); i++)
 		{

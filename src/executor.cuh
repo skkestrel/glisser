@@ -47,6 +47,7 @@ namespace exec
 		std::ostream* encounter_output;
 
 		size_t resync_counter;
+		bool ending_lookup_interval;
 
 		const Configuration& config;
 
@@ -62,8 +63,10 @@ namespace exec
 		void upload_planet_log();
 		void download_data(bool ignore_errors = false);
 
+
 		double time() const;
 		void loop(double* cputime, double* gputime);
+		void handle_encounters(bool do_work);
 		void add_job(const std::function<void()>& job);
 		void resync();
 		void finish();

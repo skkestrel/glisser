@@ -18,7 +18,7 @@ namespace swift
 	{
 	}
 
-	void SwiftEncounterIntegrator::begin_integrate(const sr::data::HostPlanetPhaseSpace& pl, const sr::data::HostParticlePhaseSpace& pa, const sr::interp::Interpolator& interp)
+	void SwiftEncounterIntegrator::begin_integrate(const sr::data::HostPlanetPhaseSpace& pl, const sr::data::HostParticlePhaseSpace& pa, const sr::interp::Interpolator& interp, bool old)
 	{
 		if (_children.size() > 0)
 		{
@@ -60,7 +60,7 @@ namespace swift
 			std::string tp_path = "/tmp/glisse/" + mypid + "tp" + std::to_string(i);
 			std::string pl_path = "/tmp/glisse/" + mypid + "pl";
 
-			write_planetary_history(pl, interp, history_path);
+			write_planetary_history(pl, interp, history_path, old);
 			write_param_in(param_path);
 			write_tp_in(pa, chunk_begin, chunk_end, tp_path);
 			write_pl_in(pl, pl_path);
@@ -170,16 +170,34 @@ namespace swift
 	// this function handles both two-step integrations, and initial one-step integrations
 	// no matter whether the integration is one or two step, the lookup is always bounded by interp.t0 and interp.t1
 	// since the swift integratio never crosses the lookup boundary
-	void SwiftEncounterIntegrator::write_planetary_history(const sr::data::HostPlanetPhaseSpace& pl, const sr::interp::Interpolator& interp, std::string dest) const
+	void SwiftEncounterIntegrator::write_planetary_history(const sr::data::HostPlanetPhaseSpace& pl, const sr::interp::Interpolator& interp, std::string dest, bool old) const
 	{
 		std::ofstream file(dest, std::ios_base::binary);
+		// TODO how to deal with changing planet number?
 
-		size_t npl = pl.n_alive();
+		size_t npl = old ? pl.n_alive_old() : pl.n_alive();
+
+		if (old)
+		{
+			sr::data::write_binary(file, static_cast<double>(interp.t_m1));
+			sr::data::write_binary(file, static_cast<uint32_t>(npl));
+
+			for (size_t i = 1; i < npl; i++)
+			{
+				sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
+				sr::data::write_binary(file, static_cast<float>(pl.m()[i]));
+				sr::data::write_binary(file, static_cast<float>(interp.aei_m1[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.aei_m1[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.aei_m1[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.oom_m1[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.oom_m1[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.oom_m1[i].z));
+			}
+		}
 
 		sr::data::write_binary(file, static_cast<double>(interp.t0));
 		sr::data::write_binary(file, static_cast<uint32_t>(npl));
 
-		// TODO how to deal with changing planet number?
 		for (size_t i = 1; i < npl; i++)
 		{
 			sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
@@ -192,18 +210,21 @@ namespace swift
 			sr::data::write_binary(file, static_cast<float>(interp.oom0[i].z));
 		}
 
-		sr::data::write_binary(file, static_cast<double>(interp.t1));
-		sr::data::write_binary(file, static_cast<uint32_t>(npl));
-		for (size_t i = 1; i < npl; i++)
+		if (!old)
 		{
-			sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
-			sr::data::write_binary(file, static_cast<float>(pl.m()[i]));
-			sr::data::write_binary(file, static_cast<float>(interp.aei1[i].x));
-			sr::data::write_binary(file, static_cast<float>(interp.aei1[i].y));
-			sr::data::write_binary(file, static_cast<float>(interp.aei1[i].z));
-			sr::data::write_binary(file, static_cast<float>(interp.oom1[i].x));
-			sr::data::write_binary(file, static_cast<float>(interp.oom1[i].y));
-			sr::data::write_binary(file, static_cast<float>(interp.oom1[i].z));
+			sr::data::write_binary(file, static_cast<double>(interp.t1));
+			sr::data::write_binary(file, static_cast<uint32_t>(npl));
+			for (size_t i = 1; i < npl; i++)
+			{
+				sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
+				sr::data::write_binary(file, static_cast<float>(pl.m()[i]));
+				sr::data::write_binary(file, static_cast<float>(interp.aei1[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.aei1[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.aei1[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.oom1[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.oom1[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.oom1[i].z));
+			}
 		}
 	}
 

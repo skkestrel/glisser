@@ -64,7 +64,18 @@ namespace exec
 		if (config.interp_planets)
 		{
 			interpolator = sr::interp::Interpolator(config, hd.planets, config.planet_history_file);
-			interpolator.next(hd.planets);
+
+			while (interpolator.t0 > t)
+			{
+				interpolator.next(hd.planets);
+			}
+
+			// we might have started on a point that's in the middle of a lookup interval
+			// - need to rewrite n_ts and eff_dt and rel_t appropriately
+
+			interpolator.n_ts = static_cast<size_t>(std::round((interpolator.t1 - t) / config.dt));
+			interpolator.eff_dt = (interpolator.t1 - t) / static_cast<double>(interpolator.n_ts);
+			interpolator.rel_t = t - interpolator.t0;
 		}
 
 		calculate_planet_metrics(hd.planets, &e_0, nullptr);
@@ -130,19 +141,31 @@ namespace exec
 		{
 			if (interpolator.cur_ts == interpolator.n_ts)
 			{
+				double diff = interpolator.rel_t - (interpolator.t1 - interpolator.t0);
+				assert_true(std::abs(diff) < 1e-8, "adjusting t by too much: " + std::to_string(diff));
+
 				interpolator.next(hd.planets);
-				assert_true(std::abs(t - interpolator.t0) < 1e-6, "adjusting t by too much");
+
 				t = interpolator.t0;
+
+				// mark that this timechunk is the last chunk of the lookup interval - used in resync
+				ending_lookup_interval = true;
+			}
+			else
+			{
+				ending_lookup_interval = false;
 			}
 
 			// select the size of the next timestep
 			cur_tbsize = std::min(config.tbsize, static_cast<uint32_t>(interpolator.n_ts - interpolator.cur_ts));
 
-			interpolator.fill(hd.planets, cur_tbsize, t, current_dt());
+			interpolator.fill(hd.planets, cur_tbsize, interpolator.rel_t, current_dt());
+			interpolator.rel_t += static_cast<double>(cur_tbsize) * current_dt();
+			interpolator.cur_ts += cur_tbsize;
+
 			// need to fill h0 manually because planet acceleration was not calculated
 			integrator.load_h0(hd.planets);
 
-			interpolator.cur_ts += cur_tbsize;
 
 			assert_true(interpolator.cur_ts <= interpolator.n_ts, "interpolator timestep is in an illegal position");
 		}
@@ -252,6 +275,47 @@ namespace exec
 		return millis.count() / 60000;
 	}
 
+	void Executor::handle_encounters(bool called_from_resync)
+	{
+		size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
+
+		// if at the beginning of a lookup interval, don't integrate the previous chunk
+		size_t prev_len = prev_tbsize;
+		if (interpolator.cur_ts == interpolator.n_ts || interpolator.cur_ts == 0)
+		{
+			prev_len = 0;
+		}
+
+		// if called from resync, don't integrate the future chunk
+		size_t cur_len = cur_tbsize;
+		if (called_from_resync)
+		{
+			cur_len = 0;
+		}
+		
+		sr::swift::SwiftEncounterIntegrator enc(config, t, current_dt(), prev_len, cur_len);
+
+		enc.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync);
+		
+		if (!called_from_resync)
+		{
+			for (auto& i : work) i();
+			work.clear();
+		}
+		
+		enc.end_integrate(hd.particles);
+
+		auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter());
+		integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter());
+		upload_data(encounter_start, hd.particles.n_encounter());
+
+		// need to calculate particle accelerations for the next timeblock -
+		// this is because these particles did not come out of a regular GPU timechunk,
+		// so accelerations are incorrect right now
+#warning TODO
+		// integrator.base.helio_acc_particles<false, true>(hd.planets, hd.particles, encounter_start, hd.particles.n_encounter(), 0, 0);
+	}
+
 	void Executor::loop(double* cputimeout, double* gputimeout)
 	{
 		// At the beginning of the loop the following things should be true:
@@ -306,58 +370,7 @@ namespace exec
 		// The queued work should begin RIGHT after the CUDA call
 		if (config.resolve_encounters && hd.particles.n_encounter() > 0)
 		{
-			size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
-
-			if (config.enable_swift)
-			{
-				sr::swift::SwiftEncounterIntegrator enc(config, t, current_dt(), prev_tbsize, cur_tbsize);
-
-				enc.begin_integrate(hd.planets, hd.particles, interpolator);
-				
-				// work happens here - this can happen while close encounters are happening
-				for (auto& i : work) i();
-				work.clear();
-				
-
-				// TODO: Particles that finished here were started from the previous timechunk's beginning,
-				// this means that if there was a history output event after the previous timechunk,
-				// the encounter particles will be missing. We need to fill the array
-				enc.end_integrate(hd.particles);
-			}
-			else
-			{
-				for (auto& i : work) i();
-				work.clear();
-
-				for (size_t i = encounter_start; i < hd.particles.n_alive(); i++)
-				{
-					integrator.integrate_encounter_particle_catchup(
-							hd.planets,
-							hd.particles,
-							i,
-							0,
-							t - current_dt() * static_cast<double>(prev_tbsize),
-							current_dt()
-					);
-				}
-			}
-
-			auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter());
-			integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter());
-			upload_data(encounter_start, hd.particles.n_encounter());
-
-			// Fill deathtime index with 0 so that the continuation will work
-			// This makes it so that the particles which remain in an encounter at the end of this encounter will continue
-			// integrating from where it left off rather than some random point
-			// well, we don't use CPU close encounter handling anyways...
-			thrust::fill(thrust::cuda::par.on(htd_stream), dd.particles.deathtime_index.begin() + encounter_start,
-					dd.particles.deathtime_index.begin() + encounter_start + hd.particles.n_encounter(), 0);
-
-			// need to calculate particle accelerations for the next timeblock -
-			// this is because these particles did not come out of a regular GPU timechunk,
-			// so accelerations are incorrect right now
-#warning TODO
-			// integrator.base.helio_acc_particles<false, true>(hd.planets, hd.particles, encounter_start, hd.particles.n_encounter(), 0, 0);
+			handle_encounters(false);
 		}
 		else
 		{
@@ -537,6 +550,7 @@ namespace exec
 			size_t index = indices[exdata.id[i]];
 
 			hd.particles.deathflags()[index] = exdata.deathflags[i];
+			hd.particles.deathtime_index()[index] = exdata.deathtime_index[i];
 
 			// decide where to copy from: either roll back to beginning of chunk, or take the values right at death on the GPU
 			ExecutorData* datasource;
@@ -592,21 +606,24 @@ namespace exec
 
 		size_t encounter_start = particles.n_alive;
 
-		// 
+		// if the last timechunk of a lookup interval was reached, finish the encounters: run swift NOW!
+		if (ending_lookup_interval && hd.particles.n_encounter() > 0)
+		{
+			handle_encounters(true);
+		}
 
-		// TODO: if the last timechunk of a lookup interval was reached, finish the encounters: run swift NOW! (for half the regular time, i.e. 1/2 * 2timechunk size = 1 timechunk)
-
-		add_job([encounter_start, diff, &exdata, this]()
+		add_job([encounter_start, diff, this]()
 			{
 				if (encounter_output)
 				{
+					// loop over dead particles only - 
 					for (size_t i = hd.particles.n_encounter(); i < diff; i++)
 					{
 						*encounter_output << hd.particles.r()[encounter_start + i] << std::endl;
 						*encounter_output << hd.particles.v()[encounter_start + i] << std::endl;
 						*encounter_output << hd.particles.id()[encounter_start + i] << " "
 							<< hd.particles.deathflags()[encounter_start + i] << " "
-							<< t - current_dt() * static_cast<double>(config.tbsize - exdata.deathtime_index[i]) << " death"
+							<< t - current_dt() * static_cast<double>(config.tbsize - hd.particles.deathtime_index()[i]) << " death"
 							<< std::endl;
 						*encounter_output << hd.planets.n_alive() << std::endl;
 
@@ -617,8 +634,8 @@ namespace exec
 						for (size_t j = 1; j < hd.planets.n_alive(); j++)
 						{
 							*encounter_output << hd.planets.m()[j] << std::endl;
-							*encounter_output << hd.planets.r_log().slow[exdata.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
-							*encounter_output << hd.planets.v_log().slow[exdata.deathtime_index[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.r_log().slow[hd.particles.deathtime_index()[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.v_log().slow[hd.particles.deathtime_index()[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
 							*encounter_output << hd.planets.id()[j] << std::endl;
 						}
 					}
