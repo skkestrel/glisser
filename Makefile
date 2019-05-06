@@ -14,7 +14,7 @@ WFLAGS = -Wcast-align -Wshadow -Wcast-qual -Wconversion -Wdisabled-optimization 
 -Wimport  -Winit-self -Winvalid-pch -Wmissing-field-initializers -Wmissing-format-attribute   \
 -Wmissing-include-dirs -Wmissing-noreturn -Wpointer-arith -Wstack-protector \
 -Wstrict-aliasing=2 -Wswitch-default -Wswitch-enum -Wunreachable-code -Wunused \
--Wunused-parameter -Wvariadic-macros -Wwrite-strings
+-Wunused-parameter -Wvariadic-macros -Wwrite-strings -Wunused-result
 
 CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -DNO_CUDA -O3 # -fsanitize=address
 
@@ -82,3 +82,6 @@ export-swift: $(OBJ_FILES)
 
 import-swift: $(OBJ_FILES)
 	$(call make-target,import_swift,import-swift)
+
+lookup-info: $(OBJ_FILES)
+	$(call make-target,lookup_info,lookup-info)

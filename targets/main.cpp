@@ -292,7 +292,7 @@ int main(int argc, char** argv)
 							ex.download_data();
 						}
 						sr::data::Configuration out_config = config.output_config();
-						out_config.t_f = config.t_f - config.t_0 + ex.t;
+						out_config.t_f = config.t_f;
 						out_config.t_0 = ex.t;
 						out_config.writesplit = false;
 
@@ -324,7 +324,7 @@ int main(int argc, char** argv)
 	}
 
 	ex.finish();
-	ex.download_data(true);
+	ex.download_data();
 
 	tout << "Saving to disk." << std::endl;
 	save_data(hd.planets_snapshot, hd.particles, config, sr::util::joinpath(config.outfolder, "state.out"));

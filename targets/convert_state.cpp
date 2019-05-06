@@ -116,6 +116,18 @@ int main(int argc, char** argv)
 
 				i++;
 			}
+			else if (arg == "to-years")
+			{
+				for (size_t j = 0; j < hd.planets.n(); j++)
+				{
+					hd.planets.m()[j] *= 365.24 * 365.24;
+					hd.planets.v()[j] *= 365.24;
+				}
+				for (size_t j = 0; j < hd.particles.n(); j++)
+				{
+					hd.particles.v()[j] *= 365.24;
+				}
+			}
 			else if (arg == "to-bary")
 			{
 				to_bary(hd);

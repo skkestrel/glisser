@@ -13,19 +13,27 @@
 #include "../src/util.h"
 #include "../docopt/docopt.h"
 
+
+
 static const char USAGE[] = R"(make-state
+
+generates a state file from a planet file
+angles all in degrees
+example: make-state pl.in -a1,10 -e0.1,0.2
+
 Usage:
     make-state [options] <planet-file> <output-file>
 
 Options:
     -h, --help          Show this screen.
     -n <N>              Number of particles to generate [default: 1000]
-    -a <range>          a range [default: 0,10]
-    -e <range>          e range [default: 0,0.1]
-    -i <range>          i range [default: 0,50]
-    -O <range>          O range [default: 0,360]
-    -o <range>          o range [default: 0,360]
-    -M <range>          M range [default: 0,360]
+    -a <range>          a range
+    -e <range>          e range
+    -q <range>          q range
+    -i <range>          i range
+    -O <range>          O range
+    -o <range>          o range
+    -M <range>          M range
     -G <g>              G [default: 1]
     -B, --barycentric   Generate in barycentric coords
 )";
@@ -34,13 +42,22 @@ using namespace sr::data;
 using namespace sr::convert;
 const double EPS = 1e-13;
 
-void split_and_load(std::array<double, 12>& range, std::stringstream& ss, size_t n)
+void split_and_load(std::array<double, 12>& range, std::string s, size_t n)
 {
-	std::string token;
-	std::getline(ss, token, ',');
-	range[2 * n] = std::stod(token);
-	std::getline(ss, token, ',');
-	range[2 * n + 1] = std::stod(token);
+	if (std::count(s.begin(), s.end(), ',') == 0)
+	{
+		range[2 * n + 1] = range[2 * n] = std::stod(s);
+	}
+	else
+	{
+		auto ss = std::stringstream(s);
+
+		std::string token;
+		std::getline(ss, token, ',');
+		range[2 * n] = std::stod(token);
+		std::getline(ss, token, ',');
+		range[2 * n + 1] = std::stod(token);
+	}
 }
 
 int main(int argc, char** argv)
@@ -69,26 +86,24 @@ int main(int argc, char** argv)
 
 		const double min = 1e-6;
 
-		hd.particles = sr::data::HostParticlePhaseSpace(std::stol(args["-n"].asString()), false);
+		hd.particles = sr::data::HostParticlePhaseSpace(std::stol(args["-n"].asString()));
 
-		std::array<double, 12> range;
-		std::stringstream ss(args["-a"].asString());
-		split_and_load(range, ss, 0);
+		std::array<double, 12> range({ 1, 1, 0.1, 0.1, 0.00001, 0.00001, 0, 360, 0, 360, 0, 360 });
 
-		ss = std::stringstream(args["-e"].asString());
-		split_and_load(range, ss, 1);
+		bool use_q = false;
 
-		ss = std::stringstream(args["-i"].asString());
-		split_and_load(range, ss, 2);
+		if (args["-a"]) split_and_load(range, args["-a"].asString(), 0);
+		if (args["-e"]) split_and_load(range, args["-e"].asString(), 1);
+		if (args["-i"]) split_and_load(range, args["-i"].asString(), 2);
+		if (args["-O"]) split_and_load(range, args["-O"].asString(), 3);
+		if (args["-o"]) split_and_load(range, args["-o"].asString(), 4);
+		if (args["-M"]) split_and_load(range, args["-M"].asString(), 5);
 
-		ss = std::stringstream(args["-O"].asString());
-		split_and_load(range, ss, 3);
-
-		ss = std::stringstream(args["-o"].asString());
-		split_and_load(range, ss, 4);
-
-		ss = std::stringstream(args["-M"].asString());
-		split_and_load(range, ss, 5);
+		if (args["-q"])
+		{
+			use_q = true;
+			split_and_load(range, args["-q"].asString(), 1);
+		}
 
 		for (size_t i = 4; i < 12; i++)
 		{
@@ -110,12 +125,23 @@ int main(int argc, char** argv)
 
 		for (size_t i = 0; i < hd.particles.n(); i++)
 		{
-			double a = adis(gen);
-			double e = edis(gen);
-			double inc = idis(gen);
-			double O = Odis(gen);
-			double o = odis(gen);
-			double M = Mdis(gen);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+			double a = range[0] == range[1] ? range[0] : adis(gen);
+			double e = range[2] == range[3] ? range[2] : edis(gen);
+
+			// q = a(1-e)
+			// e = 1 - q/a
+			if (use_q) e = 1 - e / a;
+
+			double inc = range[4] == range[5] ? range[4] : idis(gen);
+			double O = range[6] == range[7] ? range[6] : Odis(gen);
+			double o = range[8] == range[9] ? range[8] : odis(gen);
+			double M = range[10] == range[11] ? range[10] : Mdis(gen);
+#pragma GCC diagnostic pop
+
+			// std::cout << a << " " << e << " " << inc << " " << O << " " << o << " " << M << std::endl;
+
 
 			double sindE, cosdE;
 			double ecosE = e;

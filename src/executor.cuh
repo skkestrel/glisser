@@ -36,6 +36,8 @@ namespace exec
 		cudaEvent_t start_event, cpu_finish_event, gpu_finish_event;
 
 		float64_t t;
+		float64_t prev_t;
+
 		float64_t e_0;
 
 		DeviceParticlePhaseSpace rollback_state;
@@ -64,7 +66,7 @@ namespace exec
 		void init();
 		void upload_data(size_t begin, size_t length);
 		void upload_planet_log();
-		void download_data(bool ignore_errors = false);
+		void download_data();
 
 
 		double time() const;
@@ -72,6 +74,7 @@ namespace exec
 		void handle_encounters(bool do_work);
 		void add_job(const std::function<void()>& job);
 		void resync();
+		void resync2();
 		void finish();
 		void swap_logs();
 		void update_planets();

@@ -45,6 +45,35 @@ namespace exec
 		}
 	};
 
+	struct DeviceParticleAlivePredicate
+	{
+		template<typename Tuple>
+		__host__ __device__
+		bool operator()(const Tuple& args)
+		{
+			uint16_t flag = thrust::get<2>(thrust::get<0>(args));
+			return (flag & 0xFE) == 0;
+		}
+	};
+
+	struct KillEncounterKernel
+	{
+		KillEncounterKernel() { }
+
+		template<typename Tuple>
+		__host__ __device__
+		void operator()(Tuple args) const
+		{
+			uint16_t flags = thrust::get<2>(args);
+			if ((flags & 0x01) == 0x01)
+			{
+				flags |= 0x80;
+			}
+			thrust::get<2>(args) = flags;
+		}
+	};
+
+
 	Executor::Executor(HostData& _hd, DeviceData& _dd, const Configuration& _config, std::ostream& out)
 		: hd(_hd), dd(_dd), output(out), config(_config), resync_counter(0) { }
 
@@ -81,7 +110,7 @@ namespace exec
 
 			// interpolator.t0 is initialized to +inf, but calling next once makes it finite
 			// so if t0 is not infinity, next was called at least once
-			assert_true(!std::isinf(inerpolator.t0), "lookup file starts past the given Initial-Time");
+			assert_true(!std::isinf(interpolator.t0), "lookup file starts past the given Initial-Time");
 
 			// we might have started on a point that's in the middle of a lookup interval:
 			// the stuff below handles that case
@@ -176,6 +205,7 @@ namespace exec
 
 	void Executor::update_planets()
 	{
+		prev_t = t;
 		prev_dt = cur_dt;
 		prev_tbsize = cur_tbsize;
 
@@ -208,7 +238,7 @@ namespace exec
 			}
 
 			// select dt
-			cur = interpolator.eff_dt;
+			cur_dt = interpolator.eff_dt;
 
 			// select the size of the next timestep
 			// it can be no more than tbsize, and cannot go past the end of the interval
@@ -276,11 +306,9 @@ namespace exec
 		work.push_back(std::move(job));
 	}
 
-	void Executor::download_data(bool ignore_errors)
+	void Executor::download_data()
 	{
 		auto& particles = dd.particle_phase_space();
-
-		Vu32 prev_ids(hd.particles.id().begin(), hd.particles.id().end());
 
 		// download only the alive particle data - dead particles are handled in resync()
 		// since they're dead, they don't get updated any more so no need to download again
@@ -292,16 +320,6 @@ namespace exec
 		cudaStreamSynchronize(dth_stream);
 		memcpy_dth(hd.particles.deathflags(), particles.deathflags, dth_stream, 0, 0, particles.n_alive);
 		cudaStreamSynchronize(dth_stream);
-
-		// this should NEVER happen, it's important to make sure that the GPU IDs are always exactly the same as the
-		// CPU IDs, because otherwise it means that a syncing error occurred in resync
-		if (prev_ids != hd.particles.id())
-		{
-			output << "WARNING! ID MISMATCH! WARNING!" << std::endl;
-
-			// don't throw if ignore_errors
-			assert_true(ignore_errors, "ID mismatch occurred when trying to download GPU data.");
-		}
 
 		hd.particles.n_alive() = dd.particle_phase_space().n_alive;
 	}
@@ -354,9 +372,10 @@ namespace exec
 		double which_dt = called_from_resync ? prev_dt : cur_dt;
 
 		// if called from resync, update_planets will also have updated t, so roll back t to the beginning of the lookup interval
-		double which_t = called_from_resync ? interpolator.t0 : t;
-		// sanity check!
-		assert_true(std::abs(interpolator.t0 - (t - cur_dt * cur_tbsize)) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback");
+		double which_t = called_from_resync ? prev_t : t;
+		// sanity check! these should all be equal
+		assert_true(std::abs(interpolator.t0 - (t - cur_dt * static_cast<double>(cur_tbsize))) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback");
+		assert_true(std::abs(interpolator.t0 - prev_t) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback 2");
 
 		// do the thing
 		sr::swift::SwiftEncounterIntegrator enc(config, which_t, which_dt, prev_len, cur_len);
@@ -486,9 +505,68 @@ namespace exec
 			resync_counter++;
 			if (resync_counter % config.resync_every == 0)
 			{
-				resync();
+				resync2();
 			}
 		}
+	}
+
+	void Executor::resync2()
+	{
+		// this is a simplified version of the resync algorithm which reads the entire particle arrays, this
+		// means that the algorithm doesn't need to match particle ids when reading
+
+		auto& particles = dd.particle_phase_space();
+		size_t prev_alive = particles.n_alive;
+
+		// kill particles in encounters
+		if (!config.resolve_encounters)
+		{
+			auto it = particles.begin();
+			thrust::for_each(thrust::cuda::par.on(main_stream), it, it + particles.n_alive, KillEncounterKernel());
+		}
+
+		// partition twice
+		if (config.resolve_encounters)
+		{
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
+
+			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
+					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+
+			// the second partition for encounter particles only needs to run between n_alive and prev_alive, since all the alive particles
+			// will be pushed to the beginning anyways
+			hd.particles.n_encounter() = (thrust::stable_partition(thrust::cuda::par.on(main_stream),
+					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
+		}
+		else
+		{
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), integrator.device_begin()));
+			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
+					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+		}
+
+		// copy everything back
+		download_data();
+
+		// set the deathtime for dead particles (encounter particles are fine too)
+		for (size_t i = particles.n_alive; i < prev_alive; i++)
+		{
+			hd.particles.deathtime()[i] = static_cast<float>(prev_t);
+		}
+
+		// for encounter particles, use the rollback data
+		if (hd.particles.n_encounter() > 0)
+		{
+			memcpy_dth(hd.particles.r(), particles.r, dth_stream, 0, particles.n_alive, hd.particles.n_encounter());
+			cudaStreamSynchronize(dth_stream);
+			memcpy_dth(hd.particles.v(), particles.v, dth_stream, 0, particles.n_alive, hd.particles.n_encounter());
+			cudaStreamSynchronize(dth_stream);
+		}
+
+		// add back encounter particles, since dd.n_alive doesn't include encounter but hd.n_alive does
+		hd.particles.n_alive() += hd.particles.n_encounter();
+
+		// done!
 	}
 
 	void Executor::resync()
@@ -582,7 +660,6 @@ namespace exec
 
 			if (exdata.deathflags[i] & 0x0004)
 			{
-				
 				output << "Warning: simulation did not converge on particle " << exdata.id[i] << std::endl;
 			}
 
@@ -679,11 +756,15 @@ namespace exec
 
 		// hd.particles.n_alive is updated after each gather
 		// thus, it will point to the total number of alive + encoutner particles after gathering
-
 		hd.particles.n_encounter() = hd.particles.n_alive() - particles.n_alive;
 
 
-		size_t encounter_start = particles.n_alive;
+		// check that the CPU ids match the GPU ids
+		Vu32 prev_ids(hd.particles.id().begin(), hd.particles.id().end());
+		memcpy_dth(hd.particles.id(), particles.id, dth_stream, 0, 0, particles.n_alive);
+		cudaStreamSynchronize(dth_stream);
+
+		assert_true(prev_ids == hd.particles.id(), "particle ID mismatch occurred");
 
 		// if the last timechunk of a lookup interval was reached, finish the encounters: run swift NOW!
 		// this allows everything to be up-to-date at the end of a lookup-interval, this makes it safe to 
@@ -693,12 +774,12 @@ namespace exec
 			handle_encounters(true);
 		}
 
-		add_job([encounter_start, diff, this]()
+		add_job([prev_alive, this]()
 			{
 				if (encounter_output)
 				{
 					// loop over dead particles only - 
-					for (size_t i = hd.particles.n_alive() - hd.particles.n_encounter(); i < hd.particles.n_alive(); i++)
+					for (size_t i = hd.particles.n_alive(); i < prev_alive; i++)
 					{
 						// state
 						*encounter_output << hd.particles.r()[i] << std::endl;

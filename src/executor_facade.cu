@@ -28,9 +28,9 @@ namespace exec
 		impl->init();
 	}
 
-	void ExecutorFacade::download_data(bool ignore_errors)
+	void ExecutorFacade::download_data()
 	{
-		impl->download_data(ignore_errors);
+		impl->download_data();
 	}
 
 	double ExecutorFacade::time() const
