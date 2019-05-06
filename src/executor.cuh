@@ -42,6 +42,9 @@ namespace exec
 
 		size_t prev_tbsize;
 		size_t cur_tbsize;
+		
+		float64_t prev_dt;
+		float64_t cur_dt;
 
 		std::ostream& output;
 		std::ostream* encounter_output;
@@ -73,8 +76,6 @@ namespace exec
 		void swap_logs();
 		void update_planets();
 		void assert_true(bool cond, std::string msg);
-
-		double current_dt();
 	};
 }
 }

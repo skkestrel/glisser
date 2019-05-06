@@ -199,7 +199,8 @@ namespace data
 	Configuration Configuration::output_config() const
 	{
 #pragma GCC warning "TODO"
-		return *this;
+		Configuration new_conf = *this;
+		return new_conf;
 	}
 
 	void read_configuration(std::istream& in, Configuration* out)
@@ -381,12 +382,12 @@ namespace data
 		outstream << "Output-Folder " << out.outfolder << std::endl;
 		outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
-		outstream << "Read-Planet-History" << out.interp_planets << std::endl;
+		outstream << "Read-Planet-History " << out.interp_planets << std::endl;
 		outstream << "Swift-History-Output-Interval " << out.swift_hist_every << std::endl;
-		outstream << "Swift-Process-Count" << out.num_swift << std::endl;
+		outstream << "Swift-Process-Count " << out.num_swift << std::endl;
 		outstream << "Swift-Process-Min-Particles" << out.swift_part_min << std::endl;
 		outstream << "Swift-Status-Length " << out.swift_statlen << std::endl;
-		outstream << "Planet-History-File" << out.planet_history_file << std::endl;
+		outstream << "Planet-History-File " << out.planet_history_file << std::endl;
 	}
 
 	bool load_planet_data(HostPlanetPhaseSpace& pl, const Configuration& config, std::istream& plin)

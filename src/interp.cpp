@@ -14,7 +14,6 @@ namespace interp
 	{
 		cur_ts = 0;
 
-		input.exceptions(std::ifstream::failbit | std::ifstream::badbit);
 		resolve_encounters = config.resolve_encounters;
 		user_dt = config.dt;
 		fast_factor = config.resolve_encounters ? config.wh_ce_n1 * config.wh_ce_n2 : 1;
@@ -71,7 +70,7 @@ namespace interp
 			oom1[ind].z = sr::data::read_binary<float32_t>(input);
 
 			f64_3 r, v;
-			sr::convert::from_elements_M(pl.m()[1] + pl.m()[ind], aei1[ind].x, aei1[ind].y, aei1[ind].z, oom1[ind].x, oom1[ind].y, oom1[ind].z, &r, &v);
+			sr::convert::from_elements_M(pl.m()[0] + pl.m()[ind], aei1[ind].x, aei1[ind].y, aei1[ind].z, oom1[ind].x, oom1[ind].y, oom1[ind].z, &r, &v);
 
 			pl.r()[ind] = r;
 			pl.v()[ind] = v;
@@ -154,8 +153,6 @@ namespace interp
 
 	void Interpolator::next(sr::data::HostPlanetPhaseSpace& pl)
 	{
-		cur_ts = 0;
-
 		aei_m1 = aei0;
 		oom_m1 = oom0;
 		t_m1 = t0;
@@ -166,7 +163,6 @@ namespace interp
 		rel_t = 0;
 
 		t1 = sr::data::read_binary<float64_t>(input) * 365.24;
-
 
 		if (!input)
 		{
@@ -244,6 +240,11 @@ namespace interp
 			mmfreq[ind] += corr / dt;
 
 			doom[ind].z = mmfreq[ind];
+		}
+
+		if (!input)
+		{
+			throw EOSError();
 		}
 	}
 }
