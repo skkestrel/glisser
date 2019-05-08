@@ -25,7 +25,6 @@ namespace wh
 		void integrate_particles_timeblock(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, double dt);
 		void load_h0(const HostPlanetPhaseSpace& pl);
 
-		void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, float64_t t, double dt);
 		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length);
 
 		void integrate_particles_timeblock_cuda(cudaStream_t stream, size_t planet_data_id, const DevicePlanetPhaseSpace& pl, DeviceParticlePhaseSpace& pa, double dt);

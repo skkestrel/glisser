@@ -148,6 +148,12 @@ int main(int argc, char** argv)
 		if (config.track_every != 0)
 		{
 			trackout = std::ofstream(sr::util::joinpath(config.outfolder, "tracks/track.0.out"), std::ios_base::binary);
+
+			sr::data::HostParticleSnapshot snapshot_copy = ex.hd.particles.base;
+			snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
+
+			ex.hd.planets_snapshot = ex.hd.planets.base;
+			sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, true, config.write_bary_track);
 		}
 
 		if (config.swift_hist_every != 0)

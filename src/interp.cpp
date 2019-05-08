@@ -14,9 +14,7 @@ namespace interp
 	{
 		cur_ts = 0;
 
-		resolve_encounters = config.resolve_encounters;
 		user_dt = config.dt;
-		fast_factor = config.resolve_encounters ? config.wh_ce_n1 * config.wh_ce_n2 : 1;
 
 		pl.m()[0] = sr::data::read_binary<float64_t>(input) / 365.24 / 365.24;
 		sr::data::skip_binary(input, 32 - 8);
@@ -88,7 +86,7 @@ namespace interp
 
 #warning TODO need to handle the case where planets disappear - need to be smart about array indices
 		// currently cannot handle planets changing, and cannot handle planet indices switching around
-		for (size_t i = 0; i < nstep * fast_factor; i++)
+		for (size_t i = 0; i < nstep; i++)
 		{
 			if (relative_t > t1 - t0 + 1e-8)
 			{
@@ -111,40 +109,10 @@ namespace interp
 				pl.v()[j] = v;
 			}
 
+			std::copy(pl.r().begin() + 1, pl.r().begin() + pl.n_alive(), pl.r_log().old.begin() + (pl.n_alive() - 1) * i);
+			std::copy(pl.v().begin() + 1, pl.v().begin() + pl.n_alive(), pl.v_log().old.begin() + (pl.n_alive() - 1) * i);
 
-			Vf64_3* r_log = &pl.r_log().slow_old;
-			Vf64_3* v_log = &pl.v_log().slow_old;
-			if (resolve_encounters)
-			{
-				r_log = &pl.r_log().old;
-				v_log = &pl.v_log().old;
-			}
-
-			std::copy(pl.r().begin() + 1, pl.r().begin() + pl.n_alive(), r_log->begin() + (pl.n_alive() - 1) * i);
-			std::copy(pl.v().begin() + 1, pl.v().begin() + pl.n_alive(), v_log->begin() + (pl.n_alive() - 1) * i);
-
-			if (resolve_encounters)
-			{
-				if ((i + 1) % (fast_factor) == 0)
-				{
-					size_t slow_index = i / fast_factor;
-
-					auto fast_begin = pl.r_log().old.begin() + i * (pl.n() - 1);
-					std::copy(fast_begin, fast_begin + (pl.n() - 1), pl.r_log().slow_old.begin() + slow_index * (pl.n() - 1));
-
-					fast_begin = pl.v_log().old.begin() + i * (pl.n() - 1);
-					std::copy(fast_begin, fast_begin + (pl.n() - 1), pl.v_log().slow_old.begin() + slow_index * (pl.n() - 1));
-				}
-			}
-
-			if (resolve_encounters)
-			{
-				relative_t += dt / static_cast<double>(fast_factor);
-			}
-			else
-			{
-				relative_t += dt;
-			}
+			relative_t += dt;
 		}
 
 		pl.r_log().len_old = nstep;

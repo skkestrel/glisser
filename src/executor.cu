@@ -87,11 +87,10 @@ namespace exec
 
 	void Executor::init()
 	{
-		assert_true(config.use_gpu, "USE_GPU is not allowed to be 0 on this version of GLISSER");
+		// glisse only supports helio
+		sr::convert::to_helio(hd);
 
-		to_helio(hd);
-
-		// setup integrator
+		// setup integrator - this gives all particles an acceleration and also detects initial encounters
 		integrator = sr::wh::WHCudaIntegrator(hd.planets, hd.particles, config);
 
 		if (config.interp_planets)
@@ -170,6 +169,20 @@ namespace exec
 		memcpy_htd(dd.planet_phase_space().m, hd.planets.m(), htd_stream);
 		cudaStreamSynchronize(htd_stream);
 
+
+		// ** INITIALIZE PARTICLES
+
+
+		// partition alive
+		hd.particles.stable_partition_unflagged(0, hd.particles.n());
+
+		// now, n_alive = n_unflagged
+		size_t n_alive = hd.particles.n_alive();
+
+		// bring the encounter particles to the beginning
+		hd.particles.stable_partition_alive(n_alive, hd.particles.n() - n_alive);
+		// now, n_alive = total alive (enc + nonenc)
+
 		// don't need to upload if no particles
 		if (hd.particles.n() > 0)
 		{
@@ -193,6 +206,7 @@ namespace exec
 		update_planets();
 
 #warning
+		
 		// TODO: if any particles started off in an encounter, set the flags properly here!
 	}
 
@@ -312,13 +326,15 @@ namespace exec
 
 		// download only the alive particle data - dead particles are handled in resync()
 		// since they're dead, they don't get updated any more so no need to download again
-		memcpy_dth(hd.particles.r(), particles.r, dth_stream, 0, 0, particles.n_alive);
+
+		// note: dead particles DO need to be downloaded when using resync2 so we might as well just download everything
+		memcpy_dth(hd.particles.r(), particles.r, dth_stream, 0, 0, particles.n_total);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(hd.particles.v(), particles.v, dth_stream, 0, 0, particles.n_alive);
+		memcpy_dth(hd.particles.v(), particles.v, dth_stream, 0, 0, particles.n_total);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(hd.particles.id(), particles.id, dth_stream, 0, 0, particles.n_alive);
+		memcpy_dth(hd.particles.id(), particles.id, dth_stream, 0, 0, particles.n_total);
 		cudaStreamSynchronize(dth_stream);
-		memcpy_dth(hd.particles.deathflags(), particles.deathflags, dth_stream, 0, 0, particles.n_alive);
+		memcpy_dth(hd.particles.deathflags(), particles.deathflags, dth_stream, 0, 0, particles.n_total);
 		cudaStreamSynchronize(dth_stream);
 
 		hd.particles.n_alive() = dd.particle_phase_space().n_alive;
@@ -333,7 +349,7 @@ namespace exec
 		auto& planets = dd.planet_phase_space();
 
 		// copy in
-		memcpy_htd(planets.r_log, hd.planets.r_log().slow, htd_stream);
+		memcpy_htd(planets.r_log, hd.planets.r_log().log, htd_stream);
 		cudaStreamSynchronize(htd_stream);
 		planets.log_len = hd.planets.r_log().len;
 
@@ -654,7 +670,7 @@ namespace exec
 				else
 				{
 					// If encounters are not being dealt with, kill the particle!
-					exdata.deathflags[i] |= 0x0080;
+					exdata.deathflags[i] = 0x0080;
 				}
 			}
 
@@ -801,8 +817,8 @@ namespace exec
 						for (size_t j = 1; j < hd.planets.n_alive(); j++)
 						{
 							*encounter_output << hd.planets.m()[j] << std::endl;
-							*encounter_output << hd.planets.r_log().slow_old[hd.particles.deathtime_index()[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
-							*encounter_output << hd.planets.v_log().slow_old[hd.particles.deathtime_index()[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.r_log().old[hd.particles.deathtime_index()[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
+							*encounter_output << hd.planets.v_log().old[hd.particles.deathtime_index()[i] * (hd.planets.n() - 1) + j - 1] << std::endl;
 							*encounter_output << hd.planets.id()[j] << std::endl;
 						}
 					}
@@ -817,7 +833,6 @@ namespace exec
 
 	void Executor::finish()
 	{
-		// TODO: upon finishing the simulation there is a half step of encounters that needs to be done.
 		cudaStreamSynchronize(main_stream);
 
 		for (auto& i : work) i();

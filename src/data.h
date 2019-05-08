@@ -296,14 +296,14 @@ namespace data
 		/**
 		 * Gets various log of positions of the planets.
 		 */
-		inline sr::util::LogQuartet<Vf64_3>& r_log() { return _r_log; }
-		inline const sr::util::LogQuartet<Vf64_3>& r_log() const { return _r_log; }
+		inline sr::util::History<Vf64_3>& r_log() { return _r_log; }
+		inline const sr::util::History<Vf64_3>& r_log() const { return _r_log; }
 
 		/**
 		 * Gets various log of velocities of the planets.
 		 */
-		inline sr::util::LogQuartet<Vf64_3>& v_log() { return _v_log; }
-		inline const sr::util::LogQuartet<Vf64_3>& v_log() const { return _v_log; }
+		inline sr::util::History<Vf64_3>& v_log() { return _v_log; }
+		inline const sr::util::History<Vf64_3>& v_log() const { return _v_log; }
 
 		inline HostPlanetPhaseSpace() { }
 		inline HostPlanetPhaseSpace(size_t siz) :
@@ -311,11 +311,11 @@ namespace data
 		{
 		}
 
-		inline HostPlanetPhaseSpace(size_t siz, size_t tb_size, size_t ce_factor) :
+		inline HostPlanetPhaseSpace(size_t siz, size_t tb_size) :
 			base(siz), _n_alive_old(siz)
 		{
-			_r_log = sr::util::LogQuartet<Vf64_3>(((n() - 1) * tb_size), ce_factor);
-			_v_log = sr::util::LogQuartet<Vf64_3>(((n() - 1) * tb_size), ce_factor);
+			_r_log = sr::util::History<Vf64_3>((n() - 1) * tb_size);
+			_v_log = sr::util::History<Vf64_3>((n() - 1) * tb_size);
 		}
 
 		/**
@@ -341,8 +341,8 @@ namespace data
 	private:
 		size_t _n_alive_old;
 
-		sr::util::LogQuartet<Vf64_3> _r_log;
-		sr::util::LogQuartet<Vf64_3> _v_log;
+		sr::util::History<Vf64_3> _r_log;
+		sr::util::History<Vf64_3> _v_log;
 	};
 
 	/** This struct represents data stored on the CPU. */
@@ -371,16 +371,14 @@ namespace data
 		uint32_t num_thread;
 		uint32_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
 
-		double wh_ce_r1, wh_ce_r2;
-		uint32_t wh_ce_n1, wh_ce_n2;
+		double encounter_sphere_factor;
 		uint32_t split_track_file;
-
+		double outer_radius;
 
 		uint32_t resync_every;
 		uint32_t swift_hist_every;
 		uint32_t num_swift, swift_part_min;
 
-		bool use_gpu;
 		uint32_t swift_statlen;
 		bool write_bary_track;
 		bool interp_planets;
@@ -393,12 +391,6 @@ namespace data
 		std::string icsin, plin, hybridin, hybridout;
 		std::string outfolder;
 		std::string swift_path;
-
-		inline uint32_t fast_timestep_factor() const
-		{
-			return resolve_encounters ? (wh_ce_n1 * wh_ce_n2) : 1;
-		}
-
 
 		Configuration();
 
@@ -416,8 +408,6 @@ namespace data
 			config.write_bary_track = false;
 			config.resolve_encounters = false;
 			config.tbsize = 0;
-			config.wh_ce_n1 = 0;
-			config.wh_ce_n2 = 0;
 
 			return config;
 		}

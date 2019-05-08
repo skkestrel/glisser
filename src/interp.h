@@ -44,9 +44,6 @@ namespace interp
 
 		std::vector<double> mmfreq;
 		std::unordered_map<uint32_t, size_t> idmap;
-
-		bool resolve_encounters;
-		size_t fast_factor;
 	};
 
 	class EOSError : public std::runtime_error

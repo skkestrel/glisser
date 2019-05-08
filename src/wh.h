@@ -16,15 +16,9 @@ namespace wh
 	void kepmd(double dm, double es, double ec, double* x, double* s, double* c);
 	bool kepu(double dt, double r0, double mu, double alpha, double u, double* fp, double* c1, double* c2, double* c3);
 
-	struct WHIntegratorEncounterContinuationContext
-	{
-		std::unordered_map<uint32_t, uint8_t> id_to_enc_level;
-	};
-
 	class WHIntegrator
 	{
 	public:
-		WHIntegratorEncounterContinuationContext ecc;
 		Vf64 planet_inverse_helio_cubed, planet_inverse_jacobi_cubed;
 
 		Vf64 particle_dist, particle_energy, particle_vdotr;
@@ -39,14 +33,11 @@ namespace wh
 		Vf64_3 planet_rj, planet_vj;
 		Vf64_3 planet_a, particle_a;
 
-		sr::util::LogQuartet<Vf64_3> planet_h0_log;
+		sr::util::History<Vf64_3> planet_h0_log;
 
 		Vf64 planet_rh;
 
-		size_t encounter_n1, encounter_n2;
-		double encounter_r1, encounter_r2;
-
-		bool resolve_encounters;
+		double outer_radius;
 
 		WHIntegrator();
 		WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
@@ -59,10 +50,6 @@ namespace wh
 		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length);
 
 		void load_h0(const HostPlanetPhaseSpace& pl);
-		void integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t, double dt);
-
-		template<bool old>
-		size_t integrate_encounter_particle_step(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t timestep_index, uint8_t* encounter_level, double t, double dt);
 
 		void step_planets(HostPlanetPhaseSpace& pl, float64_t t, double dt, size_t timestep_index);
 		void step_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t t, double dt, size_t timestep_index);
@@ -76,8 +63,8 @@ namespace wh
 		template<bool old>
 		void nonhelio_acc_encounter_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t particle_index, float64_t time, size_t timestep_index, size_t central_planet_index);
 
-		template<bool encounter, bool old>
-		uint8_t helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index);
+		template<bool old>
+		void helio_acc_particle(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, float64_t time, size_t timestep_index);
 
 		/*
 		   Calculates the particle accelerations using planet_h0_log and planet_r_log
@@ -88,7 +75,7 @@ namespace wh
 		   particles.deathflags
 		   particles.deathtime
 		 */
-		template<bool encounter, bool old>
+		template<bool old>
 		void helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p, size_t begin, size_t length, float64_t time, size_t timestep_index);
 
 		/*
@@ -101,10 +88,7 @@ namespace wh
 		   planet_a
 		   planet_h0_log
 	   	*/
-		template<bool slow>
 		void helio_acc_planets(HostPlanetPhaseSpace& p, size_t index);
-
-		static uint8_t detect_encounter(float64_t r_rel_sq, float64_t rh, double r1, double r2);
 	};
 
 	void calculate_planet_metrics(const HostPlanetPhaseSpace& p, double* energy, f64_3* l);

@@ -160,8 +160,8 @@ int main(int argc, char** argv)
 			hd.particles.deathflags()[i] = 0;
 			hd.particles.deathtime()[i] = 0;
 
-			// sr::convert::to_elements(mu, hd.particles.r()[i], hd.particles.v()[i], nullptr, &a, &e, &inc, &O, &o, &M);
-			// std::cout << a << " " << e << " " << inc << " " << O << " " << o << " " << M << std::endl;
+			sr::convert::to_elements(mu, hd.particles.r()[i], hd.particles.v()[i], nullptr, &a, &e, &inc, &O, &o, &M);
+			std::cout << a << " " << e << " " << inc << " " << O << " " << o << " " << M << std::endl;
 		}
 
 		if (gen_bary)

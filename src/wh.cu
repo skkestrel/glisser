@@ -22,10 +22,10 @@ namespace wh
 		const uint32_t tbsize;
 		const float64_t dt;
 
-		const float64_t r2;
+		const float64_t outer_r;
 		const float64_t* planet_rh;
 
-		MVSKernel(const DevicePlanetPhaseSpace& planets, const Dvf64_3& h0_log, const Dvf64& _planet_rh, double _r2, uint32_t _tbsize, float64_t _dt) :
+		MVSKernel(const DevicePlanetPhaseSpace& planets, const Dvf64_3& h0_log, const Dvf64& _planet_rh, double _outer_r, uint32_t _tbsize, float64_t _dt) :
 			planet_m(planets.m.data().get()),
 			mu(planets.m[0]),
 			planet_h0_log(h0_log.data().get()),
@@ -33,7 +33,7 @@ namespace wh
 			planet_n(static_cast<uint32_t>(planets.n_alive)),
 			tbsize(_tbsize),
 			dt(_dt),
-			r2(_r2),
+			outer_r(_outer_r),
 			planet_rh(_planet_rh.data().get())
 		{ }
 
@@ -109,7 +109,7 @@ done: ;
 
 		__host__ __device__
 		static void step_forward(f64_3& r, f64_3& v, uint16_t& flags, f64_3& a, uint32_t& deathtime_index, uint32_t _tbsize,
-				uint32_t planet_n, const f64_3* h0_log, const f64_3* r_log, const float64_t* m, const float64_t* rh, float64_t _r2, float64_t dt, float64_t mu)
+				uint32_t planet_n, const f64_3* h0_log, const f64_3* r_log, const float64_t* m, const float64_t* rh, double outer_radius, float64_t dt, float64_t mu)
 		{
 			deathtime_index = 0;
 
@@ -134,7 +134,7 @@ done: ;
 
 						float64_t rad = dr.lensq();
 
-						if (rad < rh[i] * rh[i] * _r2 * _r2 && flags == 0)
+						if (rad < rh[i] * rh[i] && flags == 0)
 						{
 							flags = flags & 0x00FF;
 							flags = static_cast<uint16_t>(flags | (i << 8) | 0x0001);
@@ -147,12 +147,12 @@ done: ;
 					}
 
 					float64_t rad = r.lensq();
-					if (rad < rh[0] * rh[0] * _r2 * _r2)
+					if (rad < rh[0] * rh[0])
 					{
 						flags = flags & 0x00FF;
 						flags = flags | 0x0001;
 					}
-					if (rad > 500 * 500)
+					if (rad > outer_radius * outer_radius)
 					{
 						flags = flags | 0x0002;
 					}
@@ -174,9 +174,6 @@ done: ;
 			const f64_3* r_log = this->planet_r_log;
 			const float64_t* m = this->planet_m;
 			const float64_t* rh = this->planet_rh;
-			float64_t _r2 = this->r2;
-			float64_t _dt = this->dt;
-			float64_t _mu = this->mu;
 
 
 			f64_3 r = thrust::get<0>(thrust::get<0>(args));
@@ -186,7 +183,7 @@ done: ;
 			f64_3 a = thrust::get<1>(args);
 
 			step_forward(r, v, flags, a, deathtime_index, _tbsize,
-				planet_n, h0_log, r_log, m, rh, _r2, _dt, _mu);
+				planet_n, h0_log, r_log, m, rh, this->outer_r, this->dt, this->mu);
 
 			thrust::get<0>(thrust::get<0>(args)) = r;
 			thrust::get<1>(thrust::get<0>(args)) = v;
@@ -199,7 +196,7 @@ done: ;
 
 	__global__
 	void MVSKernel_(f64_3* r, f64_3* v, uint16_t* flags, f64_3* a, uint32_t* deathtime_index,
-		uint32_t n, uint32_t tbsize, uint32_t planet_n, const f64_3* h0_log, const f64_3* r_log, const float64_t* m, const float64_t* rh, float64_t r2, float64_t dt, float64_t mu)
+		uint32_t n, uint32_t tbsize, uint32_t planet_n, const f64_3* h0_log, const f64_3* r_log, const float64_t* m, const float64_t* rh, double outer_r, float64_t dt, float64_t mu)
 	{
 		// max timeblock size: 384
 		__shared__ f64_3 h0_log_shared[384];
@@ -232,7 +229,7 @@ done: ;
 			uint32_t deathtime_indexi;
 		
 			MVSKernel::step_forward(ri, vi, flagsi, ai, deathtime_indexi, tbsize,
-					planet_n, h0_log_shared, r_log_shared, m, rh, r2, dt, mu);
+					planet_n, h0_log_shared, r_log_shared, m, rh, outer_r, dt, mu);
 
 			r[i] = ri;
 			v[i] = vi;
@@ -265,7 +262,7 @@ done: ;
 
 	void WHCudaIntegrator::upload_planet_log_cuda(cudaStream_t stream, size_t planet_data_id)
 	{
-		memcpy_htd(device_h0_log(planet_data_id), base.planet_h0_log.slow, stream);
+		memcpy_htd(device_h0_log(planet_data_id), base.planet_h0_log.log, stream);
 		cudaStreamSynchronize(stream);
 	}
 
@@ -289,11 +286,6 @@ done: ;
 		base.integrate_particles_timeblock(pl, pa, begin, length, t, dt);
 	}
 
-	void WHCudaIntegrator::integrate_encounter_particle_catchup(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t particle_index, size_t particle_deathtime_index, double t, double dt)
-	{
-		base.integrate_encounter_particle_catchup(pl, pa, particle_index, particle_deathtime_index, t, dt);
-	}
-
 	void WHCudaIntegrator::swap_logs()
 	{
 		base.swap_logs();
@@ -309,7 +301,7 @@ done: ;
 	{
 #ifndef CUDA_USE_SHARED_MEM_CACHE
 		auto it = thrust::make_zip_iterator(thrust::make_tuple(pa.begin(), device_begin()));
-		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.encounter_r2, static_cast<uint32_t>(pl.log_len), dt));
+		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.outer_radius, static_cast<uint32_t>(pl.log_len), dt));
 #else
 		cudaDeviceProp prop;
 		cudaGetDeviceProperties(&prop, 0);
@@ -328,7 +320,7 @@ done: ;
 		MVSKernel_<<<grid_size, block_size, shared_mem, stream>>>
 			(pa.r.data().get(), pa.v.data().get(), pa.deathflags.data().get(), device_particle_a.data().get(), pa.deathtime_index.data().get(),
 			static_cast<uint32_t>(pa.n_alive), static_cast<uint32_t>(pl.log_len), static_cast<uint32_t>(pl.n_alive), device_h0_log(planet_data_id).data().get(), pl.r_log.data().get(), pl.m.data().get(),
-			device_planet_rh.data().get(), base.encounter_r2, dt, pl.m[0]);
+			device_planet_rh.data().get(), base.outer_radius, dt, pl.m[0]);
 #endif
 	}
 }

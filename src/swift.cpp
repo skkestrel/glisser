@@ -244,8 +244,8 @@ namespace swift
 			for (size_t i = 1; i < npl; i++)
 			{
 				double a, e, I, O, o, m;
-				sr::convert::to_elements(pl.m()[0], pl.r_log().get<false, true>()[pl.log_index_at<true>(0, i)],
-						pl.v_log().get<false, true>()[pl.log_index_at<true>(0, i)],
+				sr::convert::to_elements(pl.m()[0], pl.r_log().get<true>()[pl.log_index_at<true>(0, i)],
+						pl.v_log().get<true>()[pl.log_index_at<true>(0, i)],
 						nullptr, &a, &e, &I, &O, &o, &m);
 				sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
 				sr::data::write_binary(file, static_cast<float>(pl.m()[i]));
@@ -263,8 +263,8 @@ namespace swift
 		for (size_t i = 1; i < npl; i++)
 		{
 			double a, e, I, O, o, m;
-			sr::convert::to_elements(pl.m()[0], pl.r_log().get<false, true>()[pl.log_index_at<true>(prev_tbsize - 1, i)],
-					pl.v_log().get<false, true>()[pl.log_index_at<true>(prev_tbsize - 1, i)],
+			sr::convert::to_elements(pl.m()[0], pl.r_log().get<true>()[pl.log_index_at<true>(prev_tbsize - 1, i)],
+					pl.v_log().get<true>()[pl.log_index_at<true>(prev_tbsize - 1, i)],
 					nullptr, &a, &e, &I, &O, &o, &m);
 			sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
 			sr::data::write_binary(file, static_cast<float>(pl.m()[i]));
@@ -282,8 +282,8 @@ namespace swift
 		for (size_t i = 1; i < npl; i++)
 		{
 			double a, e, I, O, o, m;
-			sr::convert::to_elements(pl.m()[0], pl.r_log().get<false, false>()[pl.log_index_at<false>(cur_tbsize - 1, i)],
-					pl.v_log().get<false, false>()[pl.log_index_at<false>(cur_tbsize - 1, i)],
+			sr::convert::to_elements(pl.m()[0], pl.r_log().get<false>()[pl.log_index_at<false>(cur_tbsize - 1, i)],
+					pl.v_log().get<false>()[pl.log_index_at<false>(cur_tbsize - 1, i)],
 					nullptr, &a, &e, &I, &O, &o, &m);
 			sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
 			sr::data::write_binary(file, static_cast<float>(pl.m()[i]));

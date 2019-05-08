@@ -157,12 +157,10 @@ namespace data
 		dt = 122;
 		tbsize = 1024;
 		write_bary_track = false;
-		wh_ce_n1 = 8;
-		wh_ce_n2 = 4;
-		wh_ce_r1 = 1;
-		wh_ce_r2 = 3.5;
+		encounter_sphere_factor = 0;
 		cull_radius = 0.5;
 
+		outer_radius = 200;
 		resync_every = 1;
 		swift_hist_every = 0;
 		swift_statlen = 13;
@@ -175,8 +173,6 @@ namespace data
 
 		interp_planets = false;
 		planet_history_file = "";
-
-		use_gpu = true;
 
 		dump_every = 1000;
 		max_particle = static_cast<uint32_t>(-1);
@@ -236,18 +232,12 @@ namespace data
 					out->tbsize = std::stou(second);
 				else if (first == "Big-G")
 					out->big_g = std::stod(second);
+				else if (first == "Encounter-RH-Factor")
+					out->encounter_sphere_factor = std::stod(second);
 				else if (first == "Cull-Radius")
 					out->cull_radius = std::stod(second);
-				else if (first == "WH-Encounter-N1")
-					out->wh_ce_n1 = std::stou(second);
-				else if (first == "WH-Encounter-N2")
-				out->wh_ce_n2 = std::stou(second);
-				else if (first == "WH-Encounter-R1")
-					out->wh_ce_r1 = std::stod(second);
-				else if (first == "WH-Encounter-R2")
-					out->wh_ce_r2 = std::stod(second);
-				else if (first == "Enable-GPU")
-					out->use_gpu = std::stoi(second) != 0;
+				else if (first == "Outer-Limit")
+					out->outer_radius = std::stod(second);
 				else if (first == "CPU-Thread-Count")
 					out->num_thread = std::stou(second);
 				else if (first == "Limit-Particle-Count")
@@ -354,12 +344,9 @@ namespace data
 		outstream << "Time-Step " << out.dt << std::endl;
 		outstream << "Final-Time " << out.t_f << std::endl;
 		outstream << "Time-Block-Size " << out.tbsize << std::endl;
+		outstream << "Encounter-RH-Factor " << out.cull_radius << std::endl;
 		outstream << "Cull-Radius " << out.cull_radius << std::endl;
-		outstream << "WH-Encounter-N1 " << out.wh_ce_n1 << std::endl;
-		outstream << "WH-Encounter-N2 " << out.wh_ce_n2 << std::endl;
-		outstream << "WH-Encounter-R1 " << out.wh_ce_r1 << std::endl;
-		outstream << "WH-Encounter-R2 " << out.wh_ce_r2 << std::endl;
-		outstream << "Enable-GPU " << out.use_gpu << std::endl;
+		outstream << "Outer-Limit " << out.outer_radius << std::endl;
 		outstream << "CPU-Thread-Count " << out.num_thread << std::endl;
 		outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 		outstream << "Log-Interval " << out.print_every << std::endl;
@@ -395,7 +382,7 @@ namespace data
 		size_t npl;
 		plin >> npl;
 
-		pl = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
+		pl = HostPlanetPhaseSpace(npl, config.tbsize);
 
 		for (size_t i = 0; i < npl; i++)
 		{
@@ -452,7 +439,7 @@ namespace data
 		size_t npl;
 		ss >> npl;
 		
-		pl = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
+		pl = HostPlanetPhaseSpace(npl, config.tbsize);
 
 		for (size_t i = 0; i < npl; i++)
 		{
@@ -504,7 +491,7 @@ namespace data
 		uint64_t templl;
 		read_binary<uint64_t>(in, templl);
 		size_t npl = static_cast<size_t>(templl);
-		pl = HostPlanetPhaseSpace(npl, config.tbsize, config.fast_timestep_factor());
+		pl = HostPlanetPhaseSpace(npl, config.tbsize);
 
 		for (size_t i = 0; i < pl.n(); i++)
 		{
@@ -592,12 +579,6 @@ namespace data
 
 				pl.m()[i] *= config.big_g;
 			}
-
-			pa.stable_partition_alive(0, pa.n());
-			
-			// TODO partition based on encounter status as well!
-			// For now: kill all particles that start off in encounter
-			// In the future: need to think about how to start off encoutner particles since they don't have a previous timechunk data
 		}
 
 		return ret;
@@ -741,14 +722,14 @@ namespace data
 
 		if (pl.n_alive > 0)
 		{
-			sr::data::write_binary(trackout, static_cast<uint64_t>(pl.n_alive));
+			sr::data::write_binary(trackout, static_cast<uint64_t>(pl.n_alive - 1));
 		}
 		else
 		{
 			sr::data::write_binary(trackout, static_cast<uint64_t>(0));
 		}
 
-		for (uint32_t i = 0; i < pl.n_alive; i++)
+		for (uint32_t i = 1; i < pl.n_alive; i++)
 		{
 			if (to_elements)
 			{
