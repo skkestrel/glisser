@@ -13,7 +13,7 @@ Options:
     -t <t>, --tmax <t>                Take only up to given time
     --print-mean-a
     --plot-angles                     ..
-    --plot-tiss
+    --plot-tiss <n>
     --plot-mmr-arg <mmr>              <mmr> = "3:4@3" for neptune, for example
     --plot-aei-special
     --plot-aei                        ..
@@ -59,16 +59,13 @@ def get_planet_name(ind):
         return "Planet {0}".format(ind)
 
 planets = None
+planet_id_to_index = {}
+planet_index_to_id = []
 
 if args["--planets"] == "all":
     take_all_planets = True
-    planet_id_to_index = {}
 elif args["--planets"] == "none":
     take_all_planets = False
-    planet_index_to_id = []
-    planet_id_to_index = {}
-
-    planets = []
 else:
     take_all_planets = False
     planet_index_to_id = [int(x) for x in args["--planets"].split(',')]
@@ -92,25 +89,8 @@ particle_index_to_id_rev = {}
 particles = [[] for i in range(len(particle_index_to_id) * 6)]
 
 def bsearch(f, npa, partnum):
-    base = f.tell()
-    left = 0
-    right = npa-1
-
-    while left <= right:
-        mid = left + (right - left) // 2
-        f.seek(base + mid * 28, 0)
-        Id, a, e, i, O, o, F = struct.unpack('=I6f', f.read(28))
-
-        if Id == partnum:
-            f.seek(base, 0)
-            return Id, a, e, i, O, o, F
-        elif Id > partnum:
-            right = mid - 1
-        else:
-            left = mid + 1
-
-    f.seek(base, 0)
-    return None
+    k = util2.bsearch(f, npa, partnum, 28)
+    return struct.unpack('<6f', util2.bsearch(f, npa, partnum, 28)) if k else None
 
 take_every = int(args["--skip"])
 info = args["--info"]
@@ -137,6 +117,11 @@ while True:
             read = f.read(16)
 
             while len(read) == 16:
+                take_this = counter % take_every == 0
+		
+		# record if we're on the first timestep, or not taking only info
+                record_data = counter == 0 or not info
+
                 time, npl = struct.unpack('=dQ', read)
 
                 if not planets and take_all_planets:
@@ -145,25 +130,18 @@ while True:
                 if args["--tmax"] and time > float(args["--tmax"]):
                     raise IOError() # dirty, but just break out
 
-                if (counter % take_every) == 0:
+                if take_this:
                     times.append(time)
 
-                if (counter % take_every) == 0 and (not info or counter == 0):
+                if take_this and record_data:
                     for i in range(npl):
                         pid, a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))
 
-                        if take_all_planets:
-                            if counter == 0:
-                                planet_id_to_index[pid] = i
+                        if counter == 0 and take_all_planets:
+                            planet_index_to_id.append(pid)
+                            planet_id_to_index[pid] = i
 
-                            index = planet_id_to_index[pid]
-                            planets[6*index].append(a)
-                            planets[6*index+1].append(e)
-                            planets[6*index+2].append(I)
-                            planets[6*index+3].append(O)
-                            planets[6*index+4].append(o)
-                            planets[6*index+5].append(F)
-                        elif pid in planet_index_to_id:
+                        if pid in planet_index_to_id:
                             index = planet_id_to_index[pid]
                             planets[6*index].append(a)
                             planets[6*index+1].append(e)
@@ -176,19 +154,14 @@ while True:
 
                 npa, = struct.unpack('=Q', f.read(8))
 
-                if (counter % take_every) == 0 and (not info or counter == 0):
+                if take_this and record_data:
                     if take_all_particles:
-                        if len(particle_index_to_id) == 0:
-                            firstrun = True
-                        else:
-                            firstrun = False
-
                         foundparticles = set()
 
                         for i in range(npa):
                             pid, a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))
 
-                            if firstrun:
+                            if counter == 0:
                                 particle_index_to_id_rev[pid] = len(particle_index_to_id)
                                 particle_index_to_id.append(pid)
                                 for j in range(6):
@@ -219,12 +192,12 @@ while True:
                         for index, partnum in enumerate(particle_index_to_id):
                             part = bsearch(f, npa, partnum)
                             if part:
-                                particles[6*index].append(part[1])
-                                particles[6*index+1].append(part[2])
-                                particles[6*index+2].append(part[3])
-                                particles[6*index+3].append(part[4])
-                                particles[6*index+4].append(part[5])
-                                particles[6*index+5].append(part[6])
+                                particles[6*index].append(part[0])
+                                particles[6*index+1].append(part[1])
+                                particles[6*index+2].append(part[2])
+                                particles[6*index+3].append(part[3])
+                                particles[6*index+4].append(part[4])
+                                particles[6*index+5].append(part[5])
                             else:
                                 particles[6*index].append(math.nan)
                                 particles[6*index+1].append(math.nan)
@@ -238,6 +211,7 @@ while True:
 
                 read = f.read(16)
                 counter = counter + 1;
+
         if os.path.isfile(args["<path>"]):
             break
     except IOError:
@@ -252,33 +226,33 @@ if info:
     print("t_f = {0}".format(times[-1]))
 
 times = np.array(times)
-planets = np.array(planets)
-particles = np.array(particles)
+planets = np.array(planets).reshape((-1, 6, len(times)))
+particles = np.array(particles).reshape((-1, 6, len(times)))
 
-if times[-1] > 365e6:
-    stimes = times / 365e6
+if times[-1] > 1e6:
+    stimes = times / 1e6
     timelabel = "Time (Myr)"
-elif times[-1] > 365e3:
-    stimes = times / 365e3
+elif times[-1] > 1e3:
+    stimes = times / 1e3
     timelabel = "Time (kyr)"
 else:
-    stimes = times / 365
+    stimes = times / 1
     timelabel = "Time (yr)"
 
-npl = planets.shape[0] // 6
+npl = planets.shape[0]
 
 def do_for(callback, pllist=None, palist=None):
     for index,Id in enumerate(pllist if pllist is not None else planet_id_to_index.keys()):
         c = cc[index % len(cc)]
         i = planet_id_to_index[Id]
-        callback(planets[6*i:6*i+6], c, Id, True)
+        callback(planets[i], c, Id, True)
     for index,Id in enumerate(palist if palist is not None else particle_index_to_id):
         c = cc[(index + (len(pllist) if pllist is not None else npl)) % len(cc)]
-        callback(particles[6*index:6*index+6], c, Id, False)
+        callback(particles[index], c, Id, False)
 
 if args["--print-mean-a"]:
     for i,Id in planet_id_to_index.items():
-	    print("Planet {0}: {1} AU".format(i, planets[6 * Id].mean()))
+	    print("Planet {0}: {1} AU".format(i, planets[Id, 0].mean()))
 
 import matplotlib
 # matplotlib.use("Qt5Agg")
@@ -398,9 +372,9 @@ if args["--plot-aei"]:
     fig, axes = plt.subplots(3, 1, sharex=True)
 
     def plot_aei(data, c, ind, is_planet):
-        axes[0].plot(stimes, data[0] - data[0].mean(), c=c)
-        axes[1].plot(stimes, data[1], c=c)
-        axes[2].plot(stimes, data[2], c=c)
+        axes[0].plot(stimes, data[0] - data[0,0], c=c)
+        axes[1].plot(stimes, data[1] - data[1,0], c=c)
+        axes[2].plot(stimes, data[2] - data[2,0], c=c)
         if is_planet:
             axes[0].plot([], [], c=c, label=get_planet_name(ind))
         else:
@@ -439,7 +413,7 @@ if args["--plot-oom"]:
     def plot_aei(data, c, ind, is_planet):
         axes[0].plot(stimes, data[3], c=c)
         axes[1].plot(stimes, data[4], c=c)
-        axes[2].plot(stimes, data[5], c=c)
+        axes[2].plot(stimes, util2.get_M(data), c=c)
         if is_planet:
             axes[0].plot([], [], c=c, label=get_planet_name(ind))
         else:
@@ -530,7 +504,7 @@ def get_mmr_angle(data, mmr):
     M = util2.get_M(data)
     pid = planet_id_to_index[mmr[2]]
 
-    data_pl = planets[6 * pid : 6 * pid + 6]
+    data_pl = planets[pid]
     Mpl = util2.get_M(data_pl)
 
     arg = mmr[0] * (data[3] + data[4] + M) - mmr[1] * (data_pl[3] + data_pl[4] + Mpl) + (mmr[1] - mmr[0]) * (data[3] + data[4])
@@ -557,7 +531,7 @@ if args["--plot-mmr-arg"]:
             M = util2.get_M(data)
             pid = planet_id_to_index[mmr[2]]
 
-            data_pl = planets[6 * pid : 6 * pid + 6]
+            data_pl = planets[pid]
             Mpl = util2.get_M(data_pl)
 
             axes2[0].scatter(stimes, util2.get_principal_angle(data[3] + data[4] + M), s=1, c=c)
@@ -759,18 +733,56 @@ if args["--plot-diffusion"]:
     ax.legend()
 
 if args["--plot-tiss"]:
-    fig, axes = plt.subplots(2, 1, sharex=True)
+    fig, axes = plt.subplots(3, 1, sharex=True)
+    pln = planet_id_to_index[int(args["--plot-tiss"])]
+    print("Warning: plot-tiss only works with barycentric history files")
 
     def plot_tiss(data, c, ind, is_planet):
-        axes[0].plot(stimes, 1/2/data[0] + np.sqrt(data[0]*(1-data[1]**2)) * np.cos(data[2]), c=c)
-        if is_planet:
-            axes[0].plot([], [], c=c, label=get_planet_name(ind))
-        else:
+        if not is_planet:
+            m_n = 2.0438420219676245e-3
+            m_s = 4 * math.pi**2
+            r = []
+            r1 = []
+            r2 = []
+            for i in range(data.shape[1]):
+                if math.isnan(data[0, i]):
+                    r1.append(math.nan)
+                    r2.append(math.nan)
+                    r.append(math.nan)
+                    continue
+
+                a_n = planets[pln, 0, i]
+                # barycentric position of particle
+                cart = util2.el2rv(m_s + m_n, data[:, i])
+                # barycentric position of Neptune
+                cart_n = util2.el2rv(m_s + m_n, planets[pln, :, i])
+
+                # barycentric position of Sun = -m_n / (m_s + m_n) * r_Nep
+                factor = -m_n / (m_s + m_n)
+                cart_s = [cart_n[0] * factor, cart_n[1] * factor, cart_n[2] * factor]
+
+                r.append(math.sqrt(cart[0]**2 + cart[1]**2 + cart[2]**2) / a_n)
+                r1.append(math.sqrt((cart[0] - cart_s[0])**2 + (cart[1] - cart_s[1])**2 + (cart[2] - cart_s[2])**2) / a_n)
+                r2.append(math.sqrt((cart[0] - cart_n[0])**2 + (cart[1] - cart_n[1])**2 + (cart[2] - cart_n[2])**2) / a_n)
+
+            r = np.array(r)
+            r1 = np.array(r1)
+            r2 = np.array(r2)
+
+            mu = m_n / m_s
+
+            Ts = planets[pln, 0]/data[0] + 2 * np.sqrt(data[0]/planets[pln, 0]*(1-data[1]**2)) * np.cos(data[2]) - 2 / r + 2 * (1 - mu) / r1 + 2 * mu / r2
+            axes[0].plot(stimes[1:], np.log10(abs(Ts[1:]-Ts[0])/Ts[0]), c=c)
+            axes[0].set_ylabel("log(% error)")
+            axes[1].set_ylabel("r_sun (30.4 au)")
+            axes[2].set_ylabel("r_nep (30.4 au)")
+            # axes[1].plot(stimes, (Ts-Ts[0])/Ts[0], c=c)
+            axes[1].plot(stimes, r1, c=c)
+            axes[2].plot(stimes, r2, c=c)
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
     do_for(plot_tiss)
     axes[0].legend()
-
 
 plt.show()
 
