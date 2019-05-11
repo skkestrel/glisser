@@ -15,6 +15,7 @@ namespace wh
 	struct MVSKernel
 	{
 		const float64_t* planet_m;
+		const uint32_t* planet_id;
 		const float64_t mu;
 		const f64_3* planet_h0_log;
 		const f64_3* planet_r_log;
@@ -27,6 +28,7 @@ namespace wh
 
 		MVSKernel(const DevicePlanetPhaseSpace& planets, const Dvf64_3& h0_log, const Dvf64& _planet_rh, double _outer_r, uint32_t _tbsize, float64_t _dt) :
 			planet_m(planets.m.data().get()),
+			planet_id(planets.id.data().get()),
 			mu(planets.m[0]),
 			planet_h0_log(h0_log.data().get()),
 			planet_r_log(planets.r_log.data().get()),
@@ -108,8 +110,22 @@ done: ;
 		}
 
 		__host__ __device__
-		static void step_forward(f64_3& r, f64_3& v, uint16_t& flags, f64_3& a, uint32_t& deathtime_index, uint32_t _tbsize,
-				uint32_t planet_n, const f64_3* h0_log, const f64_3* r_log, const float64_t* m, const float64_t* rh, double outer_radius, float64_t dt, float64_t mu)
+		static void step_forward(
+				f64_3& r,
+				f64_3& v,
+				uint16_t& flags,
+				f64_3& a,
+				uint32_t& deathtime_index,
+				uint32_t _tbsize,
+				uint32_t planet_n,
+				const f64_3* h0_log,
+				const f64_3* r_log,
+				const float64_t* m,
+				const float64_t* rh,
+				const float64_t* pl_id,
+				double outer_radius,
+				float64_t dt,
+				float64_t mu)
 		{
 			deathtime_index = 0;
 
@@ -126,8 +142,6 @@ done: ;
 					a = h0_log[step];
 
 					// planet 0 is not counted
-#warning TODO need to set planet flag by planet ID, not by planet index \
-	this means that we have to pass in a list of planet IDs, most likely
 					for (uint32_t i = 1; i < static_cast<uint32_t>(planet_n); i++)
 					{
 						f64_3 dr = r - r_log[step * (planet_n - 1) + i - 1];
@@ -137,7 +151,7 @@ done: ;
 						if (rad < rh[i] * rh[i] && flags == 0)
 						{
 							flags = flags & 0x00FF;
-							flags = static_cast<uint16_t>(flags | (i << 8) | 0x0001);
+							flags = static_cast<uint16_t>(flags | (pl_id[i] << 8) | 0x0001);
 						}
 
 						float64_t inv3 = 1. / (rad * sqrt(rad));
@@ -173,8 +187,8 @@ done: ;
 			const f64_3* h0_log = this->planet_h0_log;
 			const f64_3* r_log = this->planet_r_log;
 			const float64_t* m = this->planet_m;
+			const uint32_t* ids = this->planet_id;
 			const float64_t* rh = this->planet_rh;
-
 
 			f64_3 r = thrust::get<0>(thrust::get<0>(args));
 			f64_3 v = thrust::get<1>(thrust::get<0>(args));
@@ -183,7 +197,7 @@ done: ;
 			f64_3 a = thrust::get<1>(args);
 
 			step_forward(r, v, flags, a, deathtime_index, _tbsize,
-				planet_n, h0_log, r_log, m, rh, this->outer_r, this->dt, this->mu);
+				planet_n, h0_log, r_log, m, ids, rh, this->outer_r, this->dt, this->mu);
 
 			thrust::get<0>(thrust::get<0>(args)) = r;
 			thrust::get<1>(thrust::get<0>(args)) = v;
@@ -195,8 +209,23 @@ done: ;
 	};
 
 	__global__
-	void MVSKernel_(f64_3* r, f64_3* v, uint16_t* flags, f64_3* a, uint32_t* deathtime_index,
-		uint32_t n, uint32_t tbsize, uint32_t planet_n, const f64_3* h0_log, const f64_3* r_log, const float64_t* m, const float64_t* rh, double outer_r, float64_t dt, float64_t mu)
+	void MVSKernel_(
+			f64_3* r,
+			f64_3* v,
+			uint16_t* flags,
+			f64_3* a,
+			uint32_t* deathtime_index,
+			uint32_t n,
+			uint32_t tbsize,
+			uint32_t planet_n,
+			const f64_3* h0_log,
+			const f64_3* r_log,
+			const float64_t* m,
+			const uint32_t* pl_id,
+			const float64_t* rh,
+			double outer_r,
+			float64_t dt,
+			float64_t mu)
 	{
 		// max timeblock size: 384
 		__shared__ f64_3 h0_log_shared[384];
@@ -229,7 +258,7 @@ done: ;
 			uint32_t deathtime_indexi;
 		
 			MVSKernel::step_forward(ri, vi, flagsi, ai, deathtime_indexi, tbsize,
-					planet_n, h0_log_shared, r_log_shared, m, rh, outer_r, dt, mu);
+					planet_n, h0_log_shared, r_log_shared, m, pl_id, rh, outer_r, dt, mu);
 
 			r[i] = ri;
 			v[i] = vi;
@@ -258,6 +287,18 @@ done: ;
 	Dvf64_3& WHCudaIntegrator::device_h0_log(size_t planet_data_id)
 	{
 		return planet_data_id % 2 ? device_h0_log_1 : device_h0_log_0;
+	}
+
+	void WHCudaIntegrator::helio_acc_particles(
+			const HostPlanetPhaseSpace& pl,
+			HostParticlePhaseSpace& pa,
+			size_t begin,
+			size_t len,
+			float64_t time,
+			size_t timestep_index,
+			bool old)
+	{
+		base.helio_acc_particles(pl, pa, begin, len, time, timestep_index, old);
 	}
 
 	void WHCudaIntegrator::upload_planet_log_cuda(cudaStream_t stream, size_t planet_data_id)
@@ -301,7 +342,19 @@ done: ;
 	{
 #ifndef CUDA_USE_SHARED_MEM_CACHE
 		auto it = thrust::make_zip_iterator(thrust::make_tuple(pa.begin(), device_begin()));
-		thrust::for_each(thrust::cuda::par.on(stream), it, it + pa.n_alive, MVSKernel(pl, device_h0_log(planet_data_id), device_planet_rh, base.outer_radius, static_cast<uint32_t>(pl.log_len), dt));
+		thrust::for_each(
+				thrust::cuda::par.on(stream),
+				it,
+				it + pa.n_alive,
+				MVSKernel(
+					pl,
+					device_h0_log(planet_data_id),
+					device_planet_rh,
+					base.outer_radius,
+					static_cast<uint32_t>(pl.log_len),
+					dt
+				)
+		);
 #else
 		cudaDeviceProp prop;
 		cudaGetDeviceProperties(&prop, 0);
@@ -317,10 +370,24 @@ done: ;
 		}
 		grid_size = static_cast<uint32_t>((pa.n_alive + block_size - 1) / block_size);
 
-		MVSKernel_<<<grid_size, block_size, shared_mem, stream>>>
-			(pa.r.data().get(), pa.v.data().get(), pa.deathflags.data().get(), device_particle_a.data().get(), pa.deathtime_index.data().get(),
-			static_cast<uint32_t>(pa.n_alive), static_cast<uint32_t>(pl.log_len), static_cast<uint32_t>(pl.n_alive), device_h0_log(planet_data_id).data().get(), pl.r_log.data().get(), pl.m.data().get(),
-			device_planet_rh.data().get(), base.outer_radius, dt, pl.m[0]);
+		MVSKernel_<<<grid_size, block_size, shared_mem, stream>>>(
+				pa.r.data().get(),
+				pa.v.data().get(),
+				pa.deathflags.data().get(),
+				device_particle_a.data().get(),
+				pa.deathtime_index.data().get(),
+				static_cast<uint32_t>(pa.n_alive),
+				static_cast<uint32_t>(pl.log_len),
+				static_cast<uint32_t>(pl.n_alive),
+				device_h0_log(planet_data_id).data().get(),
+				pl.r_log.data().get(),
+				pl.m.data().get(),
+				pl.id.data().get(),
+				device_planet_rh.data().get(),
+				base.outer_radius,
+				dt,
+				pl.m[0]
+		);
 #endif
 	}
 }

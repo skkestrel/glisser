@@ -153,7 +153,7 @@ namespace data
 	{
 		num_thread = 4;
 		t_0 = 0;
-		t_f = 365e4;
+		t_f = 1e4;
 		dt = 122;
 		tbsize = 1024;
 		write_bary_track = false;
@@ -370,7 +370,7 @@ namespace data
 		outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
 		outstream << "Read-Planet-History " << out.interp_planets << std::endl;
-		outstream << "Swift-History-Output-Interval " << out.swift_hist_every << std::endl;
+		outstream << "Swift-History-Interval " << out.swift_hist_every << std::endl;
 		outstream << "Swift-Process-Count " << out.num_swift << std::endl;
 		outstream << "Swift-Process-Min-Particles" << out.swift_part_min << std::endl;
 		outstream << "Swift-Status-Length " << out.swift_statlen << std::endl;
@@ -817,16 +817,13 @@ namespace data
 
 	void begin_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl)
 	{
-		// multiply all masses by 365.25^2 - convert to days
-		// sun mass
-		sr::data::write_binary(trackout, static_cast<double>(pl.m[0] * 365.24 * 365.24));
+		sr::data::write_binary(trackout, static_cast<double>(pl.m[0]));
 		sr::data::pad_binary(trackout, 32 - 8);
 	}
 
 	void save_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, double time)
 	{
-		// multiply all masses by 365.25^2 - convert to days
-		sr::data::write_binary(trackout, static_cast<double>(time / 365.24));
+		sr::data::write_binary(trackout, static_cast<double>(time));
 
 		if (pl.n_alive > 0)
 		{
@@ -846,8 +843,8 @@ namespace data
 			f64_3 center_r = pl.r[0] * pl.m[0];
 			f64_3 center_v = pl.v[0] * pl.m[0];
 
-			// barycentric elements
-			if (true)
+			/* history file always stored in heliocentric
+			if (false)
 			{
 				for (uint32_t j = 1; j < pl.n_alive; j++)
 				{
@@ -859,6 +856,7 @@ namespace data
 					}
 				}
 			}
+			 */
 			center_r /= center_mass;
 			center_v /= center_mass;
 
@@ -867,7 +865,7 @@ namespace data
 				nullptr, &a, &e, &in, &capom, &om, &f);
 
 			sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
-			sr::data::write_binary(trackout, static_cast<float>(pl.m[i] * 365.24 * 365.24));
+			sr::data::write_binary(trackout, static_cast<float>(pl.m[i]));
 			sr::data::write_binary(trackout, static_cast<float>(a));
 			sr::data::write_binary(trackout, static_cast<float>(e));
 			sr::data::write_binary(trackout, static_cast<float>(in));

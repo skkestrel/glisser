@@ -5,7 +5,9 @@
 #include <cstring>
 #include <libgen.h>
 #include <fstream>
+#include <iostream>
 #include <sys/wait.h>
+#include <ext/stdio_filebuf.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -46,43 +48,61 @@ namespace swift
 		size_t num_proc = std::min(n_encounter / config.swift_part_min, static_cast<size_t>(config.num_swift));
 		if (num_proc == 0) num_proc = 1;
 
+
+		std::string mypid = std::to_string(::getpid());
+
+		std::string history_path = "/tmp/glisse/" + mypid + "hist";
+		std::string pl_path = "/tmp/glisse/" + mypid + "pl";
+
+		write_planetary_history(pl, interp, history_path, old);
+		write_pl_in(pl, pl_path);
+
 		for (unsigned int i = 0; i < num_proc; i++)
 		{
 			size_t chunk_begin = encounter_start + n_encounter * i / num_proc;
 			size_t chunk_end = encounter_start + n_encounter * (i + 1) / num_proc;
 
-			std::string mypid = std::to_string(::getpid());
-
 			sr::util::make_dir("/tmp/glisse");
 
-			std::string history_path = "/tmp/glisse/" + mypid + "hist" + std::to_string(i);
 			std::string param_path = "/tmp/glisse/" + mypid + "param" + std::to_string(i);
 			std::string tp_path = "/tmp/glisse/" + mypid + "tp" + std::to_string(i);
-			std::string pl_path = "/tmp/glisse/" + mypid + "pl";
 
-			write_planetary_history(pl, interp, history_path, old);
 			write_param_in(param_path);
 			write_tp_in(pa, chunk_begin, chunk_end, tp_path);
-			write_pl_in(pl, pl_path);
+
+			int pipefd[2];
+
+			if (::pipe(pipefd))
+			{
+				throw std::runtime_error("pipe error");
+			}
 
 			::pid_t pid = ::fork();
-			if (pid == (pid_t) -1)
+			if (pid == (::pid_t) -1)
 			{
 				throw std::runtime_error("fork error");
 			}
 			else if (pid == 0)
 			{
 				// child process
-				int null = ::open("/dev/null", O_WRONLY);
-				::dup2(null, 1);
-				::execl(config.swift_path.c_str(), swift_basename.c_str(), param_path.c_str(), pl_path.c_str(), tp_path.c_str(), nullptr);
-				exit(-1);
+				// copy pipe write end into stdout
+				::dup2(pipefd[1], 1);
+				::close(pipefd[1]);
+				::close(pipefd[0]);
+
+				mypid = std::to_string(::getpid());
+
+				std::string tpout_path = "/tmp/glisse/" + mypid + "tp" + std::to_string(i);
+
+				::execl(config.swift_path.c_str(), swift_basename.c_str(), param_path.c_str(), history_path.c_str(), tp_path.c_str(), tpout_path.c_str(), nullptr);
+				::exit(-1);
 			}
-			else
-			{
-				// parent process
-				_children.push_back(pid);
-			}
+
+			std::string tpout_path = "/tmp/glisse/" + pid + "tp" + std::to_string(i);
+
+			// parent process
+			::close(pipefd[1]);
+			_children.push_back(ChildProcess(pid, pipefd[0], tpout_path));
 		}
 	}
 
@@ -93,17 +113,23 @@ namespace swift
 			throw std::runtime_error(".");
 		}
 
-		for (const pid_t& pid : _children)
+		for (const ChildProcess& child : _children)
 		{
 			int status;
-			::waitpid(pid, &status, 0);
+			::waitpid(child.pid, &status, 0);
+
+			// construct buffer from file descriptor
+			__gnu_cxx::stdio_filebuf<char> filebuf(child.piper, std::ios::in);
+			std::istream is(&filebuf);
+
+			std::cout << std::string(std::istreambuf_iterator<char>(is), {}) << std::endl;
+
 			if (WEXITSTATUS(status) != 0)
 			{
 				throw std::runtime_error("swift did not terminate normally");
 			}
 		}
 
-		
 		
 		// TODO read particle data and insert back into pa
 	}
@@ -114,7 +140,7 @@ namespace swift
 		file << "0 " << static_cast<double>(prev_tbsize + cur_tbsize) * dt << " " << dt << std::endl;
 		file << "999999 9999999" << std::endl;
 		file << "F T F F T F" << std::endl;
-		file << "0.5 500 200 -1 T" << std::endl;
+		file << "0.5 " << config.outer_radius << " -1. -1. T" << std::endl;
 		file << "/dev/null" << std::endl;
 		file << "unknown" << std::endl;
 	}
@@ -175,12 +201,16 @@ namespace swift
 		std::ofstream file(dest, std::ios_base::binary);
 		// TODO how to deal with changing planet number?
 
+		sr::data::write_binary(file, static_cast<double>(pl.m()[0]));
+		sr::data::pad_binary(file, 32 - 8);
+
 		size_t npl = old ? pl.n_alive_old() : pl.n_alive();
 
 		if (old)
 		{
-			sr::data::write_binary(file, static_cast<double>(interp.t_m1));
-			sr::data::write_binary(file, static_cast<uint32_t>(npl));
+			sr::data::write_binary(file, static_cast<double>(0));
+			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
+			sr::data::pad_binary(file, 32 - 8 - 4);
 
 			for (size_t i = 1; i < npl; i++)
 			{
@@ -195,8 +225,17 @@ namespace swift
 			}
 		}
 
-		sr::data::write_binary(file, static_cast<double>(interp.t0));
-		sr::data::write_binary(file, static_cast<uint32_t>(npl));
+		if (old)
+		{
+			sr::data::write_binary(file, static_cast<double>(interp.t0 - interp.t_m1));
+		}
+		else
+		{
+			sr::data::write_binary(file, static_cast<double>(0));
+		}
+
+		sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
+		sr::data::pad_binary(file, 32 - 8 - 4);
 
 		for (size_t i = 1; i < npl; i++)
 		{
@@ -212,8 +251,10 @@ namespace swift
 
 		if (!old)
 		{
-			sr::data::write_binary(file, static_cast<double>(interp.t1));
-			sr::data::write_binary(file, static_cast<uint32_t>(npl));
+			sr::data::write_binary(file, static_cast<double>(interp.t1 - interp.t0));
+			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
+			sr::data::pad_binary(file, 32 - 8 - 4);
+
 			for (size_t i = 1; i < npl; i++)
 			{
 				sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
@@ -225,74 +266,6 @@ namespace swift
 				sr::data::write_binary(file, static_cast<float>(interp.oom1[i].y));
 				sr::data::write_binary(file, static_cast<float>(interp.oom1[i].z));
 			}
-		}
-	}
-
-	void SwiftEncounterIntegrator::write_planetary_history(const sr::data::HostPlanetPhaseSpace& pl, std::string dest) const
-	{
-		// write three planet locations to interpolate: beginning of previous chunk, beginning of current chunk, end of current chunk?
-
-		std::ofstream file(dest, std::ios_base::binary);
-		size_t npl = pl.n_alive();
-
-		if (prev_tbsize != 0)
-		{
-			// TODO need to get the planet position at t - prev_tbsize * dt, as the earliest time that the log holds is t - prev_tbsize * dt + dt
-			sr::data::write_binary(file, t - static_cast<double>(prev_tbsize - 1) * dt);
-			sr::data::write_binary(file, static_cast<uint32_t>(npl));
-
-			for (size_t i = 1; i < npl; i++)
-			{
-				double a, e, I, O, o, m;
-				sr::convert::to_elements(pl.m()[0], pl.r_log().get<true>()[pl.log_index_at<true>(0, i)],
-						pl.v_log().get<true>()[pl.log_index_at<true>(0, i)],
-						nullptr, &a, &e, &I, &O, &o, &m);
-				sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
-				sr::data::write_binary(file, static_cast<float>(pl.m()[i]));
-				sr::data::write_binary(file, static_cast<float>(a));
-				sr::data::write_binary(file, static_cast<float>(e));
-				sr::data::write_binary(file, static_cast<float>(I));
-				sr::data::write_binary(file, static_cast<float>(O));
-				sr::data::write_binary(file, static_cast<float>(o));
-				sr::data::write_binary(file, static_cast<float>(m));
-			}
-		}
-
-		sr::data::write_binary(file, static_cast<double>(t));
-		sr::data::write_binary(file, static_cast<uint32_t>(npl));
-		for (size_t i = 1; i < npl; i++)
-		{
-			double a, e, I, O, o, m;
-			sr::convert::to_elements(pl.m()[0], pl.r_log().get<true>()[pl.log_index_at<true>(prev_tbsize - 1, i)],
-					pl.v_log().get<true>()[pl.log_index_at<true>(prev_tbsize - 1, i)],
-					nullptr, &a, &e, &I, &O, &o, &m);
-			sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
-			sr::data::write_binary(file, static_cast<float>(pl.m()[i]));
-			sr::data::write_binary(file, static_cast<float>(a));
-			sr::data::write_binary(file, static_cast<float>(e));
-			sr::data::write_binary(file, static_cast<float>(I));
-			sr::data::write_binary(file, static_cast<float>(O));
-			sr::data::write_binary(file, static_cast<float>(o));
-			sr::data::write_binary(file, static_cast<float>(m));
-		}
-
-		npl = pl.n_alive();
-		sr::data::write_binary(file, t + static_cast<double>(cur_tbsize) * dt);
-		sr::data::write_binary(file, static_cast<uint32_t>(npl));
-		for (size_t i = 1; i < npl; i++)
-		{
-			double a, e, I, O, o, m;
-			sr::convert::to_elements(pl.m()[0], pl.r_log().get<false>()[pl.log_index_at<false>(cur_tbsize - 1, i)],
-					pl.v_log().get<false>()[pl.log_index_at<false>(cur_tbsize - 1, i)],
-					nullptr, &a, &e, &I, &O, &o, &m);
-			sr::data::write_binary(file, static_cast<uint32_t>(pl.id()[i]));
-			sr::data::write_binary(file, static_cast<float>(pl.m()[i]));
-			sr::data::write_binary(file, static_cast<float>(a));
-			sr::data::write_binary(file, static_cast<float>(e));
-			sr::data::write_binary(file, static_cast<float>(I));
-			sr::data::write_binary(file, static_cast<float>(O));
-			sr::data::write_binary(file, static_cast<float>(o));
-			sr::data::write_binary(file, static_cast<float>(m));
 		}
 	}
 }

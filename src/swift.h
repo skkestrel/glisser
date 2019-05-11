@@ -7,6 +7,15 @@ namespace sr
 {
 namespace swift
 {
+	struct ChildProcess
+	{
+		::pid_t pid;
+		int piper;
+		std::string tpout;
+
+		inline ChildProcess(::pid_t _pid, int r, std::string _tpout) : pid(_pid), piper(r), tpout(_tpout) { }
+	};
+
 	class SwiftEncounterIntegrator
 	{
 	public:
@@ -22,13 +31,7 @@ namespace swift
 		void write_pl_in(const sr::data::HostPlanetPhaseSpace& pl, std::string dest) const;
 
 		std::vector<std::vector<int>> istat;
-		std::vector<std::vector<int>> irstat;
-		
-		const int NSTAT = 3 + 11 - 1;
-		const int NSTATR = NSTAT;
-
-		// TODO this shoudl read from interp file
-		void set_planetary_history();
+		std::vector<std::vector<double>> rstat;
 	private:
 		double t, dt;
 		size_t prev_tbsize;
@@ -36,7 +39,7 @@ namespace swift
 		const sr::data::Configuration& config;
 
 
-		std::vector<pid_t> _children;
+		std::vector<ChildProcess> _children;
 	};
 }
 }

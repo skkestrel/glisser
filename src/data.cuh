@@ -39,6 +39,8 @@ namespace data
 	{
 		Dvf64 m;
 		Dvf64_3 r_log;
+		Dvu32 id;
+
 		size_t log_len;
 
 		size_t n_total;
@@ -47,7 +49,7 @@ namespace data
 		DevicePlanetPhaseSpace(const DevicePlanetPhaseSpace&) = delete;
 
 		inline DevicePlanetPhaseSpace() { }
-		inline DevicePlanetPhaseSpace(size_t n, size_t tbsize) : m(n), r_log(n * tbsize), n_total(n), n_alive(n) { }
+		inline DevicePlanetPhaseSpace(size_t n, size_t tbsize) : m(n), r_log(n * tbsize), id(n), n_total(n), n_alive(n) { }
 	};
 
 	struct DeviceData

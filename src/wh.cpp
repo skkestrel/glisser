@@ -529,10 +529,10 @@ namespace wh
 
 		// calculate initial accelerations for particles - this must be done so that the GPU integration works
 		
-		// this function populates h0 for the given timesteps
+		// this function populates h0 for the first timestep
 		helio_acc_planets(pl, 0);
 
-		// use the old log
+		// use the old log since we copied planet locations into the old log above
 		helio_acc_particles<true>(pl, pa, 0, pa.n_alive(), 0, 0);
 
 		// If there are any encounters at the start of the integration,
@@ -650,7 +650,13 @@ namespace wh
 	}
 
 	template<bool old>
-	void WHIntegrator::helio_acc_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, size_t begin, size_t length, float64_t time, size_t timestep_index)
+	void WHIntegrator::helio_acc_particles(
+			const HostPlanetPhaseSpace& pl,
+			HostParticlePhaseSpace& pa,
+			size_t begin,
+			size_t length,
+			float64_t time,
+			size_t timestep_index)
 	{
 		for (size_t i = begin; i < begin + length; i++)
 		{
@@ -658,6 +664,28 @@ namespace wh
 		}
 	}
 
+	void WHIntegrator::helio_acc_particles(
+			const HostPlanetPhaseSpace& pl,
+			HostParticlePhaseSpace& pa,
+			size_t begin,
+			size_t len,
+			float64_t time,
+			size_t timestep_index,
+			bool old)
+	{
+		if (old)
+		{
+			helio_acc_particles<true>(pl, pa, begin, len, time, timestep_index);
+		}
+		else
+		{
+			helio_acc_particles<false>(pl, pa, begin, len, time, timestep_index);
+		}
+
+	}
+
+
+	// Loads h0 into the old log at time given by index
 	void WHIntegrator::helio_acc_planets(HostPlanetPhaseSpace& p, size_t index)
 	{
 		for (size_t i = 1; i < p.n_alive(); i++)
@@ -991,8 +1019,6 @@ namespace wh
 
 	void WHIntegrator::step_planets(HostPlanetPhaseSpace& pl, float64_t t, double dt, size_t timestep_index)
 	{
-		// std::cerr << "pl. " << t << " " << pl.r()[1] << " " << pl.v()[1] << std::endl;
-
 		(void) t;
 
 		double new_dt = dt;

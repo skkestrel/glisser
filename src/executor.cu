@@ -99,7 +99,7 @@ namespace exec
 			interpolator = sr::interp::Interpolator(config, hd.planets, config.planet_history_file);
 
 			// step interp forward until we're in the correct interval
-			while (interpolator.t1 < t)
+			while (interpolator.t1 <= t)
 			{
 				interpolator.next(hd.planets);
 			}
@@ -120,7 +120,7 @@ namespace exec
 
 			// n_ts is the total number of timesteps in the current interval
 			// the number of timesteps is the remaining time in the interval divided by dt
-			interpolator.n_ts = static_cast<size_t>(std::round((interpolator.t1 - t) / config.dt));
+			interpolator.n_ts = std::max<size_t>(1, static_cast<size_t>(std::round((interpolator.t1 - t) / config.dt)));
 
 			// set the effective dt appropriately
 			interpolator.eff_dt = (interpolator.t1 - t) / static_cast<double>(interpolator.n_ts);
@@ -161,15 +161,6 @@ namespace exec
 		// planet_data_id chooses whether to use planets0 or planets1, arbitrarily choose 0 to start with
 		dd.planet_data_id = 0;
 
-		// upload planet masses onto both planet data
-		memcpy_htd(dd.planet_phase_space().m, hd.planets.m(), htd_stream);
-		cudaStreamSynchronize(htd_stream);
-
-		dd.planet_data_id++;
-		memcpy_htd(dd.planet_phase_space().m, hd.planets.m(), htd_stream);
-		cudaStreamSynchronize(htd_stream);
-
-
 		// ** INITIALIZE PARTICLES
 
 
@@ -204,10 +195,6 @@ namespace exec
 
 		// upload planet data before the first timechunk
 		update_planets();
-
-#warning
-		
-		// TODO: if any particles started off in an encounter, set the flags properly here!
 	}
 
 	void Executor::swap_logs()
@@ -348,9 +335,13 @@ namespace exec
 		// planet_phase_space uses planet_data_id to figure out which one to get
 		auto& planets = dd.planet_phase_space();
 
-		// copy in
+		// copy in everything
 		memcpy_htd(planets.r_log, hd.planets.r_log().log, htd_stream);
+		memcpy_htd(planets.m, hd.planets.m(), htd_stream);
+		memcpy_htd(planets.id, hd.planets.id(), htd_stream);
+
 		cudaStreamSynchronize(htd_stream);
+
 		planets.log_len = hd.planets.r_log().len;
 
 		integrator.upload_planet_log_cuda(htd_stream, dd.planet_data_id);
@@ -390,11 +381,16 @@ namespace exec
 		// if called from resync, update_planets will also have updated t, so roll back t to the beginning of the lookup interval
 		double which_t = called_from_resync ? prev_t : t;
 		// sanity check! these should all be equal
-		assert_true(std::abs(interpolator.t0 - (t - cur_dt * static_cast<double>(cur_tbsize))) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback");
-		assert_true(std::abs(interpolator.t0 - prev_t) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback 2");
+
+		if (called_from_resync)
+		{
+			assert_true(std::abs(interpolator.t0 - (t - cur_dt * static_cast<double>(cur_tbsize))) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback");
+			assert_true(std::abs(interpolator.t0 - prev_t) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback 2");
+		}
 
 		// do the thing
 		sr::swift::SwiftEncounterIntegrator enc(config, which_t, which_dt, prev_len, cur_len);
+
 		enc.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync);
 		
 		// if this was called in the middle of loop, we do the work here while other processes are happening
@@ -407,20 +403,31 @@ namespace exec
 		// update encounter particles
 		enc.end_integrate(hd.particles);
 
-		// upload the changes to the GPU
-		auto gather_indices = hd.particles.stable_partition_alive(encounter_start, hd.particles.n_encounter());
-		integrator.gather_particles(*gather_indices, encounter_start, hd.particles.n_encounter());
-		upload_data(encounter_start, hd.particles.n_encounter());
+		// whether to use the old log or not depends on whether we called from resync
+		size_t which_timestep_index = called_from_resync ? hd.planets.r_log().len_old : hd.planets.r_log().len;
 
 		// need to calculate particle accelerations for the next timeblock -
 		// this is because these particles did not come out of a regular GPU timechunk,
 		// so accelerations are outdated
-#warning TODO
-		// integrator.base.helio_acc_planets<true>(hd.planets, hd.particles, 0);
-		// integrator.base.helio_acc_particles<false, true>(hd.planets, hd.particles, encounter_start, hd.particles.n_encounter(), 0, 0);
 
-		// update the n_alive on GPU
-		// dd.particles.n_alive() = ...
+		// load accelerations (the planets already have h0 loaded, so no problem here)
+		integrator.helio_acc_particles(
+			hd.planets,
+			hd.particles,
+			encounter_start,
+			hd.particles.n_encounter(),
+			which_t + static_cast<double>(cur_len) * which_dt,
+			which_timestep_index,
+			called_from_resync // use the old log if called from resync, otherwise use the new log
+		);
+			
+		// upload the changes to the GPU
+		// no need to sort the particles here, we can just do that in resync
+
+		upload_data(encounter_start, hd.particles.n_encounter());
+
+		// set n_alive so that the resync function knows to deal with the particles that we just added back
+		dd.particles.n_alive = hd.particles.n_alive();
 	}
 
 	void Executor::loop(double* cputimeout, double* gputimeout)

@@ -16,22 +16,18 @@ namespace interp
 
 		user_dt = config.dt;
 
-		pl.m()[0] = sr::data::read_binary<float64_t>(input) / 365.24 / 365.24;
+		pl.m()[0] = sr::data::read_binary<float64_t>(input);
 		sr::data::skip_binary(input, 32 - 8);
 
-		// note: can't add planets in the middle
 #warning TODO how to do dynamic planet array sizing?
-
 		aei0 = aei1 = oom0 = oom1 = aei_m1 = oom_m1 = daei = doom = Vf64_3(pl.n());
 		mmfreq = std::vector<double>(pl.n());
 
-#warning TODO need to think about time units
-		t1 = sr::data::read_binary<float64_t>(input) * 365.24;
+		t1 = sr::data::read_binary<float64_t>(input);
 		t0 = std::numeric_limits<double>::infinity();
 		t_m1 = std::numeric_limits<double>::quiet_NaN();
 
 		pl.n_alive() = sr::data::read_binary<uint32_t>(input) + 1;
-#warning TODO set old n alive or new n alive?
 		pl.n_alive_old() = pl.n_alive();
 
 		sr::data::skip_binary(input, 32 - 8 - 4);
@@ -59,7 +55,7 @@ namespace interp
 				ind = idmap[id];
 			}
 
-			pl.m()[ind] = sr::data::read_binary<float32_t>(input) / 365.24 / 365.24;
+			pl.m()[ind] = sr::data::read_binary<float32_t>(input);
 			aei1[ind].x = sr::data::read_binary<float32_t>(input);
 			aei1[ind].y = sr::data::read_binary<float32_t>(input);
 			aei1[ind].z = sr::data::read_binary<float32_t>(input);
@@ -130,7 +126,7 @@ namespace interp
 		t0 = t1;
 		rel_t = 0;
 
-		t1 = sr::data::read_binary<float64_t>(input) * 365.24;
+		t1 = sr::data::read_binary<float64_t>(input);
 
 		if (!input)
 		{
@@ -145,7 +141,7 @@ namespace interp
 
 		// find the closest number of timesteps available and use that as the real timestep
 		// user_dt is the "suggestion"
-		n_ts = static_cast<size_t>(std::round(dt / user_dt));
+		n_ts = std::max<size_t>(1, static_cast<size_t>(std::round(dt / user_dt)));
 		eff_dt = dt / static_cast<double>(n_ts);
 
 		sr::data::skip_binary(input, 32 - 8 - 4);
@@ -164,7 +160,7 @@ namespace interp
 				ind = idmap[id];
 			}
 
-			pl.m()[ind] = sr::data::read_binary<float32_t>(input) / 365.24 / 365.24;
+			pl.m()[ind] = sr::data::read_binary<float32_t>(input);
 			aei1[ind].x = sr::data::read_binary<float32_t>(input);
 			aei1[ind].y = sr::data::read_binary<float32_t>(input);
 			aei1[ind].z = sr::data::read_binary<float32_t>(input);
@@ -190,10 +186,6 @@ namespace interp
 
 			// std::cout << ind << " predicted orbital period: " << 2 * M_PI / mmfreq[ind] << std::endl;
 			// std::cout << ind << " freq: " << mmfreq[ind] << std::endl;
-
-
-			// mmfreq thinks time is in years so convert to days
-			mmfreq[ind] /= 365.24;
 
 			double cmfin = oom0[ind].z + mmfreq[ind] * dt;
 			cmfin = std::fmod(cmfin, 2 * M_PI);

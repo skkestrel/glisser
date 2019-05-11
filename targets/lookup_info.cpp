@@ -35,11 +35,18 @@ int main(int argc, char** argv)
 		sr::interp::Interpolator interp(config, hd.planets, args["<file>"].asString());
 
 		size_t i = 0;
-		while (true)
+		std::cout << interp.t1 << std::endl;
+		try
 		{
-			if (i++ % 10000 == 0) std::cout << "\r" << interp.t1 << "                 ";
-			interp.next(hd.planets);
+			while (true)
+			{
+				if (i++ % 10000 == 0) std::cout << "\r" << interp.t1 << "                 ";
+				interp.next(hd.planets);
+			}
 		}
+		catch (sr::interp::EOSError& e) { }
+
+		std::cout << "\r" << interp.t1 << std::endl;
 	}
 	catch (std::runtime_error& e)
 	{
