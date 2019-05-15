@@ -13,22 +13,23 @@ namespace interp
 		: input(file, std::ios_base::binary)
 	{
 		cur_ts = 0;
-
 		user_dt = config.dt;
+
+		pl = sr::data::HostPlanetPhaseSpace(config.interp_maxpl, config.tbsize);
 
 		pl.m()[0] = sr::data::read_binary<float64_t>(input);
 		sr::data::skip_binary(input, 32 - 8);
 
-#warning TODO how to do dynamic planet array sizing?
-		aei0 = aei1 = oom0 = oom1 = aei_m1 = oom_m1 = daei = doom = Vf64_3(pl.n());
-		mmfreq = std::vector<double>(pl.n());
+		aei0 = aei1 = oom0 = oom1 = aei_m1 = oom_m1 = daei = doom = aei_i = oom_i = Vf64_3(pl.n());
+
+		t0 = std::numeric_limits<double>::infinity();
 
 		t1 = sr::data::read_binary<float64_t>(input);
-		t0 = std::numeric_limits<double>::infinity();
 		t_m1 = std::numeric_limits<double>::quiet_NaN();
+		npl1 = sr::data::read_binary<uint32_t>(input) + 1;
 
-		pl.n_alive() = sr::data::read_binary<uint32_t>(input) + 1;
-		pl.n_alive_old() = pl.n_alive();
+		pl.n_alive() = npl1;
+		pl.n_alive_old() = npl1;
 
 		sr::data::skip_binary(input, 32 - 8 - 4);
 
@@ -39,7 +40,7 @@ namespace interp
 
 		idmap[0] = 0;
 
-		for (size_t i = 1; i < pl.n_alive(); i++)
+		for (size_t i = 1; i < npl1; i++)
 		{
 			uint32_t id = sr::data::read_binary<uint32_t>(input);
 			size_t ind;
@@ -77,6 +78,11 @@ namespace interp
 
 	void Interpolator::fill(sr::data::HostPlanetPhaseSpace& pl, size_t nstep, double relative_t, double dt)
 	{
+		pl.n_alive_old() = pl.n_alive();
+
+		// our n_alive doesn't include the sun
+		pl.n_alive() = n_alive + 1;
+
 		// the first timestep starts at t + dt
 		relative_t += dt;
 
@@ -91,18 +97,19 @@ namespace interp
 
 			pl.r()[0] = f64_3(0);
 			pl.v()[0] = f64_3(0);
-			for (size_t j = 1; j < pl.n_alive(); j++)
+			for (size_t j = 0; j < n_alive; j++)
 			{
-				f64_3 aei = aei0[j] + daei[j] * relative_t;
-				f64_3 oom = oom0[j] + doom[j] * relative_t;
+				f64_3 aei = aei_i[j] + daei[j] * relative_t;
+				f64_3 oom = oom_i[j] + doom[j] * relative_t;
 				double gm = pl.m()[j] + pl.m()[0];
 
 				f64_3 r, v;
 
 				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
 
-				pl.r()[j] = r;
-				pl.v()[j] = v;
+				// offset for the sun
+				pl.r()[j + 1] = r;
+				pl.v()[j + 1] = v;
 			}
 
 			std::copy(pl.r().begin() + 1, pl.r().begin() + pl.n_alive(), pl.r_log().old.begin() + (pl.n_alive() - 1) * i);
@@ -121,6 +128,7 @@ namespace interp
 		oom_m1 = oom0;
 		t_m1 = t0;
 
+		npl0 = npl1;
 		aei0 = aei1;
 		oom0 = oom1;
 		t0 = t1;
@@ -133,9 +141,7 @@ namespace interp
 			throw EOSError();
 		}
 
-		pl.n_alive_old() = pl.n_alive();
-		pl.n_alive() = sr::data::read_binary<uint32_t>(input) + 1;
-
+		npl1 = sr::data::read_binary<uint32_t>(input) + 1;
 
 		double dt = t1 - t0;
 
@@ -146,7 +152,15 @@ namespace interp
 
 		sr::data::skip_binary(input, 32 - 8 - 4);
 
-		for (size_t i = 1; i < pl.n_alive(); i++)
+		for (size_t i = 1; i < pl.n(); i++)
+		{
+			// initialize with nans so we know which entries are empty
+			aei1[ind] = f64_3(std::numeric_limits<double>::quiet_nan());
+			oom1[ind] = f64_3(std::numeric_limits<double>::quiet_nan());
+		}
+
+		size_t interval_planet_index = 0;
+		for (size_t i = 1; i < npl1; i++)
 		{
 			uint32_t id = sr::data::read_binary<uint32_t>(input);
 			size_t ind;
@@ -168,26 +182,40 @@ namespace interp
 			oom1[ind].y = sr::data::read_binary<float32_t>(input);
 			oom1[ind].z = sr::data::read_binary<float32_t>(input);
 
-			daei[ind] = (aei1[ind] - aei0[ind]) / dt;
+			// if there was no entry for the planet at the beginning of the interval, skip
+			if (std::isnan(aei0[ind].x))
+			{
+				continue;
+			}
 
-			doom[ind] = oom1[ind] - oom0[ind];
-			if (doom[ind].x > M_PI) doom[ind].x -= 2 * M_PI;
-			else if (doom[ind].x < -M_PI) doom[ind].x += 2 * M_PI;
+			// interval_planet_index keeps track of the array index of the planets that are alive
+			// THROUGHOUT the current interval - that is, the planet must be alive both at the beginning
+			// and end of the interval
+			// we use the THROUGHOUT-ALIVE particles to fill in planet history later
+			id[interval_planet_index] = id;
+			aei_i[interval_planet_index] = aei0[ind];
+			oom_i[interval_planet_index] = oom0[ind];
 
-			if (doom[ind].y > M_PI) doom[ind].y -= 2 * M_PI;
-			else if (doom[ind].x < -M_PI) doom[ind].y += 2 * M_PI;
+			daei[interval_planet_index] = (aei1[ind] - aei0[ind]) / dt;
 
-			doom[ind] /= dt;
+			doom[interval_planet_index] = oom1[ind] - oom0[ind];
+			if (doom[interval_planet_index].x > M_PI) doom[interval_planet_index].x -= 2 * M_PI;
+			else if (doom[interval_planet_index].x < -M_PI) doom[interval_planet_index].x += 2 * M_PI;
+
+			if (doom[interval_planet_index].y > M_PI) doom[interval_planet_index].y -= 2 * M_PI;
+			else if (doom[interval_planet_index].x < -M_PI) doom[interval_planet_index].y += 2 * M_PI;
+
+			doom[interval_planet_index] /= dt;
 
 			// guess the mean motion frequency, a must be in AU and t in 
 
-			mmfreq[ind] = 2 * M_PI * std::sqrt(1 + pl.m()[ind] / pl.m()[0])
+			double mmfreq = 2 * M_PI * std::sqrt(1 + pl.m()[ind] / pl.m()[0])
 				* (std::pow(aei0[ind].x, -1.5) + std::pow(aei1[ind].x, -1.5)) / 2;
 
-			// std::cout << ind << " predicted orbital period: " << 2 * M_PI / mmfreq[ind] << std::endl;
-			// std::cout << ind << " freq: " << mmfreq[ind] << std::endl;
+			// std::cout << ind << " predicted orbital period: " << 2 * M_PI / mmfreq << std::endl;
+			// std::cout << ind << " freq: " << mmfreq << std::endl;
 
-			double cmfin = oom0[ind].z + mmfreq[ind] * dt;
+			double cmfin = oom0[ind].z + mmfreq * dt;
 			cmfin = std::fmod(cmfin, 2 * M_PI);
 			double corr = oom1[ind].z - cmfin;
 			if (corr > M_PI) corr -= 2 * M_PI;
@@ -197,15 +225,14 @@ namespace interp
 
 			// std::cout << ind << " correction: " << corr/dt << std::endl;
 
-			mmfreq[ind] += corr / dt;
+			mmfreq += corr / dt;
 
-			doom[ind].z = mmfreq[ind];
+			doom[interval_planet_index].z = mmfreq;
+
+			interval_planet_index++;
 		}
 
-		if (!input)
-		{
-			throw EOSError();
-		}
+		n_alive = interval_planet_index;
 	}
 }
 }

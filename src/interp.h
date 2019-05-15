@@ -35,14 +35,17 @@ namespace interp
 		Vf64_3 aei0, aei1, aei_m1;
 		Vf64_3 oom0, oom1, oom_m1;
 		float64_t t0, t1, t_m1;
+		size_t npl0, npl1;
 
 		private:
 		std::ifstream input;
 		Vf64_3 daei, doom;
+		size_t n_alive;
+		Vf64_3 aei_i, oom_i;
+		Vu32 ids;
 
 		double user_dt;
 
-		std::vector<double> mmfreq;
 		std::unordered_map<uint32_t, size_t> idmap;
 	};
 

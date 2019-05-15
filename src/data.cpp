@@ -159,6 +159,7 @@ namespace data
 		write_bary_track = false;
 		encounter_sphere_factor = 0;
 		cull_radius = 0.5;
+		interp_maxpl = 16;
 
 		outer_radius = 200;
 		resync_every = 1;
@@ -248,6 +249,8 @@ namespace data
 					out->resync_every = std::stou(second);
 				else if (first == "Read-Planet-History")
 					out->interp_planets = std::stoi(second) != 0;
+				else if (first == "Planet-History-Max-Planet-Count")
+					out->interp_maxpl = std::stou(second);
 				else if (first == "Planet-History-File")
 					out->planet_history_file = second;
 				else if (first == "Swift-Path")
@@ -260,7 +263,7 @@ namespace data
 					out->swift_hist_every = std::stou(second);
 				else if (first == "Swift-Process-Count")
 					out->num_swift = std::stou(second);
-				else if (first == "Swift-Process-Min-Particles")
+				else if (first == "Swift-Process-Min-Particle-Count")
 					out->swift_part_min = std::stou(second);
 				else if (first == "Swift-Status-Length")
 					out->swift_statlen = std::stou(second);
@@ -370,9 +373,10 @@ namespace data
 		outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
 		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
 		outstream << "Read-Planet-History " << out.interp_planets << std::endl;
+		outstream << "Planet-History-Max-Planet-Count " << out.interp_maxpl << std::endl;
 		outstream << "Swift-History-Interval " << out.swift_hist_every << std::endl;
 		outstream << "Swift-Process-Count " << out.num_swift << std::endl;
-		outstream << "Swift-Process-Min-Particles" << out.swift_part_min << std::endl;
+		outstream << "Swift-Process-Min-Particle-Count " << out.swift_part_min << std::endl;
 		outstream << "Swift-Status-Length " << out.swift_statlen << std::endl;
 		outstream << "Planet-History-File " << out.planet_history_file << std::endl;
 	}

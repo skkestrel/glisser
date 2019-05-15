@@ -95,7 +95,7 @@ namespace data
 		/** The number of planets that this snapshot contains. */
 		size_t n;
 
-		/** The number of alive planets that this snapshot contains. Currently is equivalent to `n`. */
+		/** The number of alive planets that this snapshot contains. */
 		size_t n_alive;
 
 		/**
@@ -382,6 +382,7 @@ namespace data
 		uint32_t swift_statlen;
 		bool write_bary_track;
 		bool interp_planets;
+		uint32_t interp_maxpl;
 		std:: string planet_history_file;
 
 		double cull_radius;
