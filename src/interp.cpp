@@ -21,6 +21,7 @@ namespace interp
 		sr::data::skip_binary(input, 32 - 8);
 
 		aei0 = aei1 = oom0 = oom1 = aei_m1 = oom_m1 = daei = doom = aei_i = oom_i = Vf64_3(pl.n());
+		ids = Vu32(pl.n());
 
 		t0 = std::numeric_limits<double>::infinity();
 
@@ -86,7 +87,11 @@ namespace interp
 		// the first timestep starts at t + dt
 		relative_t += dt;
 
-#warning TODO need to handle the case where planets disappear - need to be smart about array indices
+		for (size_t j = 0; j < n_alive; j++)
+		{
+			pl.id()[j + 1] = ids[j];
+		}
+
 		// currently cannot handle planets changing, and cannot handle planet indices switching around
 		for (size_t i = 0; i < nstep; i++)
 		{
@@ -155,8 +160,8 @@ namespace interp
 		for (size_t i = 1; i < pl.n(); i++)
 		{
 			// initialize with nans so we know which entries are empty
-			aei1[ind] = f64_3(std::numeric_limits<double>::quiet_nan());
-			oom1[ind] = f64_3(std::numeric_limits<double>::quiet_nan());
+			aei1[i] = f64_3(std::numeric_limits<double>::quiet_NaN());
+			oom1[i] = f64_3(std::numeric_limits<double>::quiet_NaN());
 		}
 
 		size_t interval_planet_index = 0;
@@ -192,7 +197,7 @@ namespace interp
 			// THROUGHOUT the current interval - that is, the planet must be alive both at the beginning
 			// and end of the interval
 			// we use the THROUGHOUT-ALIVE particles to fill in planet history later
-			id[interval_planet_index] = id;
+			ids[interval_planet_index] = id;
 			aei_i[interval_planet_index] = aei0[ind];
 			oom_i[interval_planet_index] = oom0[ind];
 

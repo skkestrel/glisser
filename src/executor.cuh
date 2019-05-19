@@ -36,7 +36,6 @@ namespace exec
 		cudaEvent_t start_event, cpu_finish_event, gpu_finish_event;
 
 		float64_t t;
-		float64_t prev_t;
 
 		float64_t e_0;
 
@@ -52,7 +51,7 @@ namespace exec
 		std::ostream* encounter_output;
 
 		size_t resync_counter;
-		bool ending_lookup_interval;
+		bool starting_lookup_interval;
 
 		const Configuration& config;
 

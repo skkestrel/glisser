@@ -332,6 +332,9 @@ int main(int argc, char** argv)
 	ex.finish();
 	ex.download_data();
 
+	// save last time into the history
+	sr::data::save_swift_plhist(swifthistout, ex.hd.planets_snapshot, ex.t);
+
 	tout << "Saving to disk." << std::endl;
 	save_data(hd.planets_snapshot, hd.particles, config, sr::util::joinpath(config.outfolder, "state.out"));
 

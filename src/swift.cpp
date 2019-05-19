@@ -27,6 +27,8 @@ namespace swift
 			throw std::runtime_error(".");
 		}
 
+		std::string datapath = sr::util::joinpath(config.outfolder, "swift_data");
+		sr::util::make_dir(datapath);
 		std::string swift_basename;
 
 		{
@@ -48,11 +50,8 @@ namespace swift
 		size_t num_proc = std::min(n_encounter / config.swift_part_min, static_cast<size_t>(config.num_swift));
 		if (num_proc == 0) num_proc = 1;
 
-
-		std::string mypid = std::to_string(::getpid());
-
-		std::string history_path = "/tmp/glisse/" + mypid + "hist";
-		std::string pl_path = "/tmp/glisse/" + mypid + "pl";
+		std::string history_path = sr::util::joinpath(datapath, "hist");
+		std::string pl_path = sr::util::joinpath(datapath, "pl");
 
 		write_planetary_history(pl, interp, history_path, old);
 		write_pl_in(pl, pl_path);
@@ -62,10 +61,9 @@ namespace swift
 			size_t chunk_begin = encounter_start + n_encounter * i / num_proc;
 			size_t chunk_end = encounter_start + n_encounter * (i + 1) / num_proc;
 
-			sr::util::make_dir("/tmp/glisse");
-
-			std::string param_path = "/tmp/glisse/" + mypid + "param" + std::to_string(i);
-			std::string tp_path = "/tmp/glisse/" + mypid + "tp" + std::to_string(i);
+			std::string param_path = sr::util::joinpath(datapath, "param" + std::to_string(i));
+			std::string tp_path = sr::util::joinpath(datapath, "tp" + std::to_string(i));
+			std::string tpout_path = sr::util::joinpath(datapath, "tpout" + std::to_string(i));
 
 			write_param_in(param_path);
 			write_tp_in(pa, chunk_begin, chunk_end, tp_path);
@@ -90,15 +88,10 @@ namespace swift
 				::close(pipefd[1]);
 				::close(pipefd[0]);
 
-				mypid = std::to_string(::getpid());
-
-				std::string tpout_path = "/tmp/glisse/" + mypid + "tp" + std::to_string(i);
-
 				::execl(config.swift_path.c_str(), swift_basename.c_str(), param_path.c_str(), history_path.c_str(), tp_path.c_str(), tpout_path.c_str(), nullptr);
 				::exit(-1);
 			}
 
-			std::string tpout_path = "/tmp/glisse/" + pid + "tp" + std::to_string(i);
 
 			// parent process
 			::close(pipefd[1]);
@@ -122,7 +115,8 @@ namespace swift
 			__gnu_cxx::stdio_filebuf<char> filebuf(child.piper, std::ios::in);
 			std::istream is(&filebuf);
 
-			std::cout << std::string(std::istreambuf_iterator<char>(is), {}) << std::endl;
+			std::cout << "encounter for (" << prev_tbsize << ", " << cur_tbsize << ")" << std::endl;
+			// std::cout << std::string(std::istreambuf_iterator<char>(is), {}) << std::endl;
 
 			if (WEXITSTATUS(status) != 0)
 			{

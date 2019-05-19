@@ -121,8 +121,8 @@ done: ;
 				const f64_3* h0_log,
 				const f64_3* r_log,
 				const float64_t* m,
+				const uint32_t* pl_id,
 				const float64_t* rh,
-				const float64_t* pl_id,
 				double outer_radius,
 				float64_t dt,
 				float64_t mu)

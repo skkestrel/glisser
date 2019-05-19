@@ -178,6 +178,7 @@ namespace exec
 		if (hd.particles.n() > 0)
 		{
 			upload_data(0, hd.particles.n());
+			dd.particle_phase_space().n_alive = hd.particles.n_alive();
 		}
 
 		// download data right after uploading -
@@ -206,7 +207,6 @@ namespace exec
 
 	void Executor::update_planets()
 	{
-		prev_t = t;
 		prev_dt = cur_dt;
 		prev_tbsize = cur_tbsize;
 
@@ -231,11 +231,16 @@ namespace exec
 
 				// now we mark that we just stepped forward in the interpolator - resync uses this
 				// to figure out whether to do the "ending encounter resolution" on swift
-				ending_lookup_interval = true;
+				starting_lookup_interval = true;
+			}
+			// this is for the singular case at the very start of the integration, cur_ts is set to 0
+			else if (interpolator.cur_ts == 0)
+			{
+				starting_lookup_interval = true;
 			}
 			else
 			{
-				ending_lookup_interval = false;
+				starting_lookup_interval = false;
 			}
 
 			// select dt
@@ -261,7 +266,10 @@ namespace exec
 
 			// make sure that we haven't overrun the lookup interval
 			assert_true(interpolator.cur_ts <= interpolator.n_ts, "sanity check fialed - interpolator cur_ts is in an illegal position");
+
+			std::cout << "tbsize = " << cur_tbsize << ", curstep = " << interpolator.cur_ts << "/" << interpolator.n_ts << ", prevstep = " << prev_tbsize << std::endl;
 		}
+
 		else
 		{
 			cur_dt = config.dt;
@@ -287,7 +295,6 @@ namespace exec
 	void Executor::upload_data(size_t begin, size_t length)
 	{
 		auto& particles = dd.particle_phase_space();
-		particles.n_alive = hd.particles.n_alive();
 		integrator.upload_data_cuda(htd_stream, begin, length);
 
 		memcpy_htd(particles.r, hd.particles.r(), htd_stream, begin, begin, length);
@@ -324,7 +331,8 @@ namespace exec
 		memcpy_dth(hd.particles.deathflags(), particles.deathflags, dth_stream, 0, 0, particles.n_total);
 		cudaStreamSynchronize(dth_stream);
 
-		hd.particles.n_alive() = dd.particle_phase_space().n_alive;
+		// host n_alive includes encounter particles, but not the device n_alive
+		hd.particles.n_alive() = dd.particle_phase_space().n_alive + hd.particles.n_encounter();
 	}
 
 	void Executor::upload_planet_log()
@@ -356,12 +364,15 @@ namespace exec
 
 	void Executor::handle_encounters(bool called_from_resync)
 	{
+		std::cout << "encounter start, hd n = " << hd.particles.n_alive() << ", dd = " << dd.particle_phase_space().n_alive << std::endl;
+
 		size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
 
 		// if at the beginning of a lookup interval, don't integrate the previous chunk
+		// IGNORE IF CALLED_FROM_RESYNC
 		// prev_len = 0 means the previous chunk isn't integrated
 		size_t prev_len = prev_tbsize;
-		if (interpolator.cur_ts == interpolator.n_ts || interpolator.cur_ts == 0)
+		if (starting_lookup_interval && !called_from_resync)
 		{
 			prev_len = 0;
 		}
@@ -378,18 +389,13 @@ namespace exec
 		// already, so we need to use prev_dt
 		double which_dt = called_from_resync ? prev_dt : cur_dt;
 
-		// if called from resync, update_planets will also have updated t, so roll back t to the beginning of the lookup interval
-		double which_t = called_from_resync ? prev_t : t;
-		// sanity check! these should all be equal
-
 		if (called_from_resync)
 		{
-			assert_true(std::abs(interpolator.t0 - (t - cur_dt * static_cast<double>(cur_tbsize))) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback");
-			assert_true(std::abs(interpolator.t0 - prev_t) < 1e-2, "sanity check failed: end-of-chunk encounter time rollback 2");
+			assert_true(std::abs(interpolator.t0 - t) < 1e-2, "sanity check failed: end-of-chunk encounter time");
 		}
 
 		// do the thing
-		sr::swift::SwiftEncounterIntegrator enc(config, which_t, which_dt, prev_len, cur_len);
+		sr::swift::SwiftEncounterIntegrator enc(config, t, which_dt, prev_len, cur_len);
 
 		enc.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync);
 		
@@ -416,18 +422,20 @@ namespace exec
 			hd.particles,
 			encounter_start,
 			hd.particles.n_encounter(),
-			which_t + static_cast<double>(cur_len) * which_dt,
+			t + static_cast<double>(cur_len) * which_dt,
 			which_timestep_index,
 			called_from_resync // use the old log if called from resync, otherwise use the new log
 		);
 			
 		// upload the changes to the GPU
-		// no need to sort the particles here, we can just do that in resync
-
+		// no need to sort the particles here, resync will do all the sorting
 		upload_data(encounter_start, hd.particles.n_encounter());
 
 		// set n_alive so that the resync function knows to deal with the particles that we just added back
+		// TODO this messes up the particle count
 		dd.particles.n_alive = hd.particles.n_alive();
+
+		std::cout << "encounter end, hd n = " << hd.particles.n_alive() << ", dd = " << dd.particle_phase_space().n_alive << std::endl;
 	}
 
 	void Executor::loop(double* cputimeout, double* gputimeout)
@@ -535,6 +543,8 @@ namespace exec
 
 	void Executor::resync2()
 	{
+		std::cout << "resync begin, hd n = " << hd.particles.n_alive() << ", dd = " << dd.particle_phase_space().n_alive << std::endl;
+
 		// this is a simplified version of the resync algorithm which reads the entire particle arrays, this
 		// means that the algorithm doesn't need to match particle ids when reading
 
@@ -555,7 +565,7 @@ namespace exec
 
 			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
 					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
-
+			
 			// the second partition for encounter particles only needs to run between n_alive and prev_alive, since all the alive particles
 			// will be pushed to the beginning anyways
 			hd.particles.n_encounter() = (thrust::stable_partition(thrust::cuda::par.on(main_stream),
@@ -568,13 +578,14 @@ namespace exec
 					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
 		}
 
-		// copy everything back
+		// copy everything back - n_alive is also copied from device to host
 		download_data();
 
-		// set the deathtime for dead particles (encounter particles are fine too)
+		// set the deathtime for dead particles - let's set the encounter particles deathtimes too, just to show when they entered encounter
+		// here t refers to the ending time of the timechunk
 		for (size_t i = particles.n_alive; i < prev_alive; i++)
 		{
-			hd.particles.deathtime()[i] = static_cast<float>(prev_t);
+			hd.particles.deathtime()[i] = static_cast<float>(t);
 		}
 
 		// for encounter particles, use the rollback data
@@ -586,10 +597,19 @@ namespace exec
 			cudaStreamSynchronize(dth_stream);
 		}
 
-		// add back encounter particles, since dd.n_alive doesn't include encounter but hd.n_alive does
-		hd.particles.n_alive() += hd.particles.n_encounter();
+		// handle particles that just entered encounter, and partition again
+		if (starting_lookup_interval && hd.particles.n_encounter() > 0)
+		{
+			handle_encounters(true);
 
-		// done!
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
+
+			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
+					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+			
+			hd.particles.n_encounter() = (thrust::stable_partition(thrust::cuda::par.on(main_stream),
+					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
+		}
 	}
 
 	void Executor::resync()
@@ -792,7 +812,10 @@ namespace exec
 		// if the last timechunk of a lookup interval was reached, finish the encounters: run swift NOW!
 		// this allows everything to be up-to-date at the end of a lookup-interval, this makes it safe to 
 		// write particle histories
-		if (ending_lookup_interval && hd.particles.n_encounter() > 0)
+
+		// starting_lookup_interval refers to the timechunk right after this, so if the next timechunk is starting,
+		// this one is ending
+		if (starting_lookup_interval && hd.particles.n_encounter() > 0)
 		{
 			handle_encounters(true);
 		}
