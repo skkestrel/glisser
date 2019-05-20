@@ -191,6 +191,8 @@ namespace swift
 				// particle is dead
 				if (istat[0][statindex] == 1)
 				{
+					// std::cout << "die" << std::endl;
+
 					if (istat[1][statindex] == -1)
 					{
 						deathflags = 0x04;
@@ -232,6 +234,7 @@ namespace swift
 					}
 					else
 					{
+						// std::cout << "reinserting particle " << id << std::endl;
 						// clear flags
 						deathflags = 0;
 					}
@@ -241,9 +244,7 @@ namespace swift
 			}
 		}
 
-		
-		
-		// TODO read particle data and insert back into pa
+		_children.clear();
 	}
 
 	void SwiftEncounterIntegrator::write_param_in(std::string dest) const
@@ -295,7 +296,9 @@ namespace swift
 			planet_id_list = interp.reduced_ids_old;
 
 			size_t npl = pl.n_alive_old();
-			ASSERT(interp.n_alive_old == pl.n_alive_old(), "")
+
+			// interp n_alive doesn't include the sun
+			ASSERT(interp.n_alive_old + 1 == pl.n_alive_old(), "")
 
 			sr::data::write_binary(file, static_cast<double>(0));
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
@@ -334,7 +337,7 @@ namespace swift
 			planet_id_list = interp.reduced_ids;
 
 			size_t npl = pl.n_alive();
-			ASSERT(interp.n_alive == pl.n_alive(), "")
+			ASSERT(interp.n_alive + 1 == pl.n_alive(), "")
 
 			sr::data::write_binary(file, static_cast<double>(0));
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));

@@ -386,6 +386,7 @@ namespace exec
 			ASSERT(std::abs(interpolator.t0 - t) < 1e-2, "sanity check failed: end-of-chunk encounter time")
 		}
 
+		// std::cout << "handling encounters (" << called_from_resync << "), n encounter = " << hd.particles.n_encounter() << std::endl;
 
 		swift.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync, t, which_dt, prev_len, cur_len);
 		
@@ -423,6 +424,10 @@ namespace exec
 
 		// set n_alive so that the resync function knows to deal with the particles that we just added back
 		dd.particles.n_alive = hd.particles.n_alive();
+
+		download_data();
+
+		// for (int i = 0; i < hd.particles.n(); i++) { if ((hd.particles.deathflags()[i] != 0)) std::cout << "particle " << i << " " << hd.particles.id()[i] << "tagged " << hd.particles.deathflags()[i] << std::endl; }
 	}
 
 	bool Executor::loop(double* cputimeout, double* gputimeout)
@@ -540,6 +545,8 @@ namespace exec
 		auto& particles = dd.particle_phase_space();
 		size_t prev_alive = particles.n_alive;
 
+		// std::cout << "resyncing " << particles.n_alive;
+
 		// kill particles in encounters
 		if (!config.resolve_encounters)
 		{
@@ -552,6 +559,7 @@ namespace exec
 		{
 			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
 
+			// std::cout << ", n_alive = " << particles.n_alive;
 			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
 					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
 			
@@ -559,6 +567,7 @@ namespace exec
 			// will be pushed to the beginning anyways
 			hd.particles.n_encounter() = (thrust::stable_partition(thrust::cuda::par.on(main_stream),
 					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
+			// std::cout << ", n_encounter = " << hd.particles.n_encounter() << std::endl;
 		}
 		else
 		{
@@ -575,6 +584,11 @@ namespace exec
 		for (size_t i = particles.n_alive; i < prev_alive; i++)
 		{
 			hd.particles.deathtime()[i] = static_cast<float>(t);
+
+			if (hd.particles.deathflags()[i] & 0x04) 
+			{
+				output << "warning - particle " << hd.particles.id()[i] << " did not converge on GPU" << std::endl;
+			}
 		}
 
 		// for encounter particles, use the rollback data
@@ -598,6 +612,8 @@ namespace exec
 			
 			hd.particles.n_encounter() = (thrust::stable_partition(thrust::cuda::par.on(main_stream),
 					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
+
+			download_data();
 		}
 	}
 
