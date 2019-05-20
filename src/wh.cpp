@@ -535,10 +535,7 @@ namespace wh
 		// use the old log since we copied planet locations into the old log above
 		helio_acc_particles<true>(pl, pa, 0, pa.n_alive(), 0, 0);
 
-		// If there are any encounters at the start of the integration,
-		// the CPU will only pick them up after the GPU finishes
-		// its first timeblock so we need to populate
-		// the encounter continuation context
+		// detect initial encounters
 		for (size_t i = 0; i < pa.n_alive(); i++)
 		{
 			for (size_t j = 0; j < pl.n_alive(); j++)

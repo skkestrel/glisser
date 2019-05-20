@@ -1,6 +1,7 @@
 #include "data.cuh"
 #include "data.h"
 #include "wh.cuh"
+#include "swift.h"
 #include "interp.h"
 #include <ctime>
 #include <chrono>
@@ -30,6 +31,7 @@ namespace exec
 		HostData& hd;
 		DeviceData& dd;
 		sr::wh::WHCudaIntegrator integrator;
+		sr::swift::SwiftEncounterIntegrator swift;
 		sr::interp::Interpolator interpolator;
 
 		cudaStream_t main_stream, dth_stream, htd_stream, par_stream;
@@ -69,7 +71,7 @@ namespace exec
 
 
 		double time() const;
-		void loop(double* cputime, double* gputime);
+		bool loop(double* cputime, double* gputime);
 		void handle_encounters(bool do_work);
 		void add_job(const std::function<void()>& job);
 		void resync();
@@ -77,7 +79,6 @@ namespace exec
 		void finish();
 		void swap_logs();
 		void update_planets();
-		void assert_true(bool cond, std::string msg);
 	};
 }
 }

@@ -166,7 +166,6 @@ namespace data
 		swift_hist_every = 0;
 		swift_statlen = 13;
 		print_every = 10;
-		energy_every = 1;
 		track_every = 0;
 		split_track_file = 0;
 		num_swift = 1;
@@ -255,8 +254,6 @@ namespace data
 					out->planet_history_file = second;
 				else if (first == "Swift-Path")
 					out->swift_path = second;
-				else if (first == "Status-Interval")
-					out->energy_every = std::stou(second);
 				else if (first == "Track-Interval")
 					out->track_every = std::stou(second);
 				else if (first == "Swift-History-Interval")
@@ -353,7 +350,6 @@ namespace data
 		outstream << "CPU-Thread-Count " << out.num_thread << std::endl;
 		outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 		outstream << "Log-Interval " << out.print_every << std::endl;
-		outstream << "Status-Interval " << out.energy_every << std::endl;
 		outstream << "Track-Interval " << out.track_every << std::endl;
 		outstream << "Resync-Interval " << out.resync_every << std::endl;
 		outstream << "Swift-Path " << out.swift_path << std::endl;

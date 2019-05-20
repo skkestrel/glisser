@@ -2,7 +2,14 @@
 #include <streambuf>
 #include <algorithm>
 #include <ostream>
+#include <stdexcept>
 #include <memory>
+
+#define _STR(X) #X
+#define STR(X) _STR(X)
+#define ASSERT(EXPR, MSG) if (!(EXPR)) { throw std::runtime_error("assertion failure: " #EXPR " at " __FILE__ ":" STR(__LINE__) "(" MSG ")"); }
+
+
 
 #if __cplusplus < 201404L
 namespace std

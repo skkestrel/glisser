@@ -32,17 +32,27 @@ namespace interp
 		// t - t0; this is needed because when t0 is very large, error in t - t0 accumulates extremely quickly
 		float64_t rel_t;
 
-		Vf64_3 aei0, aei1, aei_m1;
-		Vf64_3 oom0, oom1, oom_m1;
+		Vf64_3 aei0, aei1;
+		Vf64_3 oom0, oom1;
+		Vf64 m0, m1;
 		float64_t t0, t1, t_m1;
 		size_t npl0, npl1;
 
+
+		Vf64_3 reduced_daei, reduced_doom;
+
+		size_t n_alive;
+		size_t n_alive_old;
+
+		Vf64_3 reduced_aei_i, reduced_oom_i;
+		Vf64_3 reduced_aei_f, reduced_oom_f;
+		Vf64_3 reduced_aei_i_old, reduced_oom_i_old;
+		Vf64_3 reduced_aei_f_old, reduced_oom_f_old;
+		Vu32 reduced_ids, reduced_ids_old;
+		Vf64 reduced_m, reduced_m_old;
+
 		private:
 		std::ifstream input;
-		Vf64_3 daei, doom;
-		size_t n_alive;
-		Vf64_3 aei_i, oom_i;
-		Vu32 ids;
 
 		double user_dt;
 

@@ -20,13 +20,23 @@ namespace interp
 		pl.m()[0] = sr::data::read_binary<float64_t>(input);
 		sr::data::skip_binary(input, 32 - 8);
 
-		aei0 = aei1 = oom0 = oom1 = aei_m1 = oom_m1 = daei = doom = aei_i = oom_i = Vf64_3(pl.n());
-		ids = Vu32(pl.n());
+		aei0 = aei1 = oom0 = oom1 = Vf64_3(pl.n());
+		m0 = m1 = Vf64(pl.n());
+
+		// the reduced series of arrays holds data that is aligned - that is, aei_i and aei_f hold the SAME planets - they are gauranteed
+		// to be the same set of planets in the same order, unlike aei0 and aei1 which may hold different sets of planets
+		// i.e. the reduced sets are contain planets in the intersection of aei0 and aei1
+		reduced_m = reduced_m_old = Vf64(pl.n());
+		reduced_daei = reduced_doom = Vf64_3(pl.n());
+		reduced_aei_i = reduced_aei_f = reduced_aei_i_old = reduced_aei_f_old = Vf64_3(pl.n());
+		reduced_oom_i = reduced_oom_f = reduced_oom_i_old = reduced_oom_f_old = Vf64_3(pl.n());
+
+		reduced_ids = reduced_ids_old = Vu32(pl.n());
 
 		t0 = std::numeric_limits<double>::infinity();
-
 		t1 = sr::data::read_binary<float64_t>(input);
 		t_m1 = std::numeric_limits<double>::quiet_NaN();
+
 		npl1 = sr::data::read_binary<uint32_t>(input) + 1;
 
 		pl.n_alive() = npl1;
@@ -57,7 +67,7 @@ namespace interp
 				ind = idmap[id];
 			}
 
-			pl.m()[ind] = sr::data::read_binary<float32_t>(input);
+			m1[ind] = sr::data::read_binary<float32_t>(input);
 			aei1[ind].x = sr::data::read_binary<float32_t>(input);
 			aei1[ind].y = sr::data::read_binary<float32_t>(input);
 			aei1[ind].z = sr::data::read_binary<float32_t>(input);
@@ -66,10 +76,12 @@ namespace interp
 			oom1[ind].z = sr::data::read_binary<float32_t>(input);
 
 			f64_3 r, v;
-			sr::convert::from_elements_M(pl.m()[0] + pl.m()[ind], aei1[ind].x, aei1[ind].y, aei1[ind].z, oom1[ind].x, oom1[ind].y, oom1[ind].z, &r, &v);
+			sr::convert::from_elements_M(pl.m()[0] + m1[ind], aei1[ind].x, aei1[ind].y, aei1[ind].z, oom1[ind].x, oom1[ind].y, oom1[ind].z, &r, &v);
 
-			pl.r()[ind] = r;
-			pl.v()[ind] = v;
+			pl.r()[i] = r;
+			pl.v()[i] = v;
+			pl.id()[i] = id;
+			pl.m()[i] = m1[ind];
 		}
 		pl.r()[0] = f64_3(0);
 		pl.v()[0] = f64_3(0);
@@ -89,10 +101,10 @@ namespace interp
 
 		for (size_t j = 0; j < n_alive; j++)
 		{
-			pl.id()[j + 1] = ids[j];
+			pl.id()[j + 1] = reduced_ids[j];
+			pl.m()[j + 1] = reduced_m[j];
 		}
 
-		// currently cannot handle planets changing, and cannot handle planet indices switching around
 		for (size_t i = 0; i < nstep; i++)
 		{
 			if (relative_t > t1 - t0 + 1e-8)
@@ -104,9 +116,9 @@ namespace interp
 			pl.v()[0] = f64_3(0);
 			for (size_t j = 0; j < n_alive; j++)
 			{
-				f64_3 aei = aei_i[j] + daei[j] * relative_t;
-				f64_3 oom = oom_i[j] + doom[j] * relative_t;
-				double gm = pl.m()[j] + pl.m()[0];
+				f64_3 aei = reduced_aei_i[j] + reduced_daei[j] * relative_t;
+				f64_3 oom = reduced_oom_i[j] + reduced_doom[j] * relative_t;
+				double gm = reduced_m[j] + pl.m()[0];
 
 				f64_3 r, v;
 
@@ -129,15 +141,26 @@ namespace interp
 
 	void Interpolator::next(sr::data::HostPlanetPhaseSpace& pl)
 	{
-		aei_m1 = aei0;
-		oom_m1 = oom0;
 		t_m1 = t0;
 
+		m0 = m1;
 		npl0 = npl1;
 		aei0 = aei1;
 		oom0 = oom1;
 		t0 = t1;
 		rel_t = 0;
+
+		reduced_m_old = reduced_m;
+
+		reduced_aei_i_old = reduced_aei_i;
+		reduced_aei_f_old = reduced_aei_f;
+
+		reduced_oom_i_old = reduced_oom_i;
+		reduced_oom_f_old = reduced_oom_f;
+
+		reduced_ids_old = reduced_ids;
+
+		n_alive_old = n_alive;
 
 		t1 = sr::data::read_binary<float64_t>(input);
 
@@ -197,20 +220,26 @@ namespace interp
 			// THROUGHOUT the current interval - that is, the planet must be alive both at the beginning
 			// and end of the interval
 			// we use the THROUGHOUT-ALIVE particles to fill in planet history later
-			ids[interval_planet_index] = id;
-			aei_i[interval_planet_index] = aei0[ind];
-			oom_i[interval_planet_index] = oom0[ind];
+			reduced_ids[interval_planet_index] = id;
 
-			daei[interval_planet_index] = (aei1[ind] - aei0[ind]) / dt;
+			// the mass is the mass at the beginning of the interval
+			reduced_m[interval_planet_index] = m0[ind];
 
-			doom[interval_planet_index] = oom1[ind] - oom0[ind];
-			if (doom[interval_planet_index].x > M_PI) doom[interval_planet_index].x -= 2 * M_PI;
-			else if (doom[interval_planet_index].x < -M_PI) doom[interval_planet_index].x += 2 * M_PI;
+			reduced_aei_i[interval_planet_index] = aei0[ind];
+			reduced_oom_i[interval_planet_index] = oom0[ind];
+			reduced_aei_f[interval_planet_index] = aei1[ind];
+			reduced_oom_f[interval_planet_index] = oom1[ind];
 
-			if (doom[interval_planet_index].y > M_PI) doom[interval_planet_index].y -= 2 * M_PI;
-			else if (doom[interval_planet_index].x < -M_PI) doom[interval_planet_index].y += 2 * M_PI;
+			reduced_daei[interval_planet_index] = (aei1[ind] - aei0[ind]) / dt;
 
-			doom[interval_planet_index] /= dt;
+			reduced_doom[interval_planet_index] = oom1[ind] - oom0[ind];
+			if (reduced_doom[interval_planet_index].x > M_PI) reduced_doom[interval_planet_index].x -= 2 * M_PI;
+			else if (reduced_doom[interval_planet_index].x < -M_PI) reduced_doom[interval_planet_index].x += 2 * M_PI;
+
+			if (reduced_doom[interval_planet_index].y > M_PI) reduced_doom[interval_planet_index].y -= 2 * M_PI;
+			else if (reduced_doom[interval_planet_index].x < -M_PI) reduced_doom[interval_planet_index].y += 2 * M_PI;
+
+			reduced_doom[interval_planet_index] /= dt;
 
 			// guess the mean motion frequency, a must be in AU and t in 
 
@@ -228,11 +257,9 @@ namespace interp
 
 			// correct the frequency to match final mean motion
 
-			// std::cout << ind << " correction: " << corr/dt << std::endl;
-
 			mmfreq += corr / dt;
 
-			doom[interval_planet_index].z = mmfreq;
+			reduced_doom[interval_planet_index].z = mmfreq;
 
 			interval_planet_index++;
 		}

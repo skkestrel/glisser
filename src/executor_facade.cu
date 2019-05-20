@@ -38,9 +38,9 @@ namespace exec
 		return impl->time();
 	}
 
-	void ExecutorFacade::loop(double* cputimeout, double* gputimeout)
+	bool ExecutorFacade::loop(double* cputimeout, double* gputimeout)
 	{
-		impl->loop(cputimeout, gputimeout);
+		return impl->loop(cputimeout, gputimeout);
 	}
 
 	void ExecutorFacade::finish()

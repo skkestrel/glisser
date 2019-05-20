@@ -369,7 +369,7 @@ namespace data
 	{
 		double t_0, t_f, dt, big_g;
 		uint32_t num_thread;
-		uint32_t tbsize, print_every, dump_every, track_every, energy_every, max_particle;
+		uint32_t tbsize, print_every, dump_every, track_every, max_particle;
 
 		double encounter_sphere_factor;
 		uint32_t split_track_file;
