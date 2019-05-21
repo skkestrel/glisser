@@ -166,36 +166,30 @@ int main(int argc, char** argv)
 		while (ex.t < config.t_f)
 		{
 			double cputimeout, gputimeout;
-		       	ex.loop(&cputimeout, &gputimeout);
+
+			// if we are not in a safe time to output, skip everything
+		       	if (!ex.loop(&cputimeout, &gputimeout))
+			{
+				continue;
+			}
+
 			counter++;
 			ex.add_job([&timelog, &tout, &ex, &config, counter, cputimeout, gputimeout]()
 				{
-					bool output_energy = config.energy_every != 0 && (counter % config.energy_every == 0);
 					bool log_out = config.print_every != 0 && (counter % config.print_every == 0);
 
+					if (!log_out) return;
 
-					if (!log_out && !output_energy) return;
-
-					double e_;
-					f64_3 l_;
-					sr::wh::calculate_planet_metrics(ex.hd.planets, &e_, &l_);
 					double elapsed = ex.time();
 					double total = elapsed * (config.t_f - config.t_0) / (ex.t - config.t_0);
-
-					if (output_energy)
-					{
-						timelog << std::setprecision(13) << "time " << elapsed << " " << ex.t << " " << ex.hd.particles.n_alive() << " " << ex.hd.particles.n_encounter() << std::endl;
-						timelog << "ep " << e_ << std::endl;
-						timelog << "lp " << l_ << std::endl;
-					}
 
 					if (log_out)
 					{
 						tout << std::setprecision(4);
 						tout << "t=" << ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
 							<< total << "m total " << total - elapsed << "m remain)" << std::endl;
-						tout << "Error = " << (e_ - ex.e_0) / ex.e_0 * 100 << ", " <<
-							ex.hd.particles.n_alive() << " particles remaining, " << ex.hd.particles.n_encounter() << " in encounter" << std::endl;
+						tout << ex.hd.particles.n_alive() << " particles remaining, "
+							<< ex.hd.particles.n_encounter() << " in encounter" << std::endl;
 
 						tout << "GPU time: " << std::setprecision(4) << gputimeout << ", CPU time: " << cputimeout << " (ms)" << std::endl;
 					}
@@ -297,6 +291,8 @@ int main(int argc, char** argv)
 						{
 							ex.download_data();
 						}
+
+						// TODO dump on next 
 						sr::data::Configuration out_config = config.output_config();
 						out_config.t_f = config.t_f;
 						out_config.t_0 = ex.t;
@@ -316,6 +312,8 @@ int main(int argc, char** argv)
 			}
 
 		}
+
+		ex.finish();
 	}
 	catch (const std::exception& e)
 	{
@@ -325,11 +323,10 @@ int main(int argc, char** argv)
 
 		tout << "Exception caught: " << std::endl;
 		tout << e.what() << std::endl;
-		tout << "Recovering data." << std::endl;
+		tout << "End state may be corrupted. Resuming from a dump is recommended." << std::endl;
 		crashed = true;
 	}
 
-	ex.finish();
 	ex.download_data();
 
 	// save last time into the history

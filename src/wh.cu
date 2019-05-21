@@ -65,21 +65,24 @@ namespace wh
 #endif
 			}
 
-			flags = static_cast<uint16_t>(flags | ((fabs(delta) > TOLKEP) << 3));
+			flags = static_cast<uint16_t>((fabs(delta) > TOLKEP) << 2);
 #ifdef CUDA_KEPEQ_CHECK_CONVERGENCE
 done: ;
 #endif
 		}
 
 		__host__ __device__
-		static void drift(f64_3& r, f64_3& v, uint16_t& flags, double dt, double mu)
+		static void drift(float64_t& rx, float64_t& ry, float64_t& rz, float64_t& vx, float64_t& vy, float64_t& vz, uint16_t& flags, double dt, double mu)
 		{
+			f64_3 r = f64_3(rx, ry, rz);
+			f64_3 v = f64_3(vx, vy, vz);
+
 			float64_t dist = sqrt(r.lensq());
 			float64_t vdotr = v.x * r.x + v.y * r.y + v.z * r.z;
 
 			float64_t energy = v.lensq() * 0.5 - mu / dist;
 
-			flags = static_cast<uint16_t>(flags | ((energy >= 0) << 2));
+			flags = static_cast<uint16_t>((energy >= 0) << 3);
 
 			float64_t a = -0.5 * mu / energy;
 			float64_t n_ = sqrt(mu / (a * a * a));
@@ -107,6 +110,13 @@ done: ;
 			f64_3 r0 = r;
 			r = r0 * f + v * g;
 			v = r0 * fdot + v * gdot;
+
+			rx = r.x;
+			ry = r.y;
+			rz = r.z;
+			vx = v.x;
+			vy = v.y;
+			vz = v.z;
 		}
 
 		__host__ __device__
@@ -137,7 +147,7 @@ done: ;
 					// if step = 0, the acceleration is preloaded - this comes from 
 					v = v + a * (dt / 2);
 
-					drift(r, v, flags, dt, mu);
+					drift(r.x, r.y, r.z, v.x, v.y, v.z, flags, dt, mu);
 
 					a = h0_log[step];
 
@@ -150,8 +160,7 @@ done: ;
 
 						if (rad < rh[i] * rh[i] && flags == 0)
 						{
-							flags = flags & 0x00FF;
-							flags = static_cast<uint16_t>(flags | (pl_id[i] << 8) | 0x0001);
+							flags = static_cast<uint16_t>((pl_id[i] << 8) | 0x0001);
 						}
 
 						float64_t inv3 = 1. / (rad * sqrt(rad));
@@ -163,12 +172,11 @@ done: ;
 					float64_t rad = r.lensq();
 					if (rad < rh[0] * rh[0])
 					{
-						flags = flags & 0x00FF;
-						flags = flags | 0x0001;
+						flags = 0x0001;
 					}
 					if (rad > outer_radius * outer_radius)
 					{
-						flags = flags | 0x0002;
+						flags = 0x0002;
 					}
 
 

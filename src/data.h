@@ -173,6 +173,7 @@ namespace data
 		 *   Planet ID that killed the particle
 		 * Low byte:
 		 *   0x80 Particle absorbed by planet
+		 *   0x08 Unbound particle
 		 *   0x04 Kepler didn't converge
 		 *   0x02 Out of bounds
 		 *   0x01 Particle is in close encounter

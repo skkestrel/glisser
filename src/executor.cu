@@ -386,8 +386,6 @@ namespace exec
 			ASSERT(std::abs(interpolator.t0 - t) < 1e-2, "sanity check failed: end-of-chunk encounter time")
 		}
 
-		// std::cout << "handling encounters (" << called_from_resync << "), n encounter = " << hd.particles.n_encounter() << std::endl;
-
 		swift.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync, t, which_dt, prev_len, cur_len);
 		
 		// if this was called in the middle of loop, we do the work here while other processes are happening
@@ -426,8 +424,6 @@ namespace exec
 		dd.particles.n_alive = hd.particles.n_alive();
 
 		download_data();
-
-		// for (int i = 0; i < hd.particles.n(); i++) { if ((hd.particles.deathflags()[i] != 0)) std::cout << "particle " << i << " " << hd.particles.id()[i] << "tagged " << hd.particles.deathflags()[i] << std::endl; }
 	}
 
 	bool Executor::loop(double* cputimeout, double* gputimeout)
@@ -444,6 +440,8 @@ namespace exec
 		// it's possible that not all particles have reached the current t, since they might be about to be stepped forward on SWIFT all the way until
 		// t + cur_tbsize * dt
 		// t = the time at the start of the block that is about to be calculated
+
+		download_data();
 
 		std::clock_t c_start = std::clock();
 
@@ -468,6 +466,7 @@ namespace exec
 			// in order to integrate the particles on GPU, the particle accelerations must be set.
 			// typically the accelerations are set by the previous timeblock
 			// but in the case of the first timeblock, or when recovering from a close encounter, it needs to be set manually...
+
 			integrator.integrate_particles_timeblock_cuda(
 				main_stream,
 				dd.planet_data_id,
@@ -520,6 +519,8 @@ namespace exec
 			cudaStreamSynchronize(htd_stream);
 			cudaEventSynchronize(gpu_finish_event);
 
+			download_data();
+
 			float gputime;
 			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
 			if (gputimeout) *gputimeout = gputime;
@@ -545,8 +546,6 @@ namespace exec
 		auto& particles = dd.particle_phase_space();
 		size_t prev_alive = particles.n_alive;
 
-		// std::cout << "resyncing " << particles.n_alive;
-
 		// kill particles in encounters
 		if (!config.resolve_encounters)
 		{
@@ -559,7 +558,6 @@ namespace exec
 		{
 			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
 
-			// std::cout << ", n_alive = " << particles.n_alive;
 			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(main_stream),
 					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
 			
@@ -567,7 +565,6 @@ namespace exec
 			// will be pushed to the beginning anyways
 			hd.particles.n_encounter() = (thrust::stable_partition(thrust::cuda::par.on(main_stream),
 					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
-			// std::cout << ", n_encounter = " << hd.particles.n_encounter() << std::endl;
 		}
 		else
 		{
@@ -594,9 +591,9 @@ namespace exec
 		// for encounter particles, use the rollback data
 		if (hd.particles.n_encounter() > 0)
 		{
-			memcpy_dth(hd.particles.r(), particles.r, dth_stream, 0, particles.n_alive, hd.particles.n_encounter());
+			memcpy_dth(hd.particles.r(), rollback_state.r, dth_stream, 0, particles.n_alive, hd.particles.n_encounter());
 			cudaStreamSynchronize(dth_stream);
-			memcpy_dth(hd.particles.v(), particles.v, dth_stream, 0, particles.n_alive, hd.particles.n_encounter());
+			memcpy_dth(hd.particles.v(), rollback_state.v, dth_stream, 0, particles.n_alive, hd.particles.n_encounter());
 			cudaStreamSynchronize(dth_stream);
 		}
 

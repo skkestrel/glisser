@@ -234,7 +234,6 @@ namespace swift
 					}
 					else
 					{
-						// std::cout << "reinserting particle " << id << std::endl;
 						// clear flags
 						deathflags = 0;
 					}
