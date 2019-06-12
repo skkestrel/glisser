@@ -79,13 +79,7 @@ namespace data
 	void HostParticlePhaseSpace::gather(const std::vector<size_t>& indices, size_t begin, size_t length)
 	{
 		base.gather(indices, begin, length);
-		sr::data::gather(deathtime(), indices, begin, length);
 		sr::data::gather(deathflags(), indices, begin, length);
-
-		if (deathtime_index().size() > 0)
-		{
-			sr::data::gather(deathtime_index(), indices, begin, length);
-		}
 	}
 
 	void HostParticlePhaseSpace::filter(const std::vector<size_t>& filter, HostParticlePhaseSpace& out) const
@@ -93,15 +87,15 @@ namespace data
 		base.filter(filter, out.base);
 		out._n_encounter = 0;
 		out._deathflags = std::vector<uint16_t>(out.base.n);
-		out._deathtime = std::vector<float>(out.base.n);
+		out._deathtime = Mu32f64();
 		out._deathtime_index = std::vector<uint32_t>(out.base.n);
 
 		size_t index = 0;
 
 		for (size_t i : filter)
 		{
+			out._deathtime[base.id[i]] = _deathtime.at(base.id[i]);
 			out._deathflags[index] = _deathflags[i];
-			out._deathtime[index] = _deathtime[i];
 			out._deathtime_index[index] = _deathtime_index[i];
 
 			index++;
@@ -406,7 +400,7 @@ namespace data
 
 		pa = HostParticlePhaseSpace(npart);
 
-		for (size_t i = 0; i < npart; i++)
+		for (uint32_t i = 0; i < npart; i++)
 		{
 			icsin >> pa.r()[i].x >> pa.r()[i].y >> pa.r()[i].z;
 			icsin >> pa.v()[i].x >> pa.v()[i].y >> pa.v()[i].z;
@@ -416,13 +410,13 @@ namespace data
 			if (!isdigit(s[0]))
 			{
 				icsin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-				pa.deathtime()[i] = 0;
-				pa.id()[i] = static_cast<uint32_t>(i);
+				pa.deathtime_map()[i] = 0;
+				pa.id()[i] = i;
 				pa.deathflags()[i] = 0;
 			}
 			else
 			{
-				pa.deathtime()[i] = std::stof(s);
+				pa.deathtime_map()[i] = std::stof(s);
 				icsin >> pa.deathflags()[i] >> pa.id()[i];
 			}
 		}
@@ -480,7 +474,9 @@ namespace data
 
 			std::getline(in, s);
 			ss = std::istringstream(s);
-			ss >> pa.id()[i] >> pa.deathflags()[i] >> pa.deathtime()[i];
+			ss >> pa.id()[i] >> pa.deathflags()[i];
+
+			ss >> pa.deathtime_map()[pa.id()[i]];
 		}
 
 		return false;
@@ -519,7 +515,10 @@ namespace data
 			read_binary<double>(in, pa.v()[i].y);
 			read_binary<double>(in, pa.v()[i].z);
 			read_binary<uint16_t>(in, pa.deathflags()[i]);
-			read_binary<float>(in, pa.deathtime()[i]);
+			float deathtime;
+
+			read_binary<float>(in, deathtime);
+			pa.deathtime_map()[pa.id()[i]] = deathtime;
 		}
 
 		return !in;
@@ -614,7 +613,7 @@ namespace data
 			write_binary(out, pa.v()[i].y);
 			write_binary(out, pa.v()[i].z);
 			write_binary(out, pa.deathflags()[i]);
-			write_binary(out, pa.deathtime()[i]);
+			write_binary(out, pa.deathtime_map().at(pa.id()[i]));
 		}
 	}
 
@@ -639,7 +638,7 @@ namespace data
 		{
 			out << pa.r()[i].x << " " << pa.r()[i].y << " " << pa.r()[i].z << std::endl;
 			out << pa.v()[i].x << " " << pa.v()[i].y << " " << pa.v()[i].z << std::endl;
-			out << pa.id()[i] << " " << pa.deathflags()[i] << " " << pa.deathtime()[i] << std::endl;
+			out << pa.id()[i] << " " << pa.deathflags()[i] << " " << pa.deathtime_map().at(pa.id()[i]) << std::endl;
 		}
 	}
 
@@ -664,7 +663,7 @@ namespace data
 		{
 			icsout << pa.r()[i].x << " " << pa.r()[i].y << " " << pa.r()[i].z << std::endl;
 			icsout << pa.v()[i].x << " " << pa.v()[i].y << " " << pa.v()[i].z << std::endl;
-			icsout << pa.deathtime()[i] << " " << pa.deathflags()[i] << " " << pa.id()[i] << std::endl;
+			icsout << pa.deathtime_map().at(pa.id()[i]) << " " << pa.deathflags()[i] << " " << pa.id()[i] << std::endl;
 		}
 	}
 

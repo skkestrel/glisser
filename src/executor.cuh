@@ -34,7 +34,7 @@ namespace exec
 		sr::swift::SwiftEncounterIntegrator swift;
 		sr::interp::Interpolator interpolator;
 
-		cudaStream_t main_stream, dth_stream, htd_stream, par_stream;
+		cudaStream_t main_stream, dth_stream, htd_stream;
 		cudaEvent_t start_event, cpu_finish_event, gpu_finish_event;
 
 		float64_t t;

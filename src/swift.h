@@ -30,6 +30,7 @@ namespace swift
 				const sr::interp::Interpolator& interp,
 				bool old,
 				double t,
+				double rel_t,
 				double dt,
 				size_t prev_tbsize,
 				size_t cur_tbsize
@@ -48,7 +49,7 @@ namespace swift
 		std::vector<std::vector<int32_t>> istat;
 		std::vector<std::vector<double>> rstat;
 	private:
-		double t, dt;
+		double t, rel_t, dt;
 		size_t prev_tbsize;
 		size_t cur_tbsize;
 

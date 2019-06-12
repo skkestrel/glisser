@@ -43,6 +43,7 @@ namespace swift
 			const sr::interp::Interpolator& interp,
 			bool old,
 			double _t,
+			double _rel_t,
 			double _dt,
 			size_t _prev_tbsize,
 			size_t _cur_tbsize)
@@ -50,6 +51,7 @@ namespace swift
 		ASSERT(_children.size() == 0, "")
 
 		t = _t;
+		rel_t = _rel_t;
 		dt = _dt;
 		prev_tbsize = _prev_tbsize;
 		cur_tbsize = _cur_tbsize;
@@ -144,6 +146,10 @@ namespace swift
 			// std::cout << "encounter for (" << prev_tbsize << ", " << cur_tbsize << ")" << std::endl;
 			// std::cout << std::string(std::istreambuf_iterator<char>(is), {}) << std::endl;
 
+
+			// std::cin.get();
+
+
 			if (WEXITSTATUS(status) != 0)
 			{
 				throw std::runtime_error("swift did not terminate normally");
@@ -189,6 +195,7 @@ namespace swift
 
 				uint16_t deathflags = 0x0000;
 				// particle is dead
+
 				if (istat[0][statindex] == 1)
 				{
 					// std::cout << "die" << std::endl;
@@ -216,6 +223,9 @@ namespace swift
 				// particle is alive
 				else
 				{
+					/*
+						
+
 					// still in encounter!
 					if (istat[1][statindex] != 0)
 					{
@@ -237,6 +247,15 @@ namespace swift
 						// clear flags
 						deathflags = 0;
 					}
+
+					*/
+
+
+					// note: if we try to read the encounter flag from swift and replicate it here, the particle is going
+					// to get handled on the very next encounter timechunk, which we don't want
+
+					// isntead, set the encounter flag to 0 and let the GPU detect that the particle is in encounter using hill radius
+					deathflags = 0;
 				}
 
 				pa.deathflags()[i + child.chunk_begin] = deathflags;
@@ -249,12 +268,14 @@ namespace swift
 	void SwiftEncounterIntegrator::write_param_in(std::string dest) const
 	{
 		std::ofstream file(dest);
-		file << "0 " << static_cast<double>(prev_tbsize + cur_tbsize) * dt << " " << dt << std::endl;
+
+		file << rel_t - static_cast<double>(prev_tbsize) * dt << " " << rel_t + static_cast<double>(cur_tbsize) * dt << " " << dt << std::endl;
 		file << "999999 9999999" << std::endl;
 		file << "F T F F T F" << std::endl;
 		file << "0.5 " << outer_radius << " -1. -1. T" << std::endl;
 		file << "/dev/null" << std::endl;
 		file << "unknown" << std::endl;
+		file << std::flush;
 	}
 
 	void SwiftEncounterIntegrator::write_tp_in(const sr::data::HostParticlePhaseSpace& pa, size_t chunk_begin, size_t chunk_end, std::string dest) const
@@ -303,9 +324,10 @@ namespace swift
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 			sr::data::pad_binary(file, 32 - 8 - 4);
 
-			for (size_t i = 1; i < npl; i++)
+			// reduced ones use a d
+			for (size_t i = 0; i < npl - 1; i++)
 			{
-				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids_old[i]));
+				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids_old[i] + 1));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_m_old[i]));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i_old[i].x));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i_old[i].y));
@@ -319,9 +341,9 @@ namespace swift
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 			sr::data::pad_binary(file, 32 - 8 - 4);
 
-			for (size_t i = 1; i < npl; i++)
+			for (size_t i = 0; i < npl - 1; i++)
 			{
-				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids_old[i]));
+				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids_old[i] + 1));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_m_old[i]));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f_old[i].x));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f_old[i].y));
@@ -342,9 +364,9 @@ namespace swift
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 			sr::data::pad_binary(file, 32 - 8 - 4);
 
-			for (size_t i = 1; i < npl; i++)
+			for (size_t i = 0; i < npl - 1; i++)
 			{
-				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids[i]));
+				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids[i] + 1));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_m[i]));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i[i].x));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i[i].y));
@@ -358,9 +380,9 @@ namespace swift
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 			sr::data::pad_binary(file, 32 - 8 - 4);
 
-			for (size_t i = 1; i < npl; i++)
+			for (size_t i = 0; i < npl - 1; i++)
 			{
-				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids[i]));
+				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids[i] + 1));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_m[i]));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f[i].x));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f[i].y));

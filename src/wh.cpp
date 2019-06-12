@@ -545,7 +545,7 @@ namespace wh
 				double rji2 = dr.lensq();
 				if (rji2 < planet_rh[j] * planet_rh[j])
 				{
-					pa.deathtime()[i] = static_cast<float>(config.t_0);
+					pa.deathtime_map()[pa.id()[i]] = static_cast<float>(config.t_0);
 					pa.deathflags()[i] = static_cast<uint16_t>((j << 8) | 0x0001);
 				}
 			}
@@ -554,13 +554,13 @@ namespace wh
 
 			if (rji2 < planet_rh[0] * planet_rh[0])
 			{
-				pa.deathtime()[i] = static_cast<float>(config.t_0);
+				pa.deathtime_map()[pa.id()[i]] = static_cast<float>(config.t_0);
 				pa.deathflags()[i] = 0x0080;
 			}
 
 			if (rji2 > config.outer_radius * config.outer_radius)
 			{
-				pa.deathtime()[i] = static_cast<float>(config.t_0);
+				pa.deathtime_map()[pa.id()[i]] = static_cast<float>(config.t_0);
 				pa.deathflags()[i] = 0x0002;
 			}
 		}
@@ -626,8 +626,8 @@ namespace wh
 
 			if (planet_rji2 < planet_rh[j] * planet_rh[j])
 			{
-				pa.deathflags()[particle_index] = pa.deathflags()[particle_index] & 0x00FF;
-				pa.deathflags()[particle_index] = static_cast<uint16_t>(pa.deathflags()[particle_index] | (j << 8) | 0x0001);
+				pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
+				pa.deathflags()[particle_index] = static_cast<uint16_t>((j << 8) | 0x0001);
 			}
 		}
 
@@ -635,14 +635,14 @@ namespace wh
 
 		if (planet_rji2 < planet_rh[0] * planet_rh[0])
 		{
-			pa.deathtime()[particle_index] = static_cast<float>(time);
-			pa.deathflags()[particle_index] = pa.deathflags()[particle_index] | 0x0001;
+			pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
+			pa.deathflags()[particle_index] = 0x0001;
 		}
 
 		if (planet_rji2 > outer_radius * outer_radius)
 		{
-			pa.deathtime()[particle_index] = static_cast<float>(time);
-			pa.deathflags()[particle_index] = pa.deathflags()[particle_index] | 0x0002;
+			pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
+			pa.deathflags()[particle_index] = 0x0002;
 		}
 	}
 
@@ -970,7 +970,7 @@ namespace wh
 			if (!this->particle_mask[i])
 			{
 				pa.v()[i] += particle_a[i] * (dt / 2);
-				pa.deathtime_index()[i] = static_cast<uint32_t>(timestep_index + 1);
+				pa.deathtime_index()[pa.id()[i]] = static_cast<uint32_t>(timestep_index + 1);
 			}
 		}
 	}

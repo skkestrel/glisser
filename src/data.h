@@ -183,10 +183,9 @@ namespace data
 
 		/**
 		 * Gets the particle death time.
-		 * Particles that remain alive have their death time set to the current time.
 		 */
-		inline Vf32& deathtime() { return _deathtime; }
-		inline const Vf32& deathtime() const { return _deathtime; }
+		inline Mu32f64& deathtime_map() { return _deathtime; }
+		inline const Mu32f64& deathtime_map() const { return _deathtime; }
 
 		/**
 		 * Gets the index within the timeblock of the death time. This allows
@@ -239,7 +238,7 @@ namespace data
 		size_t _n_encounter;
 
 		Vu16 _deathflags;
-		Vf32 _deathtime;
+		Mu32f64 _deathtime;
 
 		Vu32 _deathtime_index;
 	};

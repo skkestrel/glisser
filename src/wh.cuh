@@ -61,7 +61,7 @@ namespace wh
 		Dvf64_3& device_h0_log(size_t planet_data_id);
 
 		WHCudaIntegrator();
-		WHCudaIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
+		WHCudaIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config, cudaStream_t cuda);
 
 		inline device_iterator device_begin()
 		{

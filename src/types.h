@@ -1,5 +1,6 @@
 #pragma once
 #include <vector>
+#include <unordered_map>
 #include <cstdint>
 #include <ostream>
 
@@ -15,6 +16,8 @@
 
 using float64_t = double;
 using float32_t = float;
+
+using Mu32f64 = std::unordered_map<uint32_t, float64_t>;
 
 using Vf64 = std::vector<float64_t>;
 using Vu32 = std::vector<uint32_t>;

@@ -123,7 +123,7 @@ int main(int argc, char** argv)
 		std::uniform_real_distribution<> odis(range[8], range[9]);
 		std::uniform_real_distribution<> Mdis(range[10], range[11]);
 
-		for (size_t i = 0; i < hd.particles.n(); i++)
+		for (uint32_t i = 0; i < hd.particles.n(); i++)
 		{
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wfloat-equal"
@@ -156,7 +156,7 @@ int main(int argc, char** argv)
 			double anom = std::atan2(sinanom,cosanom);
 		   
 			sr::convert::from_elements(mu,a,e,inc,O,o, anom, &hd.particles.r()[i], &hd.particles.v()[i]);
-			hd.particles.id()[i] = static_cast<uint32_t>(i);
+			hd.particles.id()[i] = i;
 			hd.particles.deathflags()[i] = 0;
 			hd.particles.deathtime()[i] = 0;
 

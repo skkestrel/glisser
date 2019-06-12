@@ -72,11 +72,8 @@ done: ;
 		}
 
 		__host__ __device__
-		static void drift(float64_t& rx, float64_t& ry, float64_t& rz, float64_t& vx, float64_t& vy, float64_t& vz, uint16_t& flags, double dt, double mu)
+		static void drift(f64_3& r, f64_3& v, uint16_t& flags, double dt, double mu)
 		{
-			f64_3 r = f64_3(rx, ry, rz);
-			f64_3 v = f64_3(vx, vy, vz);
-
 			float64_t dist = sqrt(r.lensq());
 			float64_t vdotr = v.x * r.x + v.y * r.y + v.z * r.z;
 
@@ -110,13 +107,6 @@ done: ;
 			f64_3 r0 = r;
 			r = r0 * f + v * g;
 			v = r0 * fdot + v * gdot;
-
-			rx = r.x;
-			ry = r.y;
-			rz = r.z;
-			vx = v.x;
-			vy = v.y;
-			vz = v.z;
 		}
 
 		__host__ __device__
@@ -147,7 +137,9 @@ done: ;
 					// if step = 0, the acceleration is preloaded - this comes from 
 					v = v + a * (dt / 2);
 
-					drift(r.x, r.y, r.z, v.x, v.y, v.z, flags, dt, mu);
+					// printf("%f %f %f %llx %llx %llx\n", a.x, a.y, a.z, *((uint64_t*) &a.x), *((uint64_t*) &a.y), *((uint64_t*) &a.z));
+
+					drift(r, v, flags, dt, mu);
 
 					a = h0_log[step];
 
@@ -279,7 +271,7 @@ done: ;
 
 	WHCudaIntegrator::WHCudaIntegrator() { }
 
-	WHCudaIntegrator::WHCudaIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config)
+	WHCudaIntegrator::WHCudaIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config, cudaStream_t stream)
 		: base(pl, pa, config)
 	{
 		device_h0_log_0 = Dvf64_3(config.tbsize);
@@ -288,8 +280,8 @@ done: ;
 
 		device_planet_rh = Dvf64(pl.n());
 
-		memcpy_htd(device_planet_rh, base.planet_rh, 0);
-		cudaStreamSynchronize(0);
+		memcpy_htd(device_planet_rh, base.planet_rh, stream);
+		cudaStreamSynchronize(stream);
 	}
 
 	Dvf64_3& WHCudaIntegrator::device_h0_log(size_t planet_data_id)

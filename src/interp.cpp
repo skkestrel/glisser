@@ -1,5 +1,6 @@
 #include "interp.h"
 #include <iostream>
+#include <iomanip>
 
 namespace sr
 {
@@ -114,6 +115,8 @@ namespace interp
 
 			pl.r()[0] = f64_3(0);
 			pl.v()[0] = f64_3(0);
+
+			// std::cout << "pt = " << relative_t << std::endl;
 			for (size_t j = 0; j < n_alive; j++)
 			{
 				f64_3 aei = reduced_aei_i[j] + reduced_daei[j] * relative_t;
@@ -127,6 +130,8 @@ namespace interp
 				// offset for the sun
 				pl.r()[j + 1] = r;
 				pl.v()[j + 1] = v;
+
+				// std::cout << std::setprecision(8) << reduced_ids[j] << ": " << r << " " << v << std::endl;
 			}
 
 			std::copy(pl.r().begin() + 1, pl.r().begin() + pl.n_alive(), pl.r_log().old.begin() + (pl.n_alive() - 1) * i);
