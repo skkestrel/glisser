@@ -387,6 +387,7 @@ namespace exec
 
 		double which_t = called_from_resync ? interpolator.t0 : interpolator.t0 + rel_t;
 
+
 		swift.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync, which_t, rel_t, which_dt, prev_len, cur_len);
 		
 		// if this was called in the middle of loop, we do the work here while other processes are happening
@@ -422,7 +423,7 @@ namespace exec
 
 		// since helio_acc_particles sets deathflags, unset them IFF in encounter since we want the GPU to detect an encounter, delayed
 		// however, if in resync, we wan to do to the next one immediately to start the next history interval
-		if (!called_from_resync)
+		// if (!called_from_resync)
 		{
 			for (size_t i = encounter_start; i < hd.particles.n_encounter(); i++)
 			{

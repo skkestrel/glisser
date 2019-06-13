@@ -3,6 +3,7 @@
 #include "util.h"
 #include "interp.h"
 
+#include <iomanip>
 #include <cstring>
 #include <libgen.h>
 #include <fstream>
@@ -258,6 +259,9 @@ namespace swift
 					deathflags = 0;
 				}
 
+				// std::cout << istat[1][statindex] << std::endl;
+				// std::cout << rstat[3][statindex] << " " << rstat[4][statindex] << std::endl;
+
 				pa.deathflags()[i + child.chunk_begin] = deathflags;
 			}
 		}
@@ -270,6 +274,7 @@ namespace swift
 		std::ofstream file(dest);
 
 		file << rel_t - static_cast<double>(prev_tbsize) * dt << " " << rel_t + static_cast<double>(cur_tbsize) * dt << " " << dt << std::endl;
+		file << std::setprecision(17) << std::endl;
 		file << "999999 9999999" << std::endl;
 		file << "F T F F T F" << std::endl;
 		file << "0.5 " << outer_radius << " -1. -1. T" << std::endl;
@@ -285,6 +290,7 @@ namespace swift
 
 		for (size_t i = chunk_begin; i < chunk_end; i++)
 		{
+			file << std::setprecision(17) << std::endl;
 			file << pa.r()[i] << std::endl;
 			file << pa.v()[i] << std::endl;
 		
@@ -352,6 +358,7 @@ namespace swift
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_f_old[i].y));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_f_old[i].z));
 			}
+
 		}
 		else
 		{
