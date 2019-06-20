@@ -80,14 +80,11 @@ namespace exec
 	// this should be called after hd is populated
 	void Executor::init()
 	{
+		out_timing = std::ofstream(sr::util::joinpath(config.outfolder, "timing.out"));
+		out_timing << "t,n_enc,t_swift,t_interp,t_io,t_gpu" << std::endl;
+
 		// glisse only supports helio
 		sr::convert::to_helio(hd);
-
-		// setup integrator - this gives all particles an acceleration and also detects initial encounters
-		integrator = sr::wh::WHCudaIntegrator(hd.planets, hd.particles, config, htd_stream);
-
-		// setup encounter integrator
-		swift = sr::swift::SwiftEncounterIntegrator(config, hd.particles.n());
 
 		if (config.interp_planets)
 		{
@@ -123,7 +120,18 @@ namespace exec
 
 			// relative time since the beginning of the interval
 			interpolator.rel_t = t - interpolator.t0;
+
+			// fill the planet location at t=0
+			interpolator.fill_one(hd.planets, interpolator.rel_t);
 		}
+
+		// setup integrator - this gives all particles an acceleration and also detects initial encounters
+		// needs to happen after interpolator init to get initial planet positions
+		integrator = sr::wh::WHCudaIntegrator(hd.planets, hd.particles, config, htd_stream);
+
+		// setup encounter integrator
+		swift = sr::swift::SwiftEncounterIntegrator(config, hd.particles.n());
+
 
 		// calculate initial energy
 		calculate_planet_metrics(hd.planets, &e_0, nullptr);
@@ -189,6 +197,8 @@ namespace exec
 			*encounter_output << std::setprecision(17);
 		}
 
+		hd.planets_snapshot = hd.planets.base;
+
 		// upload planet data before the first timechunk
 		update_planets();
 	}
@@ -204,6 +214,8 @@ namespace exec
 	{
 		prev_dt = cur_dt;
 		prev_tbsize = cur_tbsize;
+
+		integrator.recalculate_rh(hd.planets);
 
 		if (config.interp_planets)
 		{
@@ -247,6 +259,7 @@ namespace exec
 			cur_tbsize = std::min(config.tbsize, static_cast<uint32_t>(interpolator.n_ts - interpolator.cur_ts));
 
 			// fill the planet logs
+
 			interpolator.fill(hd.planets, cur_tbsize, interpolator.rel_t, cur_dt);
 
 			// advance rel_t
@@ -263,7 +276,6 @@ namespace exec
 			// make sure that we haven't overrun the lookup interval
 			ASSERT(interpolator.cur_ts <= interpolator.n_ts, "sanity check fialed - interpolator cur_ts is in an illegal position")
 		}
-
 		else
 		{
 			cur_dt = config.dt;
@@ -344,6 +356,7 @@ namespace exec
 
 		cudaStreamSynchronize(htd_stream);
 
+		planets.n_alive = hd.planets.n_alive();
 		planets.log_len = hd.planets.r_log().len;
 
 		integrator.upload_planet_log_cuda(htd_stream, dd.planet_data_id);
@@ -391,11 +404,14 @@ namespace exec
 		swift.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync, which_t, rel_t, which_dt, prev_len, cur_len);
 		
 		// if this was called in the middle of loop, we do the work here while other processes are happening
+		// ** temporarily disabled this parallielization for profiling
+/*
 		if (!called_from_resync)
 		{
 			for (auto& i : work) i();
 			work.clear();
 		}
+*/
 
 		// update encounter particles
 		swift.end_integrate(hd.particles);
@@ -419,7 +435,6 @@ namespace exec
 			which_timestep_index,
 			called_from_resync // use the old log if called from resync, otherwise use the new log
 		);
-
 
 		// since helio_acc_particles sets deathflags, unset them IFF in encounter since we want the GPU to detect an encounter, delayed
 		// however, if in resync, we wan to do to the next one immediately to start the next history interval
@@ -494,6 +509,13 @@ namespace exec
 			cudaEventRecord(gpu_finish_event, main_stream);
 		}
 
+		for (auto& i : work) i();
+		work.clear();
+
+		size_t n_encounter_start = hd.particles.n_encounter();
+
+		float worktime = static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000;
+
 		// do work after GPU starts
 		// this is typically all file I/O
 		// when encounters are enabled, handle_encounters handles the work vector
@@ -503,11 +525,15 @@ namespace exec
 		}
 		else
 		{
+			/*
 			for (auto& i : work) i();
 			work.clear();
+			*/
 		}
 
-		// The snapshot contains the planet states at the end of the previous timechunk (= beginning of current timechunk)
+		float encountertime = (static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000) - worktime;
+
+		// The snapshot contains the planet states at the end of the current timechunk (= beginning of next timechunk)
 		// this is necessary since update_planets brings all the planets one timechunk forward
 		// e.g. if the integration finishes at t=1, update_planets will still bring the planets forward to t=1 + dt
 		// so in order to get the correct planetary positions, we need to record the planet positions before they get updated
@@ -526,8 +552,11 @@ namespace exec
 		// IF A FUNCTION IS CALLED AFTER UPDATE_PLANETS: USE OLD DATA (e.g. prev_dt, prev_tbsize, pl.r_log.get<old=true>, etc...)
 		update_planets();
 
-		float cputime = static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000;
-		if (cputimeout) *cputimeout = cputime;
+		float updatetime = (static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000) - encountertime - worktime;
+
+		if (cputimeout) *cputimeout = static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000;
+
+		float gputime = 0;
 
 		// there's nothing to resync if the GPU didn't integrate any particles, i.e. dd.particles.n_alive = 0
 		if (dd.particle_phase_space().n_alive > 0)
@@ -538,7 +567,6 @@ namespace exec
 
 			download_data();
 
-			float gputime;
 			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
 			if (gputimeout) *gputimeout = gputime;
 
@@ -549,6 +577,8 @@ namespace exec
 				resync2();
 			}
 		}
+
+		out_timing << t << " " << n_encounter_start << " " << encountertime << " " << updatetime << " " << worktime << " " << gputime << std::endl;
 
 		// if not resolving encounters, every time is safe to end on
 		// if resolving encounters, only timechunks that end the lookup interval are safe
@@ -656,6 +686,8 @@ namespace exec
 	void Executor::finish()
 	{
 		cudaStreamSynchronize(main_stream);
+		swift.write_stat(sr::util::joinpath(config.outfolder, "stat.out"));
+
 
 		for (auto& i : work) i();
 		work.clear();

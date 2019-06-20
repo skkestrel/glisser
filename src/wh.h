@@ -37,10 +37,12 @@ namespace wh
 
 		Vf64 planet_rh;
 
-		double outer_radius;
+		double outer_radius, cull_radius, encounter_sphere_factor;
 
 		WHIntegrator();
 		WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
+
+		void recalculate_rh(const HostPlanetPhaseSpace& pl);
 
 		void swap_logs();
 

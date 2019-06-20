@@ -420,6 +420,15 @@ namespace convert
 					} else {
 						fac =  a * (1.0 - e * e)/rr - 1.0;
 						f =  acos( fac/ e ) * vdotr/fabs(vdotr);
+
+						// KZ
+						if (isnan(f)) {
+							if ( rr < a ) {		/* determine apside */
+								f = 0.0;
+							} else {
+								f = pi;
+							}
+						}
 					} 
 				} else {                       /* compute circular cases */
 					fac = (x * nx + y * ny)/rr;

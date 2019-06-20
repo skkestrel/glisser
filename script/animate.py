@@ -24,15 +24,12 @@ with open(sys.argv[1]) as f:
     xp = []
     for line in f:
         vals = line.strip().split()
-        if (len(vals) < 5):
-            print(line)
 
-        if (vals[0] == "pl1"):
-            xp.append((float(vals[2]), float(vals[3]), float(vals[4])))
-        else:
-            x.append((float(vals[2]), float(vals[3]), float(vals[4])))
+        xp.append((float(vals[0]), float(vals[1]), float(vals[2])))
 
 data = [np.array(x).T, np.array(xp).T]
+
+data = [data[1][:, ::10]]
 
 def update_lines(num, dataLines, lines, txt):
     for line, data in zip(lines, dataLines):
@@ -46,7 +43,6 @@ def update_lines(num, dataLines, lines, txt):
 fig = plt.figure()
 ax = p3.Axes3D(fig)
 
-# Creating fifty line objects.
 # NOTE: Can't pass empty arrays into 3d version of plot()
 lines = [ax.plot(dat[0, 0:1], dat[1, 0:1], dat[2, 0:1], label="")[0] for dat in data]
 

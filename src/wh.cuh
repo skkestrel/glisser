@@ -44,6 +44,8 @@ namespace wh
 				bool old
 		);
 
+		void recalculate_rh(const HostPlanetPhaseSpace& pl);
+
 		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length);
 
 		void integrate_particles_timeblock_cuda(

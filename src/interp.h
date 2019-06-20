@@ -16,7 +16,9 @@ namespace interp
 		Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file);
 		void next(sr::data::HostPlanetPhaseSpace& pl);
 
-		// relative_t should be t - t0
+		void fill_one(sr::data::HostPlanetPhaseSpace& pl, double relative_t);
+
+		// relative_t is defined as t - t0, where t0 is the time at the start of the interval
 		void fill(sr::data::HostPlanetPhaseSpace& pl, size_t nstep, double relative_t, double dt);
 
 		// This is the effective dt, calculated by taking the nearest timestep to the user-defined timestep

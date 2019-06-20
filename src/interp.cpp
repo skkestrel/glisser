@@ -90,6 +90,26 @@ namespace interp
 		oom1[0] = f64_3(0);
 	}
 
+	void Interpolator::fill_one(sr::data::HostPlanetPhaseSpace& pl, double relative_t)
+	{
+		pl.n_alive() = n_alive + 1;
+
+		for (size_t j = 0; j < n_alive; j++)
+		{
+			f64_3 aei = reduced_aei_i[j] + reduced_daei[j] * relative_t;
+			f64_3 oom = reduced_oom_i[j] + reduced_doom[j] * relative_t;
+			double gm = reduced_m[j] + pl.m()[0];
+
+			f64_3 r, v;
+
+			sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
+
+			// offset for the sun
+			pl.r()[j + 1] = r;
+			pl.v()[j + 1] = v;
+		}
+	}
+
 	void Interpolator::fill(sr::data::HostPlanetPhaseSpace& pl, size_t nstep, double relative_t, double dt)
 	{
 		pl.n_alive_old() = pl.n_alive();
@@ -131,7 +151,7 @@ namespace interp
 				pl.r()[j + 1] = r;
 				pl.v()[j + 1] = v;
 
-				// std::cout << std::setprecision(8) << reduced_ids[j] << ": " << r << " " << v << std::endl;
+				// std::cout << std::setprecision(17) << reduced_ids[j] << ": " << r << " " << v << std::endl;
 			}
 
 			std::copy(pl.r().begin() + 1, pl.r().begin() + pl.n_alive(), pl.r_log().old.begin() + (pl.n_alive() - 1) * i);
@@ -227,8 +247,8 @@ namespace interp
 			// we use the THROUGHOUT-ALIVE particles to fill in planet history later
 			reduced_ids[interval_planet_index] = id;
 
-			// the mass is the mass at the beginning of the interval
-			reduced_m[interval_planet_index] = m0[ind];
+			// the mass is the mass at the end of the interval
+			reduced_m[interval_planet_index] = m1[ind];
 
 			reduced_aei_i[interval_planet_index] = aei0[ind];
 			reduced_oom_i[interval_planet_index] = oom0[ind];

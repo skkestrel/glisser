@@ -353,7 +353,8 @@ if args["--plot-aet"]:
     format_ax(axes[1]);
 
     def plot_aei(data, c, ind, is_planet):
-        axes[0].plot(stimes, data[0] - data[0].mean(), c=c)
+        # axes[0].plot(stimes, data[0] - data[0].mean(), c=c)
+        axes[0].plot(stimes, data[0], c=c)
         axes[1].plot(stimes, data[1], c=c)
         if is_planet:
             axes[0].plot([], [], c=c, label=get_planet_name(ind))
@@ -408,13 +409,20 @@ if args["--plot-aei-special"]:
     axes[0].legend()
 
 if args["--plot-oom"]:
-    fig, axes = plt.subplots(3, 1, sharex=True)
+    fig, axes = plt.subplots(7, 1, sharex=True)
 
     def plot_aei(data, c, ind, is_planet):
         axes[0].plot(stimes, data[3], c=c)
         axes[1].plot(stimes, data[4], c=c)
         axes[2].plot(stimes, util2.get_M(data), c=c)
+        axes[3].plot(stimes, data[3] + data[4] + util2.get_M(data), c=c)
         if is_planet:
+            axes[4].plot(stimes, np.log10(data[1]), c=c)
+            axes[5].plot(stimes, np.log10(data[2]), c=c)
+            d = data[4] + util2.get_M(data)
+            from scipy.signal import savgol_filter
+            axes[6].plot(stimes, np.log10(savgol_filter(d, 51, 2) - d), c=c)
+
             axes[0].plot([], [], c=c, label=get_planet_name(ind))
         else:
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
@@ -423,7 +431,9 @@ if args["--plot-oom"]:
     axes[0].set_ylabel("O")
     axes[1].set_ylabel("o")
     axes[2].set_ylabel("m")
-    axes[2].set_xlabel(timelabel)
+    axes[3].set_ylabel("O+o+m")
+    axes[4].set_ylabel("log e")
+    axes[4].set_xlabel(timelabel)
     axes[0].legend()
 
 
@@ -771,18 +781,22 @@ if args["--plot-tiss"]:
 
             mu = m_n / m_s
 
+
             Ts = planets[pln, 0]/data[0] + 2 * np.sqrt(data[0]/planets[pln, 0]*(1-data[1]**2)) * np.cos(data[2]) - 2 / r + 2 * (1 - mu) / r1 + 2 * mu / r2
+
             axes[0].plot(stimes[1:], np.log10(abs(Ts[1:]-Ts[0])/Ts[0]), c=c)
-            axes[0].set_ylabel("log(% error)")
-            axes[1].set_ylabel("r_sun (30.4 au)")
-            axes[2].set_ylabel("r_nep (30.4 au)")
+
+            # axes[0].plot(stimes[1:], np.log10(planets[pln, 1, 1:]))
+            axes[0].set_ylabel("log(frac error)")
+            axes[1].set_ylabel("r_sun")
+            axes[2].set_ylabel("r_nep")
             # axes[1].plot(stimes, (Ts-Ts[0])/Ts[0], c=c)
             axes[1].plot(stimes, r1, c=c)
             axes[2].plot(stimes, r2, c=c)
             axes[0].plot([], [], c=c, label="Particle {0}".format(ind))
 
     do_for(plot_tiss)
-    axes[0].legend()
+    # axes[0].legend()
 
 plt.show()
 

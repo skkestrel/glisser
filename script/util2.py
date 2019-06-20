@@ -53,7 +53,7 @@ def rv2el(m, parts):
 			om = 0.0
 		else:
 			if (i < prec) or (pi - i < prec):
-				om = atan2(Py,Px)
+				om = math.atan2(Py,Px)
 			else:
 				ecosw = (nx*Px + ny*Py)/mu
 				om = math.acos(ecosw / e)

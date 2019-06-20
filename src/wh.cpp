@@ -469,6 +469,31 @@ namespace wh
 		}
 	}
 
+	void WHIntegrator::recalculate_rh(const HostPlanetPhaseSpace& pl)
+	{
+		if (std::abs(encounter_sphere_factor) > 1e-6)
+		{
+			// reinterpret cull radius to be the sun's radius
+			planet_rh[0] = cull_radius;
+
+			// for the rest of the planets, use the factor times the hill sphere
+			for (size_t i = 1; i < pl.n(); i++)
+			{
+				double a, e;
+				sr::convert::to_elements(pl.m()[0] + pl.m()[i], pl.r()[i], pl.v()[i], nullptr, &a, &e);
+
+				planet_rh[i] = encounter_sphere_factor * a * (1 - e) * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
+			}
+		}
+		else
+		{
+			for (size_t i = 0; i < pl.n(); i++)
+			{
+				planet_rh[i] = cull_radius;
+			}
+		}
+	}
+
 	WHIntegrator::WHIntegrator() { }
 	WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config)
 	{
@@ -492,6 +517,8 @@ namespace wh
 		planet_h0_log = sr::util::History<Vf64_3>(config.tbsize);
 
 		outer_radius = config.outer_radius;
+		encounter_sphere_factor = config.encounter_sphere_factor;
+		cull_radius = config.cull_radius;
 
 		planet_eta[0] = pl.m()[0];
 		for (size_t i = 1; i < pl.n(); i++)
@@ -499,27 +526,7 @@ namespace wh
 			planet_eta[i] = planet_eta[i - 1] + pl.m()[i];
 		}
 
-		if (std::abs(config.encounter_sphere_factor) > 1e-6)
-		{
-			// reinterpret cull radius to be the sun's radius
-			planet_rh[0] = config.cull_radius;
-
-			// for the rest of the planets, use the factor times the hill sphere
-			for (size_t i = 1; i < pl.n(); i++)
-			{
-				double a, e;
-				sr::convert::to_elements(pl.m()[0] + pl.m()[i], pl.r()[i], pl.v()[i], nullptr, &a, &e);
-
-				planet_rh[i] = config.encounter_sphere_factor * a * (1 - e) * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
-			}
-		}
-		else
-		{
-			for (size_t i = 0; i < pl.n(); i++)
-			{
-				planet_rh[i] = config.cull_radius;
-			}
-		}
+		recalculate_rh(pl);
 
 		sr::convert::helio_to_jacobi_r_planets(pl, planet_eta, planet_rj);
 		sr::convert::helio_to_jacobi_v_planets(pl, planet_eta, planet_vj);

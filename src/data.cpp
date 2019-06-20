@@ -155,7 +155,7 @@ namespace data
 		cull_radius = 0.5;
 		interp_maxpl = 16;
 
-		outer_radius = 200;
+		outer_radius = 300;
 		resync_every = 1;
 		swift_hist_every = 0;
 		swift_statlen = 13;
@@ -753,7 +753,7 @@ namespace data
 				double a, e, in, capom, om, f;
 				sr::convert::to_elements(pl.m[i] + center_mass, pl.r[i] - center_r, pl.v[i] - center_v,
 					nullptr, &a, &e, &in, &capom, &om, &f);
-
+	
 				sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
 				sr::data::write_binary(trackout, static_cast<float>(a));
 				sr::data::write_binary(trackout, static_cast<float>(e));

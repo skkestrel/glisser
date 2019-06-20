@@ -137,8 +137,6 @@ done: ;
 					// if step = 0, the acceleration is preloaded - this comes from 
 					v = v + a * (dt / 2);
 
-					// printf("%f %f %f %llx %llx %llx\n", a.x, a.y, a.z, *((uint64_t*) &a.x), *((uint64_t*) &a.y), *((uint64_t*) &a.z));
-
 					drift(r, v, flags, dt, mu);
 
 					a = h0_log[step];
@@ -170,7 +168,6 @@ done: ;
 					{
 						flags = 0x0002;
 					}
-
 
 					v = v + a * (dt / 2);
 
@@ -280,13 +277,17 @@ done: ;
 
 		device_planet_rh = Dvf64(pl.n());
 
-		memcpy_htd(device_planet_rh, base.planet_rh, stream);
 		cudaStreamSynchronize(stream);
 	}
 
 	Dvf64_3& WHCudaIntegrator::device_h0_log(size_t planet_data_id)
 	{
 		return planet_data_id % 2 ? device_h0_log_1 : device_h0_log_0;
+	}
+
+	void WHCudaIntegrator::recalculate_rh(const HostPlanetPhaseSpace& pl)
+	{
+		base.recalculate_rh(pl);
 	}
 
 	void WHCudaIntegrator::helio_acc_particles(
@@ -303,6 +304,7 @@ done: ;
 
 	void WHCudaIntegrator::upload_planet_log_cuda(cudaStream_t stream, size_t planet_data_id)
 	{
+		memcpy_htd(device_planet_rh, base.planet_rh, stream);
 		memcpy_htd(device_h0_log(planet_data_id), base.planet_h0_log.log, stream);
 		cudaStreamSynchronize(stream);
 	}

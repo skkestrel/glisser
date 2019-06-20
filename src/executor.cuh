@@ -69,6 +69,8 @@ namespace exec
 		void upload_planet_log();
 		void download_data();
 
+		std::ofstream out_timing;
+
 
 		double time() const;
 		bool loop(double* cputime, double* gputime);

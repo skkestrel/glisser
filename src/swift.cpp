@@ -56,6 +56,7 @@ namespace swift
 		dt = _dt;
 		prev_tbsize = _prev_tbsize;
 		cur_tbsize = _cur_tbsize;
+		old_log = old;
 
 		std::string datapath = sr::util::joinpath(outfolder, "swift_data");
 		sr::util::make_dir(datapath);
@@ -83,7 +84,7 @@ namespace swift
 
 		std::string history_path = sr::util::joinpath(datapath, "hist");
 
-		write_planetary_history(pl, interp, history_path, old);
+		write_planetary_history(pl, interp, history_path);
 
 		for (unsigned int i = 0; i < num_proc; i++)
 		{
@@ -186,12 +187,39 @@ namespace swift
 
 				for (size_t j = 0; j < swift_statlen; j++)
 				{
-					output >> istat[j][statindex];
+					int val;
+					output >> val;
+					if (j < 3)
+					{
+						istat[j][statindex] = val;
+					}
+					else
+					{
+						// total # of encounters with planet n
+						istat[j][statindex] += val;
+					}
 				}
 
 				for (size_t j = 0; j < swift_statlen; j++)
 				{
-					output >> rstat[j][statindex];
+					double real;
+					output >> real;
+					if (j < 3) rstat[j][statindex] = real;
+					else
+					{
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wfloat-equal"
+						if (rstat[j][statindex] == 0.0)
+						{
+							rstat[j][statindex] = real;
+						}
+						else if (real != 0.0)
+						{
+							// closest approach distance to a planet
+							rstat[j][statindex] = std::min(rstat[j][statindex], real);
+						}
+#pragma GCC diagnostic pop
+					}
 				}
 
 				uint16_t deathflags = 0x0000;
@@ -215,8 +243,8 @@ namespace swift
 					}
 					else
 					{
-						// first planet is index 0 here, or index 2 in swift
-						uint32_t planet_index = istat[1][statindex] - 2;
+						// first planet is index 1 here, or index 2 in swift
+						uint32_t planet_index = istat[1][statindex] - 1;
 
 						deathflags = static_cast<uint16_t>(planet_id_list[planet_index] << 8) | 0x80;
 					}
@@ -224,38 +252,19 @@ namespace swift
 				// particle is alive
 				else
 				{
-					/*
-						
-
 					// still in encounter!
 					if (istat[1][statindex] != 0)
 					{
 						uint32_t swift_planet_index = std::abs(istat[1][statindex]);
-
-						// sun
-						if (swift_planet_index == 1)
+						// if we're in inner region, decrease the istat count of that planet by one since we are ending in an encounter
+						if (istat[1][statindex] < 0)
 						{
-							deathflags = 0x01;
+							istat[swift_planet_index + 1][statindex] -= 1;
 						}
-						else
-						{
-							uint32_t planet_index = swift_planet_index - 2;
-							deathflags = static_cast<uint16_t>(planet_id_list[planet_index] << 8) | 0x01;
-						}
+
+						// even if we're in encounter, don't udpate the particle encounter flag
+						// isntead, set the encounter flag to 0 and let the GPU detect that the particle is in encounter using hill radius
 					}
-					else
-					{
-						// clear flags
-						deathflags = 0;
-					}
-
-					*/
-
-
-					// note: if we try to read the encounter flag from swift and replicate it here, the particle is going
-					// to get handled on the very next encounter timechunk, which we don't want
-
-					// isntead, set the encounter flag to 0 and let the GPU detect that the particle is in encounter using hill radius
 					deathflags = 0;
 				}
 
@@ -267,6 +276,25 @@ namespace swift
 		}
 
 		_children.clear();
+	}
+
+	void SwiftEncounterIntegrator::write_stat(std::string dest) const
+	{
+		std::ofstream file(dest);
+		for (std::pair<uint32_t, size_t> pair : statmap)
+		{
+			file << std::setprecision(17) << pair.first << std::endl;
+			for (size_t j = 0; j < swift_statlen; j++)
+			{
+				file << istat[j][pair.second] << " ";
+			}
+			file << std::endl;
+			for (size_t j = 0; j < swift_statlen; j++)
+			{
+				file << rstat[j][pair.second] << " ";
+			}
+			file << std::endl;
+		}
 	}
 
 	void SwiftEncounterIntegrator::write_param_in(std::string dest) const
@@ -310,14 +338,14 @@ namespace swift
 	// this function handles both two-step integrations, and initial one-step integrations
 	// no matter whether the integration is one or two step, the lookup is always bounded by interp.t0 and interp.t1
 	// since the swift integratio never crosses the lookup boundary
-	void SwiftEncounterIntegrator::write_planetary_history(const sr::data::HostPlanetPhaseSpace& pl, const sr::interp::Interpolator& interp, std::string dest, bool old)
+	void SwiftEncounterIntegrator::write_planetary_history(const sr::data::HostPlanetPhaseSpace& pl, const sr::interp::Interpolator& interp, std::string dest)
 	{
 		std::ofstream file(dest, std::ios_base::binary);
 
 		sr::data::write_binary(file, static_cast<double>(pl.m()[0]));
 		sr::data::pad_binary(file, 32 - 8);
 
-		if (old)
+		if (old_log)
 		{
 			planet_id_list = interp.reduced_ids_old;
 
