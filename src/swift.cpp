@@ -163,6 +163,7 @@ namespace swift
 			// std::istream is(&filebuf);
 			// std::cout << "encounter for (" << prev_tbsize << ", " << cur_tbsize << ")" << std::endl;
 			// std::cout << std::string(std::istreambuf_iterator<char>(is), {}) << std::endl;
+			::close(child.piper);
 
 			waittime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 
