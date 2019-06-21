@@ -81,6 +81,8 @@ namespace exec
 		void finish();
 		void swap_logs();
 		void update_planets();
+
+		float t_initswift, t_backup, t_enc, t_writeswift, t_swift, t_readswift, t_delayswift, t_io, t_planet, t_planetup, t_encup, t_sort, t_dl, t_rollback, t_enc2, t_resync;
 	};
 }
 }

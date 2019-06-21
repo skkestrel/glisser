@@ -2,6 +2,7 @@
 #include "data.h"
 #include "interp.h"
 #include <unistd.h>
+#include <utility>
 #include <unordered_map>
 
 namespace sr
@@ -24,7 +25,7 @@ namespace swift
 		SwiftEncounterIntegrator();
 		SwiftEncounterIntegrator(const sr::data::Configuration& config, size_t npa);
 
-		void begin_integrate(
+		std::pair<double, double> begin_integrate(
 				const sr::data::HostPlanetPhaseSpace& pl,
 				const sr::data::HostParticlePhaseSpace& pa,
 				const sr::interp::Interpolator& interp,
@@ -36,7 +37,7 @@ namespace swift
 				size_t cur_tbsize
 		);
 
-		void end_integrate(sr::data::HostParticlePhaseSpace& pa);
+		std::pair<double, double> end_integrate(sr::data::HostParticlePhaseSpace& pa);
 
 		void write_planetary_history(const sr::data::HostPlanetPhaseSpace& pl, const sr::interp::Interpolator& interp, std::string dest);
 		void write_param_in(std::string dest) const;

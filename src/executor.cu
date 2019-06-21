@@ -80,9 +80,6 @@ namespace exec
 	// this should be called after hd is populated
 	void Executor::init()
 	{
-		out_timing = std::ofstream(sr::util::joinpath(config.outfolder, "timing.out"));
-		out_timing << "t,n_enc,t_swift,t_interp,t_io,t_gpu" << std::endl;
-
 		// glisse only supports helio
 		sr::convert::to_helio(hd);
 
@@ -201,6 +198,9 @@ namespace exec
 
 		// upload planet data before the first timechunk
 		update_planets();
+
+		out_timing = std::ofstream(sr::util::joinpath(config.outfolder, "timing.out"));
+		out_timing << "t,      n_enc,  backup, enc,    wswift, iswift, swift,  rswift, dswift, io,     planet, planetu,encup,  sort,   dl,     rollbak,endenc, resync, cpu,    gpu" << std::endl;
 	}
 
 	void Executor::swap_logs()
@@ -214,6 +214,8 @@ namespace exec
 	{
 		prev_dt = cur_dt;
 		prev_tbsize = cur_tbsize;
+
+		std::clock_t clock = std::clock();
 
 		integrator.recalculate_rh(hd.planets);
 
@@ -284,17 +286,23 @@ namespace exec
 			integrator.integrate_planets_timeblock(hd.planets, cur_tbsize, t, cur_dt);
 		}
 
+		
+
 		// swap new and old logs:
 		// the interpolator and integrator both make sure to write to the old logs
 		// so swapping the logs here brings the logs into the correct position
 		// of course, the GPU integration next chunk is done using the new logs
 		swap_logs();
 
+		t_planet = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+
 		// we only upload the planet log if any particles are going to use the planet log on the GPU
 		// i.e. there are particles that could be alive
 		if (dd.particle_phase_space().n_alive > 0 || hd.particles.n_encounter() > 0)
 		{
+			clock = std::clock();
 			upload_planet_log();
+			t_planetup = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 		}
 	}
 
@@ -401,25 +409,39 @@ namespace exec
 		double which_t = called_from_resync ? interpolator.t0 : interpolator.t0 + rel_t;
 
 
-		swift.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync, which_t, rel_t, which_dt, prev_len, cur_len);
-		
-		// if this was called in the middle of loop, we do the work here while other processes are happening
-		// ** temporarily disabled this parallielization for profiling
-/*
+		std::clock_t clocks = std::clock();
+		auto times1 = swift.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync, which_t, rel_t, which_dt, prev_len, cur_len);
 		if (!called_from_resync)
 		{
+			t_writeswift = static_cast<float>(times1.first);
+			t_initswift = static_cast<float>(times1.second);
+		}
+		
+		// if this was called in the middle of loop, we do the work here while other processes are happening
+		if (!called_from_resync)
+		{
+			std::clock_t clock = std::clock();
 			for (auto& i : work) i();
 			work.clear();
+
+			t_io = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+
+			// do the planet stuff
+			hd.planets_snapshot = hd.planets.base;
+			t += cur_dt * static_cast<double>(cur_tbsize);
+			update_planets();
 		}
-*/
 
 		// update encounter particles
-		swift.end_integrate(hd.particles);
+		auto times = swift.end_integrate(hd.particles);
+		if (!called_from_resync)
+		{
+			t_readswift = static_cast<float>(times.first);
+			t_delayswift = static_cast<float>(times.second);
+			t_swift = static_cast<float>(std::clock() - clocks) / CLOCKS_PER_SEC * 1000;
+		}
 
 		ASSERT(std::isnormal(hd.particles.r()[0].x), "nan")
-
-		// whether to use the old log or not depends on whether we called from resync
-		size_t which_timestep_index = (called_from_resync ? hd.planets.r_log().len_old : hd.planets.r_log().len) - 1;
 
 		// need to calculate particle accelerations for the next timeblock -
 		// this is because these particles did not come out of a regular GPU timechunk,
@@ -431,32 +453,33 @@ namespace exec
 			hd.particles,
 			encounter_start,
 			hd.particles.n_encounter(),
-			t + static_cast<double>(cur_len) * which_dt,
-			which_timestep_index,
-			called_from_resync // use the old log if called from resync, otherwise use the new log
+			t,
+			hd.planets.r_log().len_old - 1,
+			true // use the old log since we just updated the planets
 		);
 
 		// since helio_acc_particles sets deathflags, unset them IFF in encounter since we want the GPU to detect an encounter, delayed
-		// however, if in resync, we wan to do to the next one immediately to start the next history interval
-		// if (!called_from_resync)
+		for (size_t i = encounter_start; i < hd.particles.n_encounter(); i++)
 		{
-			for (size_t i = encounter_start; i < hd.particles.n_encounter(); i++)
+			if ((hd.particles.deathflags()[i] & 0xFF) == 0x01)
 			{
-				if ((hd.particles.deathflags()[i] & 0xFF) == 0x01)
-				{
-					hd.particles.deathflags()[i] = 0;
-				}
+				hd.particles.deathflags()[i] = 0;
 			}
 		}
+
+		std::clock_t clock = std::clock();
 
 		// upload the changes to the GPU
 		// no need to sort the particles here, resync will do all the sorting
 		upload_data(encounter_start, hd.particles.n_encounter());
 
+		if (!called_from_resync)
+		{
+			t_encup = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+		}
+
 		// set n_alive so that the resync function knows to deal with the particles that we just added back
 		dd.particles.n_alive = hd.particles.n_alive();
-
-		download_data();
 	}
 
 	bool Executor::loop(double* cputimeout, double* gputimeout)
@@ -473,8 +496,11 @@ namespace exec
 		// it's possible that not all particles have reached the current t, since they might be about to be stepped forward on SWIFT all the way until
 		// t + cur_tbsize * dt
 		// t = the time at the start of the block that is about to be calculated
+		t_initswift = t_delayswift = t_backup= t_enc= t_swift = t_writeswift = t_readswift = t_io= t_planet = t_planetup= t_encup= t_sort= t_dl= t_rollback= t_enc2 =t_resync= 0;
 
-		std::clock_t c_start = std::clock();
+		size_t n_enc = hd.particles.n_encounter();
+
+		std::clock_t c_start;
 
 		if (dd.particle_phase_space().n_alive > 0)
 		{
@@ -482,17 +508,23 @@ namespace exec
 			// so that encounter particles can be rolled back to their initial state
 			if (config.resolve_encounters)
 			{
+				std::clock_t rollback = std::clock();
 				memcpy_dtd(rollback_state.r, dd.particle_phase_space().r, main_stream);
 				memcpy_dtd(rollback_state.v, dd.particle_phase_space().v, main_stream);
 				memcpy_dtd(rollback_state.deathflags, dd.particle_phase_space().deathflags, main_stream);
 				memcpy_dtd(rollback_state.deathtime_index, dd.particle_phase_space().deathtime_index, main_stream);
 				memcpy_dtd(rollback_state.id, dd.particle_phase_space().id, main_stream);
+				t_backup = static_cast<float>(std::clock() - rollback) / CLOCKS_PER_SEC * 1000;
+
 
 				rollback_state.n_alive = dd.particle_phase_space().n_alive;
 				rollback_state.n_total = dd.particle_phase_space().n_total;
+				cudaStreamSynchronize(main_stream);
 			}
 
 			cudaEventRecord(start_event, main_stream);
+
+			c_start = std::clock();
 
 			// in order to integrate the particles on GPU, the particle accelerations must be set.
 			// typically the accelerations are set by the previous timeblock
@@ -509,54 +541,48 @@ namespace exec
 			cudaEventRecord(gpu_finish_event, main_stream);
 		}
 
-		for (auto& i : work) i();
-		work.clear();
-
 		size_t n_encounter_start = hd.particles.n_encounter();
-
-		float worktime = static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000;
 
 		// do work after GPU starts
 		// this is typically all file I/O
 		// when encounters are enabled, handle_encounters handles the work vector
 		if (config.resolve_encounters && hd.particles.n_encounter() > 0)
 		{
+			std::clock_t cl = std::clock();
 			handle_encounters(false);
+			t_enc = static_cast<float>(std::clock() - cl) / CLOCKS_PER_SEC * 1000;
 		}
 		else
 		{
-			/*
+			std::clock_t cl = std::clock();
 			for (auto& i : work) i();
 			work.clear();
-			*/
+			t_io = static_cast<float>(std::clock() - cl) / CLOCKS_PER_SEC * 1000;
+
+			// The snapshot contains the planet states at the end of the current timechunk (= beginning of next timechunk)
+			// this is necessary since update_planets brings all the planets one timechunk forward
+			// e.g. if the integration finishes at t=1, update_planets will still bring the planets forward to t=1 + dt
+			// so in order to get the correct planetary positions, we need to record the planet positions before they get updated
+			hd.planets_snapshot = hd.planets.base;
+
+			// step time forward
+			t += cur_dt * static_cast<double>(cur_tbsize);
+
+			// calculate planetary positions for the next chunk - this is REALLY important and also very subtle
+			// usually, this would be called at the very end of loop() but
+			// we can save some time by doing this here
+			// HOWEVER, doing this here means that the planets are now one entire time chunk ahead of the particles
+			// for the remainder of loop()
+			// it's VERY important to make sure that we're using the correct data
+
+			// IF A FUNCTION IS CALLED AFTER UPDATE_PLANETS: USE OLD DATA (e.g. prev_dt, prev_tbsize, pl.r_log.get<old=true>, etc...)
+			update_planets();
 		}
-
-		float encountertime = (static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000) - worktime;
-
-		// The snapshot contains the planet states at the end of the current timechunk (= beginning of next timechunk)
-		// this is necessary since update_planets brings all the planets one timechunk forward
-		// e.g. if the integration finishes at t=1, update_planets will still bring the planets forward to t=1 + dt
-		// so in order to get the correct planetary positions, we need to record the planet positions before they get updated
-		hd.planets_snapshot = hd.planets.base;
-
-		// step time forward
-		t += cur_dt * static_cast<double>(cur_tbsize);
-
-		// calculate planetary positions for the next chunk - this is REALLY important and also very subtle
-		// usually, this would be called at the very end of loop() but
-		// we can save some time by doing this here
-		// HOWEVER, doing this here means that the planets are now one entire time chunk ahead of the particles
-		// for the remainder of loop()
-		// it's VERY important to make sure that we're using the correct data
-
-		// IF A FUNCTION IS CALLED AFTER UPDATE_PLANETS: USE OLD DATA (e.g. prev_dt, prev_tbsize, pl.r_log.get<old=true>, etc...)
-		update_planets();
-
-		float updatetime = (static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000) - encountertime - worktime;
 
 		if (cputimeout) *cputimeout = static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000;
 
 		float gputime = 0;
+		float gputime2 = 0;
 
 		// there's nothing to resync if the GPU didn't integrate any particles, i.e. dd.particles.n_alive = 0
 		if (dd.particle_phase_space().n_alive > 0)
@@ -565,7 +591,7 @@ namespace exec
 			cudaStreamSynchronize(htd_stream);
 			cudaEventSynchronize(gpu_finish_event);
 
-			download_data();
+			gputime2 = static_cast<float>(std::clock() - c_start) / CLOCKS_PER_SEC * 1000;
 
 			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
 			if (gputimeout) *gputimeout = gputime;
@@ -574,11 +600,35 @@ namespace exec
 			resync_counter++;
 			if (resync_counter % config.resync_every == 0)
 			{
+				std::clock_t clock = std::clock();
 				resync2();
+				t_resync = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 			}
 		}
 
-		out_timing << t << " " << n_encounter_start << " " << encountertime << " " << updatetime << " " << worktime << " " << gputime << std::endl;
+		out_timing << std::left << std::setprecision(5);
+		out_timing << std::setw(8) << t;
+		out_timing << std::setw(8) << n_enc;
+		out_timing << std::setw(8) << t_backup;
+		out_timing << std::setw(8) << t_enc;
+		out_timing << std::setw(8) << t_writeswift;
+		out_timing << std::setw(8) << t_initswift;
+		out_timing << std::setw(8) << t_swift;
+		out_timing << std::setw(8) << t_readswift;
+		out_timing << std::setw(8) << t_delayswift;
+		out_timing << std::setw(8) << t_io;
+		out_timing << std::setw(8) << t_planet;
+		out_timing << std::setw(8) << t_planetup;
+		out_timing << std::setw(8) << t_encup;
+		out_timing << std::setw(8) << t_sort;
+		out_timing << std::setw(8) << t_dl;
+		out_timing << std::setw(8) << t_rollback;
+		out_timing << std::setw(8) << t_enc2;
+		out_timing << std::setw(8) << t_resync;
+		out_timing << std::setw(8) << *cputimeout;
+		// out_timing << std::setw(8) << *gputimeout;
+		out_timing << std::setw(8) << gputime2;
+		out_timing << std::endl;
 
 		// if not resolving encounters, every time is safe to end on
 		// if resolving encounters, only timechunks that end the lookup interval are safe
@@ -592,6 +642,8 @@ namespace exec
 
 		auto& particles = dd.particle_phase_space();
 		size_t prev_alive = particles.n_alive;
+
+		std::clock_t clock = std::clock();
 
 		// kill particles in encounters
 		if (!config.resolve_encounters)
@@ -624,8 +676,12 @@ namespace exec
 			cudaStreamSynchronize(main_stream);
 		}
 
+		t_sort = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+
+		clock = std::clock();
 		// copy everything back - n_alive is also copied from device to host
 		download_data();
+		t_dl = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 
 		// set the deathtime for dead particles - let's set the encounter particles deathtimes too, just to show when they entered encounter
 		// here t refers to the ending time of the timechunk
@@ -655,16 +711,18 @@ namespace exec
 		// for encounter particles, use the rollback data
 		if (hd.particles.n_encounter() > 0)
 		{
+			clock = std::clock();
 			memcpy_dth(hd.particles.r(), rollback_state.r, dth_stream, particles.n_alive, particles.n_alive, hd.particles.n_encounter());
 			cudaStreamSynchronize(dth_stream);
 			memcpy_dth(hd.particles.v(), rollback_state.v, dth_stream, particles.n_alive, particles.n_alive, hd.particles.n_encounter());
 			cudaStreamSynchronize(dth_stream);
+			t_rollback = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 		}
 
 		// handle particles that just entered encounter, and partition again
 		if (starting_lookup_interval && hd.particles.n_encounter() > 0)
 		{
-			cudaDeviceSynchronize();
+			clock = std::clock();
 
 			handle_encounters(true);
 
@@ -679,6 +737,7 @@ namespace exec
 			cudaStreamSynchronize(main_stream);
 
 			download_data();
+			t_enc2 = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 		}
 	}
 

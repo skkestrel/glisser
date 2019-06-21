@@ -4,6 +4,7 @@
 #include "interp.h"
 
 #include <iomanip>
+#include <ctime>
 #include <cstring>
 #include <libgen.h>
 #include <fstream>
@@ -38,7 +39,7 @@ namespace swift
 		}
 	}
 
-	void SwiftEncounterIntegrator::begin_integrate(
+	std::pair<double, double> SwiftEncounterIntegrator::begin_integrate(
 			const sr::data::HostPlanetPhaseSpace& pl,
 			const sr::data::HostParticlePhaseSpace& pa,
 			const sr::interp::Interpolator& interp,
@@ -49,6 +50,7 @@ namespace swift
 			size_t _prev_tbsize,
 			size_t _cur_tbsize)
 	{
+		std::clock_t s_clock = std::clock();
 		ASSERT(_children.size() == 0, "")
 
 		t = _t;
@@ -84,7 +86,13 @@ namespace swift
 
 		std::string history_path = sr::util::joinpath(datapath, "hist");
 
+		
+		float iotime = 0;
+
+		std::clock_t clock = std::clock();
 		write_planetary_history(pl, interp, history_path);
+
+		iotime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 
 		for (unsigned int i = 0; i < num_proc; i++)
 		{
@@ -95,8 +103,10 @@ namespace swift
 			std::string tp_path = sr::util::joinpath(datapath, "tp" + std::to_string(i));
 			std::string tpout_path = sr::util::joinpath(datapath, "tpout" + std::to_string(i));
 
+			clock = std::clock();
 			write_param_in(param_path);
 			write_tp_in(pa, chunk_begin, chunk_end, tp_path);
+			iotime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 
 			int pipefd[2];
 
@@ -127,10 +137,15 @@ namespace swift
 			::close(pipefd[1]);
 			_children.push_back(ChildProcess(pid, pipefd[0], tpout_path, chunk_begin, chunk_end));
 		}
+
+		double totaltime = static_cast<float>(std::clock() - s_clock) / CLOCKS_PER_SEC * 1000;
+		return std::make_pair(iotime, totaltime);
 	}
 
-	void SwiftEncounterIntegrator::end_integrate(sr::data::HostParticlePhaseSpace& pa)
+	std::pair<double, double> SwiftEncounterIntegrator::end_integrate(sr::data::HostParticlePhaseSpace& pa)
 	{
+		float iotime = 0;
+		float waittime = 0;
 		if (_children.size() == 0)
 		{
 			throw std::runtime_error(".");
@@ -138,24 +153,29 @@ namespace swift
 
 		for (const ChildProcess& child : _children)
 		{
+			std::clock_t clock = std::clock();
+
 			int status;
 			::waitpid(child.pid, &status, 0);
 
 			// construct buffer from file descriptor
-			__gnu_cxx::stdio_filebuf<char> filebuf(child.piper, std::ios::in);
-			std::istream is(&filebuf);
-
+			// __gnu_cxx::stdio_filebuf<char> filebuf(child.piper, std::ios::in);
+			// std::istream is(&filebuf);
 			// std::cout << "encounter for (" << prev_tbsize << ", " << cur_tbsize << ")" << std::endl;
 			// std::cout << std::string(std::istreambuf_iterator<char>(is), {}) << std::endl;
 
+			waittime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+
 
 			// std::cin.get();
-
 
 			if (WEXITSTATUS(status) != 0)
 			{
 				throw std::runtime_error("swift did not terminate normally");
 			}
+
+
+			clock = std::clock();
 
 			std::ifstream output(child.tpout);
 
@@ -273,9 +293,12 @@ namespace swift
 
 				pa.deathflags()[i + child.chunk_begin] = deathflags;
 			}
+
+			iotime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 		}
 
 		_children.clear();
+		return std::make_pair(iotime, waittime);
 	}
 
 	void SwiftEncounterIntegrator::write_stat(std::string dest) const

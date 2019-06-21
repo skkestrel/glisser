@@ -152,15 +152,14 @@ int main(int argc, char** argv)
 			sr::data::HostParticleSnapshot snapshot_copy = ex.hd.particles.base;
 			snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
 
-			ex.hd.planets_snapshot = ex.hd.planets.base;
 			sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, true, config.write_bary_track);
 		}
 
 		if (config.swift_hist_every != 0)
 		{
 			swifthistout = std::ofstream(sr::util::joinpath(config.outfolder, "plhist.out"), std::ios_base::binary);
-			sr::data::begin_swift_plhist(swifthistout, ex.hd.planets.base);
-			sr::data::save_swift_plhist(swifthistout, ex.hd.planets.base, ex.t);
+			sr::data::begin_swift_plhist(swifthistout, ex.hd.planets_snapshot);
+			sr::data::save_swift_plhist(swifthistout, ex.hd.planets_snapshot, ex.t);
 		}
 
 		while (ex.t < config.t_f)
@@ -317,13 +316,19 @@ int main(int argc, char** argv)
 	}
 	catch (const std::exception& e)
 	{
+		ex.finish();
+
 		void* array[50];
 		size_t size = backtrace(array, 50);
 		backtrace_symbols_fd(array, static_cast<int>(size), 1);
 
 		tout << "Exception caught: " << std::endl;
 		tout << e.what() << std::endl;
-		tout << "End state may be corrupted. Resuming from a dump is recommended." << std::endl;
+		
+		if (config.resolve_encounters)
+		{
+			tout << "End state may be corrupted. Resuming from a dump is recommended." << std::endl;
+		}
 		crashed = true;
 	}
 
