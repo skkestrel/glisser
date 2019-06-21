@@ -543,6 +543,8 @@ namespace wh
 		helio_acc_particles<true>(pl, pa, 0, pa.n_alive(), 0, 0);
 
 		// detect initial encounters
+		// NOTE: probably not needed
+		/*
 		for (size_t i = 0; i < pa.n_alive(); i++)
 		{
 			for (size_t j = 0; j < pl.n_alive(); j++)
@@ -571,6 +573,7 @@ namespace wh
 				pa.deathflags()[i] = 0x0002;
 			}
 		}
+		 */
 	}
 
 	void WHIntegrator::swap_logs()

@@ -23,7 +23,7 @@ namespace swift
 
 	SwiftEncounterIntegrator::SwiftEncounterIntegrator(
 			const sr::data::Configuration& config,
-			size_t npl)
+			size_t npa)
 	{
 		swift_statlen = config.swift_statlen;
 		swift_path = config.swift_path;
@@ -34,8 +34,8 @@ namespace swift
 
 		for (unsigned int i = 0; i < swift_statlen; i++)
 		{
-			istat.push_back(std::vector<int32_t>(npl));
-			rstat.push_back(std::vector<double>(npl));
+			istat.push_back(std::vector<int32_t>(npa));
+			rstat.push_back(std::vector<double>(npa));
 		}
 	}
 
@@ -161,8 +161,6 @@ namespace swift
 			// construct buffer from file descriptor
 			// __gnu_cxx::stdio_filebuf<char> filebuf(child.piper, std::ios::in);
 			// std::istream is(&filebuf);
-			// std::cout << "encounter for (" << prev_tbsize << ", " << cur_tbsize << ")" << std::endl;
-			// std::cout << std::string(std::istreambuf_iterator<char>(is), {}) << std::endl;
 			::close(child.piper);
 
 			waittime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
@@ -203,7 +201,9 @@ namespace swift
 				}
 				else
 				{
-					statindex = statmap[id] = statmap.size();
+					size_t statsiz = statmap.size();
+					statmap[id] = statsiz;
+					statindex = statsiz;
 				}
 
 				for (size_t j = 0; j < swift_statlen; j++)
@@ -248,8 +248,6 @@ namespace swift
 
 				if (istat[0][statindex] == 1)
 				{
-					// std::cout << "die" << std::endl;
-
 					if (istat[1][statindex] == -1)
 					{
 						deathflags = 0x04;
@@ -288,9 +286,6 @@ namespace swift
 					}
 					deathflags = 0;
 				}
-
-				// std::cout << istat[1][statindex] << std::endl;
-				// std::cout << rstat[3][statindex] << " " << rstat[4][statindex] << std::endl;
 
 				pa.deathflags()[i + child.chunk_begin] = deathflags;
 			}

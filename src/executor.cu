@@ -434,6 +434,7 @@ namespace exec
 
 		// update encounter particles
 		auto times = swift.end_integrate(hd.particles);
+
 		if (!called_from_resync)
 		{
 			t_readswift = static_cast<float>(times.first);
@@ -459,7 +460,7 @@ namespace exec
 		);
 
 		// since helio_acc_particles sets deathflags, unset them IFF in encounter since we want the GPU to detect an encounter, delayed
-		for (size_t i = encounter_start; i < hd.particles.n_encounter(); i++)
+		for (size_t i = encounter_start; i < encounter_start + hd.particles.n_encounter(); i++)
 		{
 			if ((hd.particles.deathflags()[i] & 0xFF) == 0x01)
 			{
@@ -681,6 +682,7 @@ namespace exec
 		clock = std::clock();
 		// copy everything back - n_alive is also copied from device to host
 		download_data();
+		
 		t_dl = static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
 
 		// set the deathtime for dead particles - let's set the encounter particles deathtimes too, just to show when they entered encounter
