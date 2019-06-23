@@ -58,7 +58,7 @@ namespace wh
 				float64_t dt
 		);
 
-		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length);
+		void gather_particles(const Vs& indices, size_t begin, size_t length);
 
 		void load_h0(const HostPlanetPhaseSpace& pl);
 

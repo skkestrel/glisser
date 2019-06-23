@@ -22,7 +22,7 @@ LDFLAGS = -pthread # -lasan
 
 glisse:
 	@mkdir -p $(BIN_DIR)
-	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -maxrregcount 64 -arch=sm_35 --std=c++11 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/glisse -O3
+	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -arch=sm_35 -maxrregcount 64 --std=c++11 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/glisse -O3 -lnvToolsExt
 
 clean:
 	rm -r $(OBJ_DIR)/* 
@@ -85,3 +85,6 @@ import-swift: $(OBJ_FILES)
 
 lookup-info: $(OBJ_FILES)
 	$(call make-target,lookup_info,lookup-info)
+
+cj-metrics: $(OBJ_FILES)
+	$(call make-target,cj_metrics,cj-metrics)

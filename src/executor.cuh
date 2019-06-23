@@ -16,16 +16,6 @@ namespace exec
 	using namespace sr::util;
 	using namespace sr::data;
 
-	struct ExecutorData
-	{
-		std::vector<f64_3> r, v;
-		std::vector<uint32_t> id, deathtime_index;
-		std::vector<uint16_t> deathflags;
-
-		ExecutorData();
-		ExecutorData(size_t size);
-	};
-
 	struct Executor
 	{
 		HostData& hd;
@@ -34,7 +24,7 @@ namespace exec
 		sr::swift::SwiftEncounterIntegrator swift;
 		sr::interp::Interpolator interpolator;
 
-		cudaStream_t main_stream, dth_stream, htd_stream;
+		cudaStream_t main_stream, dth_stream, htd_stream, sort_stream;
 		cudaEvent_t start_event, cpu_finish_event, gpu_finish_event;
 
 		float64_t t;
@@ -67,7 +57,7 @@ namespace exec
 		void init();
 		void upload_data(size_t begin, size_t length);
 		void upload_planet_log();
-		void download_data();
+		void download_data(size_t begin, size_t length);
 
 		std::ofstream out_timing;
 
@@ -82,7 +72,14 @@ namespace exec
 		void swap_logs();
 		void update_planets();
 
-		float t_initswift, t_backup, t_enc, t_writeswift, t_swift, t_readswift, t_delayswift, t_io, t_planet, t_planetup, t_encup, t_sort, t_dl, t_rollback, t_enc2, t_resync;
+		void alloc_packed();
+
+		double t_initswift, t_backup, t_enc, t_writeswift, t_swift, t_readswift, t_delayswift, t_io, t_planet, t_planetup, t_encup, t_sort, t_dl, t_rollback, t_enc2, t_resync;
+
+		int8_t* cpu_packed_mem;
+		int8_t* gpu_packed_mem;
+
+		size_t packed_mem_size;
 	};
 }
 }

@@ -63,7 +63,7 @@ namespace data
 		 * by the `indices` array.
 		 * See `sr::data::gather<T>` for details on the gather operation.
 		 */
-		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
+		void gather(const Vs& indices, size_t begin, size_t length);
 
 		/**
 		 * Resizes all of the particle arrays to the given length.
@@ -76,13 +76,13 @@ namespace data
 		 * be passed to a gather operation to reorder other data
 		 * that particles may have.
 		 */
-		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
+		std::unique_ptr<Vs> sort_by_id(size_t begin, size_t length);
 
 		/**
 		 * Copies particle data to the given `sr::data::HostParticleSnapshot`,
 		 * but only the particles with indices (not IDs) that the `filter` argument contains.
 		 */
-		void filter(const std::vector<size_t>& filter, HostParticleSnapshot& out) const;
+		void filter(const Vs& filter, HostParticleSnapshot& out) const;
 
 		/** Default ctor. */
 		inline HostParticleSnapshot() : n(0), n_alive(0) { }
@@ -203,10 +203,10 @@ namespace data
 		}
 
 		/** Execute stable partition on alive particles, i.e., `deathflags & 0x00FE = 0` */
-		std::unique_ptr<std::vector<size_t>> stable_partition_alive(size_t begin, size_t length);
+		std::unique_ptr<Vs> stable_partition_alive(size_t begin, size_t length);
 
 		/** Execute stable partition on unflagged particles, i.e., `deathflags & 0x00FF = 0`. */
-		std::unique_ptr<std::vector<size_t>> stable_partition_unflagged(size_t begin, size_t length);
+		std::unique_ptr<Vs> stable_partition_unflagged(size_t begin, size_t length);
 
 		/**
 		 * Implements the gather operation on all of the particle arrays.
@@ -214,17 +214,17 @@ namespace data
 		 * by the indices array.
 		 * See sr::data::gather for details on the gather operation.
 		 */
-		void gather(const std::vector<size_t>& indices, size_t begin, size_t length);
+		void gather(const Vs& indices, size_t begin, size_t length);
 
 		/**
 		 * Sorts particle data by IDs. See `HostParticleSnapshot::sort_by_id`.
 		 */
-		std::unique_ptr<std::vector<size_t>> sort_by_id(size_t begin, size_t length);
+		std::unique_ptr<Vs> sort_by_id(size_t begin, size_t length);
 
 		/**
 		 * Filters particle data. See `HostParticleSnapshot::filter`.
 		 */
-		void filter(const std::vector<size_t>& filter, HostParticlePhaseSpace& out) const;
+		void filter(const Vs& filter, HostParticlePhaseSpace& out) const;
 
 		/**
 		 * Gets the planet ID that is in an encounter with the particle.
@@ -583,10 +583,10 @@ namespace data
 	 * The `begin` argument specifies an offset into only the `values` array.
 	 * Do not add `begin` to each element in `indices`.
 	 */
-	template<typename T>
-	void gather(std::vector<T>& values, const std::vector<size_t>& indices, size_t begin, size_t length)
+	template<typename T, typename Alloc, typename Alloc2>
+	void gather(std::vector<T, Alloc>& values, const std::vector<size_t, Alloc2>& indices, size_t begin, size_t length)
 	{
-		std::vector<T> copy(values.begin() + begin, values.begin() + begin + length);
+		std::vector<T, Alloc> copy(values.begin() + begin, values.begin() + begin + length);
 		for (size_t i = begin; i < begin + length; i++)
 		{
 			values[i] = copy[indices[i - begin]];
@@ -596,7 +596,7 @@ namespace data
 	bool load_planet_data(HostPlanetPhaseSpace& pl, const Configuration& config, std::istream& plin);
 	bool load_data(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);
 
-	size_t stable_partition_alive_indices(const std::vector<uint16_t>& flags, size_t begin, size_t length, std::unique_ptr<std::vector<size_t>>* indices);
+	size_t stable_partition_alive_indices(const Vu16& flags, size_t begin, size_t length, std::unique_ptr<Vs>* indices);
 
 	void save_data(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, const std::string& outfile);
 	void save_data_swift(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, std::ostream& plout, std::ostream& icsout);
@@ -636,7 +636,7 @@ namespace data
 		void read_time();
 
 		void begin_planets();
-		void read_planets(const std::vector<uint32_t>* filter);
+		void read_planets(const Vu32* filter);
 		void end_planets();
 
 		void begin_particles();
@@ -652,9 +652,9 @@ namespace data
 	struct TrackReaderOptions
 	{
 		bool take_all_particles;
-		std::vector<uint32_t> particle_filter;
+		Vu32 particle_filter;
 		bool take_all_planets;
-		std::vector<uint32_t> planet_filter;
+		Vu32 planet_filter;
 		double max_time;
 		bool silent;
 

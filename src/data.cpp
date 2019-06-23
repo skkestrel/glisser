@@ -14,9 +14,9 @@ namespace sr
 {
 namespace data
 {
-	size_t stable_partition_alive_indices(const std::vector<uint16_t>& flags, size_t begin, size_t length, std::unique_ptr<std::vector<size_t>>* indices)
+	size_t stable_partition_alive_indices(const Vu16& flags, size_t begin, size_t length, std::unique_ptr<Vs>* indices)
 	{
-		auto new_indices = std::make_unique<std::vector<size_t>>(length);
+		auto new_indices = std::make_unique<Vs>(length);
 		std::iota(new_indices->begin(), new_indices->end(), 0);
 
 		auto val = std::stable_partition(new_indices->begin(), new_indices->end(), [begin, &flags](size_t index)
@@ -26,9 +26,9 @@ namespace data
 		return val;
 	}
 
-	size_t stable_partition_unflagged_indices(const std::vector<uint16_t>& flags, size_t begin, size_t length, std::unique_ptr<std::vector<size_t>>* indices)
+	size_t stable_partition_unflagged_indices(const Vu16& flags, size_t begin, size_t length, std::unique_ptr<Vs>* indices)
 	{
-		auto new_indices = std::make_unique<std::vector<size_t>>(length);
+		auto new_indices = std::make_unique<Vs>(length);
 		std::iota(new_indices->begin(), new_indices->end(), 0);
 
 		auto val = std::stable_partition(new_indices->begin(), new_indices->end(), [begin, &flags](size_t index)
@@ -38,7 +38,7 @@ namespace data
 		return val;
 	}
 
-	void HostParticleSnapshot::gather(const std::vector<size_t>& indices, size_t begin, size_t length)
+	void HostParticleSnapshot::gather(const Vs& indices, size_t begin, size_t length)
 	{
 		sr::data::gather(r, indices, begin, length);
 		sr::data::gather(v, indices, begin, length);
@@ -54,7 +54,7 @@ namespace data
 		n = length;
 	}
 
-	void HostParticleSnapshot::filter(const std::vector<size_t>& filter, HostParticleSnapshot& out) const
+	void HostParticleSnapshot::filter(const Vs& filter, HostParticleSnapshot& out) const
 	{
 		out = HostParticleSnapshot(filter.size());
 		out.n_alive = 0;
@@ -76,19 +76,19 @@ namespace data
 		}
 	}
 
-	void HostParticlePhaseSpace::gather(const std::vector<size_t>& indices, size_t begin, size_t length)
+	void HostParticlePhaseSpace::gather(const Vs& indices, size_t begin, size_t length)
 	{
 		base.gather(indices, begin, length);
 		sr::data::gather(deathflags(), indices, begin, length);
 	}
 
-	void HostParticlePhaseSpace::filter(const std::vector<size_t>& filter, HostParticlePhaseSpace& out) const
+	void HostParticlePhaseSpace::filter(const Vs& filter, HostParticlePhaseSpace& out) const
 	{
 		base.filter(filter, out.base);
 		out._n_encounter = 0;
-		out._deathflags = std::vector<uint16_t>(out.base.n);
+		out._deathflags = Vu16(out.base.n);
 		out._deathtime = Mu32f64();
-		out._deathtime_index = std::vector<uint32_t>(out.base.n);
+		out._deathtime_index = Vu32(out.base.n);
 
 		size_t index = 0;
 
@@ -102,9 +102,9 @@ namespace data
 		}
 	}
 
-	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_unflagged(size_t begin, size_t length)
+	std::unique_ptr<Vs> HostParticlePhaseSpace::stable_partition_unflagged(size_t begin, size_t length)
 	{
-		std::unique_ptr<std::vector<size_t>> indices;
+		std::unique_ptr<Vs> indices;
 		n_alive() = stable_partition_unflagged_indices(deathflags(), begin, length, &indices);
 		
 		this->gather(*indices, begin, length);
@@ -112,9 +112,9 @@ namespace data
 		return indices;
 	}
 
-	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::stable_partition_alive(size_t begin, size_t length)
+	std::unique_ptr<Vs> HostParticlePhaseSpace::stable_partition_alive(size_t begin, size_t length)
 	{
-		std::unique_ptr<std::vector<size_t>> indices;
+		std::unique_ptr<Vs> indices;
 		n_alive() = stable_partition_alive_indices(deathflags(), begin, length, &indices);
 		
 		this->gather(*indices, begin, length);
@@ -122,9 +122,9 @@ namespace data
 		return indices;
 	}
 
-	std::unique_ptr<std::vector<size_t>> HostParticleSnapshot::sort_by_id(size_t begin, size_t length)
+	std::unique_ptr<Vs> HostParticleSnapshot::sort_by_id(size_t begin, size_t length)
 	{
-		auto new_indices = std::make_unique<std::vector<size_t>>(length);
+		auto new_indices = std::make_unique<Vs>(length);
 
 		std::iota(new_indices->begin(), new_indices->end(), 0);
 		std::sort(new_indices->begin(), new_indices->end(), [begin, this](size_t a, size_t b)
@@ -135,7 +135,7 @@ namespace data
 		return new_indices;
 	}
 
-	std::unique_ptr<std::vector<size_t>> HostParticlePhaseSpace::sort_by_id(size_t begin, size_t length)
+	std::unique_ptr<Vs> HostParticlePhaseSpace::sort_by_id(size_t begin, size_t length)
 	{
 		auto indices = base.sort_by_id(begin, length);
 
@@ -905,7 +905,7 @@ namespace data
 		state = State::PlanetsEnd;
 	}
 
-	void TrackReader::read_planets(const std::vector<uint32_t>* filter)
+	void TrackReader::read_planets(const Vu32* filter)
 	{
 		check_state(State::PlanetsEnd);
 		std::streampos pos = input.tellg();

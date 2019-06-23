@@ -4,7 +4,7 @@
 #include "interp.h"
 
 #include <iomanip>
-#include <ctime>
+#include <chrono>
 #include <cstring>
 #include <libgen.h>
 #include <fstream>
@@ -19,6 +19,8 @@ namespace sr
 {
 namespace swift
 {
+	using hrclock = std::chrono::high_resolution_clock;
+
 	SwiftEncounterIntegrator::SwiftEncounterIntegrator() { }
 
 	SwiftEncounterIntegrator::SwiftEncounterIntegrator(
@@ -50,7 +52,7 @@ namespace swift
 			size_t _prev_tbsize,
 			size_t _cur_tbsize)
 	{
-		std::clock_t s_clock = std::clock();
+		auto s_clock = hrclock::now();
 		ASSERT(_children.size() == 0, "")
 
 		t = _t;
@@ -87,12 +89,13 @@ namespace swift
 		std::string history_path = sr::util::joinpath(datapath, "hist");
 
 		
-		float iotime = 0;
+		double iotime = 0;
 
-		std::clock_t clock = std::clock();
+		auto clock = hrclock::now();
 		write_planetary_history(pl, interp, history_path);
 
-		iotime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+		std::chrono::duration<double, std::milli> millis = hrclock::now() - clock;
+		iotime += millis.count();
 
 		for (unsigned int i = 0; i < num_proc; i++)
 		{
@@ -103,10 +106,12 @@ namespace swift
 			std::string tp_path = sr::util::joinpath(datapath, "tp" + std::to_string(i));
 			std::string tpout_path = sr::util::joinpath(datapath, "tpout" + std::to_string(i));
 
-			clock = std::clock();
+			clock = hrclock::now();
 			write_param_in(param_path);
 			write_tp_in(pa, chunk_begin, chunk_end, tp_path);
-			iotime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+
+			millis = hrclock::now() - clock;
+			iotime += millis.count();
 
 			int pipefd[2];
 
@@ -138,14 +143,16 @@ namespace swift
 			_children.push_back(ChildProcess(pid, pipefd[0], tpout_path, chunk_begin, chunk_end));
 		}
 
-		double totaltime = static_cast<float>(std::clock() - s_clock) / CLOCKS_PER_SEC * 1000;
+		millis = hrclock::now() - s_clock;
+		double totaltime = millis.count();
 		return std::make_pair(iotime, totaltime);
 	}
 
 	std::pair<double, double> SwiftEncounterIntegrator::end_integrate(sr::data::HostParticlePhaseSpace& pa)
 	{
-		float iotime = 0;
-		float waittime = 0;
+		double iotime = 0;
+		double waittime = 0;
+
 		if (_children.size() == 0)
 		{
 			throw std::runtime_error(".");
@@ -153,7 +160,7 @@ namespace swift
 
 		for (const ChildProcess& child : _children)
 		{
-			std::clock_t clock = std::clock();
+			auto clock = hrclock::now();
 
 			int status;
 			::waitpid(child.pid, &status, 0);
@@ -163,7 +170,8 @@ namespace swift
 			// std::istream is(&filebuf);
 			::close(child.piper);
 
-			waittime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+			std::chrono::duration<double, std::milli> millis = hrclock::now() - clock;
+			waittime += millis.count();
 
 
 			// std::cin.get();
@@ -174,7 +182,7 @@ namespace swift
 			}
 
 
-			clock = std::clock();
+			clock = hrclock::now();
 
 			std::ifstream output(child.tpout);
 
@@ -290,7 +298,8 @@ namespace swift
 				pa.deathflags()[i + child.chunk_begin] = deathflags;
 			}
 
-			iotime += static_cast<float>(std::clock() - clock) / CLOCKS_PER_SEC * 1000;
+			millis = hrclock::now() - clock;
+			iotime += millis.count();
 		}
 
 		_children.clear();
@@ -302,7 +311,7 @@ namespace swift
 		std::ofstream file(dest);
 		for (std::pair<uint32_t, size_t> pair : statmap)
 		{
-			file << std::setprecision(17) << pair.first << std::endl;
+			file << std::fixed << std::setprecision(17) << pair.first << std::endl;
 			for (size_t j = 0; j < swift_statlen; j++)
 			{
 				file << istat[j][pair.second] << " ";

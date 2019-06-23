@@ -14,16 +14,65 @@
 #define __device__
 #endif
 
+template<typename T>
+struct MemArray
+{
+	private:
+		T* _data;
+		size_t _size;
+		bool _release;
+
+	public:
+		inline MemArray() : _data(nullptr), _size(0), _release(false) { }
+		inline MemArray(size_t s)
+		{
+			_data = new T[s];
+			_size = s;
+			_release = true;
+		}
+
+		inline MemArray(T* d, size_t s) : _data(d), _size(s), _release(false) { }
+
+
+		inline T& operator[](size_t i)
+		{
+			return _data[i];
+		}
+
+		inline const T& operator[](size_t i) const
+		{
+			return _data[i];
+		}
+
+		inline T* data() const
+		{
+			return _data;
+		}
+		
+		inline size_t size() const
+		{
+			return _size;
+		}
+};
+
 using float64_t = double;
 using float32_t = float;
 
 using Mu32f64 = std::unordered_map<uint32_t, float64_t>;
+
+using Af64 = MemArray<float64_t>;
+using Au32 = MemArray<uint32_t>;
+using Au16 = MemArray<uint16_t>;
+using Au8 = MemArray<uint8_t>;
+using Af32 = MemArray<float32_t>;
+using As = MemArray<size_t>;
 
 using Vf64 = std::vector<float64_t>;
 using Vu32 = std::vector<uint32_t>;
 using Vu16 = std::vector<uint16_t>;
 using Vu8 = std::vector<uint8_t>;
 using Vf32 = std::vector<float32_t>;
+using Vs = std::vector<size_t>;
 
 template<typename T>
 struct v_3

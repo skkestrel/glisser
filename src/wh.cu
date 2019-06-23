@@ -309,7 +309,7 @@ done: ;
 		cudaStreamSynchronize(stream);
 	}
 
-	void WHCudaIntegrator::gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length)
+	void WHCudaIntegrator::gather_particles(const Vs& indices, size_t begin, size_t length)
 	{
 		base.gather_particles(indices, begin, length);
 	}

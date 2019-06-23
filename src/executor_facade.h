@@ -31,7 +31,7 @@ namespace sr
 			~ExecutorFacade();
 
 			void init();
-			void download_data();
+			void download_data(size_t begin, size_t length);
 			double time() const;
 			bool loop(double* cputimeout, double* gputimeout);
 			void add_job(const std::function<void()>& job);

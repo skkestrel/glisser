@@ -46,7 +46,7 @@ namespace wh
 
 		void recalculate_rh(const HostPlanetPhaseSpace& pl);
 
-		void gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length);
+		void gather_particles(const Vs& indices, size_t begin, size_t length);
 
 		void integrate_particles_timeblock_cuda(
 				cudaStream_t stream,

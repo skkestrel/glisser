@@ -985,7 +985,7 @@ namespace wh
 		}
 	}
 
-	void WHIntegrator::gather_particles(const std::vector<size_t>& indices, size_t begin, size_t length)
+	void WHIntegrator::gather_particles(const Vs& indices, size_t begin, size_t length)
 	{
 		gather(particle_a, indices, begin, length);
 	}

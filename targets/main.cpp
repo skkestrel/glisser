@@ -200,7 +200,8 @@ int main(int argc, char** argv)
 
 			if (dump || track || swifthist)
 			{
-				ex.download_data();
+				// NOTE: this is not needed when we use a resync function that always downloads everything
+				// ex.download_data();
 
 				if (dump)
 				{
@@ -288,7 +289,7 @@ int main(int argc, char** argv)
 						}
 						if (!dump && !track)
 						{
-							ex.download_data();
+							ex.download_data(0, ex.hd.particles.n());
 						}
 
 						// TODO dump on next 
@@ -332,7 +333,7 @@ int main(int argc, char** argv)
 		crashed = true;
 	}
 
-	ex.download_data();
+	ex.download_data(0, ex.hd.particles.n());
 
 	// save last time into the history
 	sr::data::save_swift_plhist(swifthistout, ex.hd.planets_snapshot, ex.t);
