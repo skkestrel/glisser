@@ -359,6 +359,7 @@ namespace exec
 	{
 		auto& particles = dd.particle_phase_space();
 
+		// using a batched download instead of broken up downloads
 		if (true)
 		{
 			nvtxRangeId_t id1 = nvtxRangeStartA("pack gpu");
@@ -637,6 +638,21 @@ namespace exec
 			);
 
 			cudaEventRecord(gpu_finish_event, main_stream);
+
+			// this stuff is queued up after the integration finishes
+
+			auto& particles = dd.particle_phase_space();
+
+			// kill particles in encounters
+			if (!config.resolve_encounters)
+			{
+				auto it = particles.begin();
+				thrust::for_each(thrust::cuda::par.on(main_stream), it, it + particles.n_alive, KillEncounterKernel());
+			}
+
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
+			presort_index = thrust::partition(thrust::cuda::par.on(main_stream),
+					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
 		}
 
 		auto c_start = hrclock::now();
@@ -688,7 +704,6 @@ namespace exec
 		if (cputimeout) *cputimeout = dt_ms(c_start, hrclock::now());
 
 		float gputime = 0;
-		double gputime2 = 0;
 
 		// there's nothing to resync if the GPU didn't integrate any particles, i.e. dd.particles.n_alive = 0
 		if (dd.particle_phase_space().n_alive > 0)
@@ -696,8 +711,6 @@ namespace exec
 			cudaStreamSynchronize(main_stream);
 			cudaStreamSynchronize(htd_stream);
 			cudaEventSynchronize(gpu_finish_event);
-
-			gputime2 = dt_ms(c_start, hrclock::now());
 
 			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
 			if (gputimeout) *gputimeout = gputime;
@@ -751,35 +764,24 @@ namespace exec
 
 		cudaEventRecord(start_event, sort_stream);
 
-		// kill particles in encounters
-		if (!config.resolve_encounters)
-		{
-			auto it = particles.begin();
-			thrust::for_each(thrust::cuda::par.on(sort_stream), it, it + particles.n_alive, KillEncounterKernel());
-		}
-
 		// partition twice
 		if (config.resolve_encounters)
 		{
 			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
 
-			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(sort_stream),
-					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+			particles.n_alive = thrust::partition(thrust::cuda::par.on(sort_stream),
+					partition_it + presort_index, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
 			
 			// the second partition for encounter particles only needs to run between n_alive and prev_alive, since all the alive particles
 			// will be pushed to the beginning anyways
-			hd.particles.n_encounter() = (thrust::stable_partition(thrust::cuda::par.on(sort_stream),
+			hd.particles.n_encounter() = (thrust::partition(thrust::cuda::par.on(sort_stream),
 					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
 
 			cudaStreamSynchronize(sort_stream);
 		}
 		else
 		{
-			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), integrator.device_begin()));
-			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(sort_stream),
-					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
-
-			cudaStreamSynchronize(sort_stream);
+			particles.n_alive = presort_index;
 		}
 
 		cudaEventRecord(gpu_finish_event, sort_stream);
@@ -845,10 +847,10 @@ namespace exec
 
 			// since we only updated encounter particles, we do a partial partition
 
-			particles.n_alive = thrust::stable_partition(thrust::cuda::par.on(sort_stream),
+			particles.n_alive = thrust::partition(thrust::cuda::par.on(sort_stream),
 					partition_it + particles.n_alive - n_encounters, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
 			
-			hd.particles.n_encounter() = (thrust::stable_partition(thrust::cuda::par.on(sort_stream),
+			hd.particles.n_encounter() = (thrust::partition(thrust::cuda::par.on(sort_stream),
 					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
 
 			cudaStreamSynchronize(sort_stream);

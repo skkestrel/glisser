@@ -80,6 +80,8 @@ namespace exec
 		int8_t* gpu_packed_mem;
 
 		size_t packed_mem_size;
+
+		size_t presort_index;
 	};
 }
 }
