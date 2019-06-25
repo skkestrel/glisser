@@ -1,0 +1,10 @@
+#! /bin/sh
+for i in 51; do
+#for i in 11 51 101 151 201 251; do
+  \rm -f ../swift.inc ../libswift.a swift.inc
+  ln -s ../$i/swift.inc swift.inc
+  ln -s $i/swift.inc ../swift.inc
+  ln -s $i/libswift.a ../libswift.a
+  ./@make_main
+  mv swift_bs swift_lyap swift_lyap2 swift_mvits swift_mvs swift_rmvs swift_rmvs2 swift_rmvs3 swift_rmvs3_readpl swift_readpl_bin swift_tu4 ../$i/
+done

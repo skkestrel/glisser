@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# USERS MUST CHANGE THESE !!!!!!
+cd ../
+export SWIFT_DIR=`pwd`
+
+. ./@DefineCompiler
+
+cd main
+
+for file1 in *.f; do
+    echo $file1
+    file2=${file1/.f/}
+    $FORTRAN  $FFLAGS -o  $file2 $file1 ../libswift.a
+done
+
+\rm *.o

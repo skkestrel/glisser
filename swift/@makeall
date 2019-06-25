@@ -1,0 +1,130 @@
+rm libswift.a
+
+swiftdir=`pwd`
+cat @make-tpl | sed "s|THE-DIRECTORY|${swiftdir}|" > @make
+
+echo DIRECTORY: anal
+cd anal
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: bs
+cd ../bs
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: coord  
+cd ../coord  
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: discard  
+cd ../discard  
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: io  
+cd ../io  
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: lyap
+cd ../lyap
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: lyap2
+cd ../lyap2
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: mvits
+cd ../mvits
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+cd ../mvs
+
+echo DIRECTORY: mvs/drift 
+cd drift 
+\rm -f @make
+ln -s ../../@make .
+bash @make
+
+echo DIRECTORY: mvs/getacch
+cd ../getacch
+\rm -f @make
+ln -s ../../@make .
+bash @make
+
+echo DIRECTORY: mvs/kickvh
+cd ../kickvh
+\rm -f @make
+ln -s ../../@make .
+bash @make
+
+echo DIRECTORY: mvs/step
+cd ../step
+\rm -f @make
+ln -s ../../@make .
+bash @make
+
+cd ..
+
+echo DIRECTORY: orbel  
+cd ../orbel  
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: rmvs
+cd ../rmvs
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: rmvs2
+cd ../rmvs2
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: rmvs3
+cd ../rmvs3
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: tu4
+cd ../tu4
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: obl
+cd ../obl
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+echo DIRECTORY: util
+cd ../util
+\rm -f @make
+ln -s ../@make .
+bash @make
+
+cd ..
+ar ts libswift.a
+ranlib libswift.a
+
+\rm @make
+
+echo DONE

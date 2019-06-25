@@ -1,0 +1,23 @@
+#!/bin/bash
+
+if [ X"${FORTRAN}" == X ]; then
+    which ifort > /dev/null 2>&1
+    ifortexists=$?
+    if [ "$ifortexists" -eq "0" ]; then
+        FORTRAN="`which ifort`"
+	FFLAGS="-O3 -assume byterecl"
+        export FORTRAN, FFLAGS
+      fi
+    fi
+    if [ X"${FORTRAN}" == X ]; then
+      which gfortran > /dev/null 2>&1
+      gfortranexists=$?
+      if [ "$gfortranexists" -eq "0" ]; then
+        FORTRAN="`which gfortran` -O6"
+	FFLAGS='-O3 -mcmodel=medium'
+        export FORTRAN, FFLAGS
+      fi
+    fi
+
+# To Profile the code:
+# export FFLAGS='-G -c'

@@ -1,0 +1,8 @@
+#! /bin/sh
+for i in 51; do
+#for i in 11 51 101 151 201 251; do
+  \rm -f swift.inc
+  ln -s $i/swift.inc swift.inc
+  ./@makeall
+  mv libswift.a $i/
+done

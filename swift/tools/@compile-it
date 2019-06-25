@@ -1,0 +1,10 @@
+#! /bin/sh
+#for i in 11 51 101 151 201 251; do
+for i in 51; do
+  \rm -f ../swift.inc ../libswift.a swift.inc
+  ln -s ../$i/swift.inc swift.inc
+  ln -s $i/swift.inc ../swift.inc
+  ln -s $i/libswift.a ../libswift.a
+  ./@make_tools
+  mv encounters extract_slices_bary follow follow_bary gen_ai left to_readpl tp_helio2bary tp ../$i/
+done
