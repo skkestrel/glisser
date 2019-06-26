@@ -150,7 +150,7 @@ namespace data
 		t_f = 1e4;
 		dt = 1;
 		tbsize = 1024;
-		write_bary_track = false;
+		write_bary_track = true;
 		encounter_sphere_factor = 0;
 		cull_radius = 0.5;
 		interp_maxpl = 16;

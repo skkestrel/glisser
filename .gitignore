@@ -8,7 +8,6 @@ prof
 bin
 obj
 swift/51/libswift.a
-swift/51/swift.inc
 swift/51/swift_lyap
 swift/51/swift_lyap2
 swift/51/swift_mvits
