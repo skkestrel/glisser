@@ -176,6 +176,7 @@ done: ;
 			}
 		}
 
+		// manual diagram [5]
 		template<typename Tuple>
 		__host__ __device__
 		void operator()(Tuple args) const

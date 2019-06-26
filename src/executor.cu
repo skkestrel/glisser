@@ -501,6 +501,8 @@ namespace exec
 
 		nvtxRangeId_t id = nvtxRangeStartA("swift");
 		auto clocks = hrclock::now();
+
+		// manual diagram [6]
 		auto times1 = swift.begin_integrate(hd.planets, hd.particles, interpolator, called_from_resync, which_t, rel_t, which_dt, prev_len, cur_len);
 
 		if (!called_from_resync)
@@ -515,6 +517,7 @@ namespace exec
 			auto clock = hrclock::now();
 			nvtxRangeId_t id2 = nvtxRangeStartA("io");
 
+			// manual diagram [8]
 			for (auto& i : work) i();
 			work.clear();
 
@@ -524,14 +527,18 @@ namespace exec
 			// do the planet stuff
 			nvtxRangeId_t id3 = nvtxRangeStartA("planets");
 
+			// save the planet locations
 			hd.planets_snapshot = hd.planets.base;
 			t += cur_dt * static_cast<double>(cur_tbsize);
+
+			// manual diagram [9] [10]
 			update_planets();
 
 			nvtxRangeEnd(id3);
 		}
 
 		// update encounter particles
+		// manual diagram [11]
 		auto times = swift.end_integrate(hd.particles);
 		nvtxRangeEnd(id);
 
@@ -549,6 +556,8 @@ namespace exec
 		// so accelerations are outdated
 
 		// load accelerations (the planets already have h0 loaded, so no problem here)
+
+		// manual diagram [12]
 		integrator.helio_acc_particles(
 			hd.planets,
 			hd.particles,
@@ -572,7 +581,7 @@ namespace exec
 		nvtxRangeId_t id4 = nvtxRangeStartA("io");
 
 		// upload the changes to the GPU
-		// no need to sort the particles here, resync will do all the sorting
+		// manual diagram [13]
 		upload_data(encounter_start, hd.particles.n_encounter());
 
 		nvtxRangeEnd(id4);
@@ -610,6 +619,8 @@ namespace exec
 		{
 			// if resolving encounters, we need the particle states at the beginning of the chunk
 			// so that encounter particles can be rolled back to their initial state
+
+			// manual diagram [1]
 			if (config.resolve_encounters)
 			{
 				memcpy_dtd(rollback_state.r, dd.particle_phase_space().r, main_stream);
@@ -625,10 +636,7 @@ namespace exec
 
 			cudaEventRecord(start_event, main_stream);
 
-			// in order to integrate the particles on GPU, the particle accelerations must be set.
-			// typically the accelerations are set by the previous timeblock
-			// but in the case of the first timeblock, or when recovering from a close encounter, it needs to be set manually...
-
+			// manual diagram [2]
 			integrator.integrate_particles_timeblock_cuda(
 				main_stream,
 				dd.planet_data_id,
@@ -643,13 +651,15 @@ namespace exec
 
 			auto& particles = dd.particle_phase_space();
 
-			// kill particles in encounters
+			// kill particles in encounters - we do this by setting
+			// the dead bit if the encounter bit is also set
 			if (!config.resolve_encounters)
 			{
 				auto it = particles.begin();
 				thrust::for_each(thrust::cuda::par.on(main_stream), it, it + particles.n_alive, KillEncounterKernel());
 			}
 
+			// manual diagram [3]
 			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
 			presort_index = thrust::partition(thrust::cuda::par.on(main_stream),
 					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
@@ -708,6 +718,7 @@ namespace exec
 		// there's nothing to resync if the GPU didn't integrate any particles, i.e. dd.particles.n_alive = 0
 		if (dd.particle_phase_space().n_alive > 0)
 		{
+			// manual diagram [17]
 			cudaStreamSynchronize(main_stream);
 			cudaStreamSynchronize(htd_stream);
 			cudaEventSynchronize(gpu_finish_event);
@@ -765,6 +776,7 @@ namespace exec
 		cudaEventRecord(start_event, sort_stream);
 
 		// partition twice
+		// manual diagram [18]
 		if (config.resolve_encounters)
 		{
 			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
@@ -796,6 +808,7 @@ namespace exec
 
 		clock = hrclock::now();
 		// copy everything back - n_alive is also copied from device to host
+		// manual diagram [19]
 		download_data(0, particles.n_total);
 		
 		t_dl = dt_ms(clock, hrclock::now());
@@ -826,6 +839,7 @@ namespace exec
 		}
 
 		// for encounter particles, use the rollback data
+		// manual diagram [20]
 		if (hd.particles.n_encounter() > 0)
 		{
 			memcpy_dth(hd.particles.r(), rollback_state.r, dth_stream, particles.n_alive, particles.n_alive, hd.particles.n_encounter());
@@ -841,6 +855,7 @@ namespace exec
 
 			size_t n_encounters = hd.particles.n_encounter();
 
+			// manual diagram [21]
 			handle_encounters(true);
 
 			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));

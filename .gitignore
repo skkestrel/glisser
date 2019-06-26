@@ -1,8 +1,4 @@
 *.swp
-*.out
-*.in
-!data/*.out
-!data/*.in
 script/__pycache__
 prof
 bin
@@ -19,3 +15,4 @@ swift/51/swift_rmvs3
 swift/51/swift_rmvs3_readpl
 swift/main/swift_glisse_ext
 swift/main/swift_readpl_bin_r4
+example/*-out

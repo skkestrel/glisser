@@ -145,7 +145,6 @@ namespace data
 
 	Configuration::Configuration()
 	{
-		num_thread = 4;
 		t_0 = 0;
 		t_f = 1e4;
 		dt = 1;
@@ -232,8 +231,6 @@ namespace data
 					out->cull_radius = std::stod(second);
 				else if (first == "Outer-Limit")
 					out->outer_radius = std::stod(second);
-				else if (first == "CPU-Thread-Count")
-					out->num_thread = std::stou(second);
 				else if (first == "Limit-Particle-Count")
 					out->max_particle = std::stou(second);
 				else if (first == "Log-Interval")
@@ -345,7 +342,6 @@ namespace data
 		outstream << "Encounter-RH-Factor " << out.cull_radius << std::endl;
 		outstream << "Cull-Radius " << out.cull_radius << std::endl;
 		outstream << "Outer-Limit " << out.outer_radius << std::endl;
-		outstream << "CPU-Thread-Count " << out.num_thread << std::endl;
 		outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
 		outstream << "Log-Interval " << out.print_every << std::endl;
 		outstream << "Track-Interval " << out.track_every << std::endl;
