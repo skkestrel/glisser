@@ -1,35 +1,9 @@
-<!DOCTYPE html>
-<html>
+---
 
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>glisser</title>
-  <link rel="stylesheet" href="https://stackedit.io/style.css" />
-</head>
 
-<body class="stackedit">
-  <div class="stackedit__left">
-    <div class="stackedit__toc">
-      
-<ul>
-<li><a href="#glisser---gpu-long-term-integrator-for-solar-system-evolution-regularized">GLISSER - GPU Long-term Integrator for Solar System Evolution (Regularized)</a>
-<ul>
-<li><a href="#introduction">Introduction</a></li>
-<li><a href="#installation">Installation</a></li>
-<li><a href="#usage">Usage</a></li>
-<li><a href="#inputs">Inputs</a></li>
-<li><a href="#output-files">Output files</a></li>
-<li><a href="#further-reading">Further reading</a></li>
-</ul>
-</li>
-</ul>
+---
 
-    </div>
-  </div>
-  <div class="stackedit__right">
-    <div class="stackedit__html">
-      <h1 id="glisser---gpu-long-term-integrator-for-solar-system-evolution-regularized">GLISSER - GPU Long-term Integrator for Solar System Evolution (Regularized)</h1>
+<h1 id="glisser---gpu-long-term-integrator-for-solar-system-evolution-regularized">GLISSER - GPU Long-term Integrator for Solar System Evolution (Regularized)</h1>
 <h2 id="introduction">Introduction</h2>
 <p>GLISSER is an integrator which makes use of a GPU card to perform long-term and long-scale integrations of massless test particles in a solar system.</p>
 <h3 id="functions">Functions</h3>
@@ -375,8 +349,3 @@ repeat until completion:
 <h2 id="further-reading">Further reading</h2>
 <p>Please see also <code>glisser_manual.md</code> for a detailed explanation of the code.</p>
 
-    </div>
-  </div>
-</body>
-
-</html>
