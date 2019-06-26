@@ -148,7 +148,7 @@ namespace data
 		num_thread = 4;
 		t_0 = 0;
 		t_f = 1e4;
-		dt = 122;
+		dt = 1;
 		tbsize = 1024;
 		write_bary_track = false;
 		encounter_sphere_factor = 0;
@@ -161,7 +161,7 @@ namespace data
 		swift_statlen = 13;
 		print_every = 10;
 		track_every = 0;
-		split_track_file = 0;
+		split_track_file = 500000000;
 		num_swift = 1;
 		swift_part_min = 10;
 
@@ -328,6 +328,10 @@ namespace data
 		if (out->readsplit && (out->plin == "" || out->icsin == ""))
 		{
 			throw std::runtime_error("Error: Read-Split-Input was selected but Particle-Input-File or Planet-Input-File were not specified");
+		}
+		if (!out->interp_planets && out->resolve_encounters)
+		{
+			throw std::runtime_error("Error: Cannot resolve encounters if not using an interpolated planetary history file");
 		}
 	}
 

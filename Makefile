@@ -1,5 +1,7 @@
 .PHONY: all clean
 
+CUDA_ARCH=sm_35
+
 SRC_DIR = src
 BIN_DIR = bin
 OBJ_DIR = obj
@@ -20,9 +22,9 @@ CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -DNO_CUDA
 
 LDFLAGS = -pthread # -lasan
 
-glisse:
+glisser:
 	@mkdir -p $(BIN_DIR)
-	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -arch=sm_35 -maxrregcount 64 --std=c++11 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/glisse -O3 -lnvToolsExt
+	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -arch=$(CUDA_ARCH) -maxrregcount 64 --std=c++11 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/glisser -O3 -lnvToolsExt
 
 clean:
 	rm -r $(OBJ_DIR)/* 
@@ -49,9 +51,6 @@ $(info CPP $(OBJ_DIR)/targets/$1.o)
 $(info LD $(BIN_DIR)/$2)
 @g++ $(OBJ_DIR)/targets/$1.o $(OBJ_FILES) $(LDFLAGS) -o $(BIN_DIR)/$2
 endef
-
-cpu: $(OBJ_FILES)
-	$(call make-target,main,glisse_cpu)
 
 convert-state: $(OBJ_FILES)
 	$(call make-target,convert_state,convert-state)
