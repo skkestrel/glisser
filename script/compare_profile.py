@@ -14,7 +14,28 @@ import util
 import sys
 
 plt.figure()
-with open('prof/particle-prof.csv') as p:
+with open('swift-profile2.csv') as p:
+    X = []
+    Y = []
+    for line in p:
+        tokens = [float(x) for x in line.strip().split(',')]
+        # Y.append(time / npa / nstep * 100000 * 10000)
+        Y.append(tokens[1])
+        X.append(tokens[0])
+
+    plt.scatter(X, Y, s=3, c="g", label="SWIFT (CPU)")
+with open('genga-profile.csv') as p:
+    X = []
+    Y = []
+    for line in p:
+        tokens = [float(x) for x in line.strip().split(',')]
+        # Y.append(time / npa / nstep * 100000 * 10000)
+        Y.append(tokens[1])
+        X.append(tokens[0])
+
+    plt.scatter(X, Y, s=3, c="r", label="GENGA (K20m)")
+"""
+with open('v100_prof/particle-prof.csv') as p:
     X = []
     Y = []
     for line in p:
@@ -26,7 +47,8 @@ with open('prof/particle-prof.csv') as p:
         Y.append(time / nstep * 10000)
         X.append(npa)
 
-    plt.scatter(X, Y, s=3, c="k", label="GLISSE (K20m)")
+    plt.scatter(X, Y, s=3, c="y", label="GLISSE (V100)")
+"""
 with open('1080ti_prof/particle-prof.csv') as p:
     X = []
     Y = []
@@ -40,7 +62,20 @@ with open('1080ti_prof/particle-prof.csv') as p:
         X.append(npa)
 
     plt.scatter(X, Y, s=3, c="b", label="GLISSE (1080ti)")
+with open('prof-new/particle-prof.csv') as p:
+    X = []
+    Y = []
+    for line in p:
+        tokens = [float(x) for x in line.strip().split(',')]
+        npa = tokens[1]
+        nstep = tokens[3]
+        time = tokens[4]
+        # Y.append(time / npa / nstep * 100000 * 10000)
+        Y.append(time / nstep * 10000)
+        X.append(npa)
 
+    plt.scatter(X, Y, s=3, c="k", label="GLISSE (K20m)")
+"""
 with open('cpu_prof/particle-prof.csv') as p:
     X = []
     Y = []
@@ -54,19 +89,7 @@ with open('cpu_prof/particle-prof.csv') as p:
         X.append(npa)
 
     plt.scatter(X, Y, s=3, c="r", label="GLISSE (CPU)")
-with open('swift_prof/particle-prof.csv') as p:
-    X = []
-    Y = []
-    for line in p:
-        tokens = [float(x) for x in line.strip().split(',')]
-        npa = tokens[1]
-        nstep = tokens[3]
-        time = tokens[4]
-        # Y.append(time / npa / nstep * 100000 * 10000)
-        Y.append(time / nstep * 10000)
-        X.append(npa)
-
-    plt.scatter(X, Y, s=3, c="g", label="SWIFT (CPU)")
+"""
 
 plt.grid()
 

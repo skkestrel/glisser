@@ -228,7 +228,7 @@ int main(int argc, char** argv)
 				else if (crit.variable == "O_i") val = CAPOM_I;
 				else if (crit.variable == "o_i") val = OM_I;
 				else if (crit.variable == "f_i") val = F_I;
-				else if (crit.variable == "deathtime") val = hd.particles.deathtime()[i];
+				else if (crit.variable == "deathtime") val = hd.particles.deathtime_map()[hd.particles.id()[i]];
 				else if (crit.variable == "killer")
 				{
 					if (hd.particles.deathflags()[i] == 0) val = -1;

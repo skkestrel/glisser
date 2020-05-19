@@ -544,9 +544,15 @@ if args["--plot-mmr-arg"]:
             data_pl = planets[pid]
             Mpl = util2.get_M(data_pl)
 
+            axes2[0].set_ylabel('Particle $\Omega + \omega + M$')
             axes2[0].scatter(stimes, util2.get_principal_angle(data[3] + data[4] + M), s=1, c=c)
+
+            axes2[1].set_ylabel('Planet $\Omega + \omega + M$')
             axes2[1].scatter(stimes, util2.get_principal_angle(data_pl[3] + data_pl[4] + Mpl), s=1, c=c)
+
+            axes2[2].set_ylabel('Particle $\Omega + \omega$')
             axes2[2].scatter(stimes, util2.get_principal_angle(data[3] + data[4]), s=1, c=c)
+
 
         do_for(plot_arg, [])
         axes.set_title("{0}:{1} resonance with planet {2}".format(mmr[0], mmr[1], mmr[2]))
@@ -708,16 +714,16 @@ if args["--plot-mmr-bands-line"]:
             if i % 2 == 0: continue
             f2(i, i+4)
         if ind == 3:
-            ax.text(25.3, 3.8, "3:2", color=c)
-            ax.text(24.3, 2.1, "10:7", color=c)
-            ax.text(24.53, 1.1, "13:9", color=c)
-            ax.text(25.9, 1.1, "11:7", color=c)
+            ax.text(25.3, 3.8, "2:3", color=c)
+            ax.text(24.3, 2.1, "7:10", color=c)
+            ax.text(24.53, 1.1, "9:13", color=c)
+            ax.text(25.9, 1.1, "7:11", color=c)
         if ind == 4:
-            ax.text(24.6, 3.8, "3:4", color=c)
-            ax.text(24.5, 1.3, "11:15", color=c)
-            ax.text(24.3, 2.3, "8:11", color=c)
-            ax.text(25.35, 3.05, "7:9", color=c)
-            ax.text(25.7, 3.8, "4:5", color=c)
+            ax.text(24.6, 3.8, "4:3", color=c)
+            ax.text(24.5, 1.3, "15:11", color=c)
+            ax.text(24.3, 2.3, "11:8", color=c)
+            ax.text(25.35, 3.05, "9:7", color=c)
+            ax.text(25.7, 3.8, "5:4", color=c)
 
         plt.plot([], [], c=c, label=get_planet_name(ind))
         

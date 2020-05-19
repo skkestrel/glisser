@@ -71,33 +71,21 @@ with open(sys.argv[2]) as p:
         final_to_initial[i] = initial_id_to_index[pid]
         initial_to_final[initial_id_to_index[pid]] = i
 
-flib = np.zeros(initial.shape[0])
-flib2 = np.zeros(initial.shape[0])
+other_ok = np.zeros(initial.shape[0])
 adv_ok = np.zeros(initial.shape[0])
 adv_resamp = np.zeros(initial.shape[0])
 adv_rescenter = np.zeros(initial.shape[0])
 
-rescenter = np.zeros(initial.shape[0])
-resamp = np.zeros(initial.shape[0])
-
 with open(sys.argv[3]) as p:
     p.readline()
     for line in p:
-        flib[final_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[1])
-        flib2[final_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[2])
+        other_ok[final_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[1]) == 1 or int(line.split(',')[2]) == 1
         adv_ok[final_id_to_index[int(line.split(',')[0])]] = int(line.split(',')[3]) if float(line.split(',')[5]) > 0 else 0
-        adv_resamp[final_id_to_index[int(line.split(',')[0])]] = float(line.split(',')[4])
-        adv_rescenter[final_id_to_index[int(line.split(',')[0])]] = float(line.split(',')[5])
+        adv_resamp[final_id_to_index[int(line.split(',')[0])]] = float(line.split(',')[5]) / np.pi * 180
+        adv_rescenter[final_id_to_index[int(line.split(',')[0])]] = float(line.split(',')[4]) / np.pi * 180
 
-with open(sys.argv[4]) as f:
-    for line in f:
-        tokens = line.split(' ')
-        rescenter[final_id_to_index[int(tokens[0])]] = float(tokens[1])
-        resamp[final_id_to_index[int(tokens[0])]] = float(tokens[-1])
-
-
-rcenter = 55.46
-# rcenter = 62.63
+# rcenter = 55.46
+rcenter = 62.63
 
 print("rv2el")
 
@@ -106,9 +94,14 @@ for i in range(initial.shape[0]):
 for i in range(final.shape[0]):
     final[i, :6] = util2.rv2el(smass, final[i, :6])
 
+
+for i in range(final.shape[0]):
+    if final[i, 1] < 0.2 and adv_ok[i] == 0 and other_ok[i] == 1:
+        print(final[i, 7])
+
+
+
 ft = np.zeros(initial.shape[0], dtype=np.bool)
-
-
 fig, ax = plt.subplots(1, 2)
 
 for i in range(initial.shape[0]):
@@ -121,11 +114,11 @@ ax[0].scatter(initial[ft, 0], initial[ft, 1], s=0.5, c="k", label="survivors aft
 ax[0].legend()
 
 for i in range(final.shape[0]):
-    ft[i] = int(final[i][8]) == 0 and not flib[i] and not flib2[i]
+    ft[i] = int(final[i][8]) == 0 and not (adv_ok[i] and other_ok[i])
 ax[1].scatter(final[ft, 0], final[ft, 1], s=0.5, c="lime", label="non-librators")
 
 for i in range(final.shape[0]):
-    ft[i] = int(final[i][8]) == 0 and (flib[i] or flib2[i])
+    ft[i] = int(final[i][8]) == 0 and (adv_ok[i] and other_ok[i])
 ax[1].scatter(final[ft, 0], final[ft, 1], s=0.5, c="k", label="librators")
 
 
@@ -174,23 +167,22 @@ plt.subplots_adjust(wspace=0.5)
 
 for i in range(final.shape[0]):
     ft[i] = True
-    ft[i] = int(final[i][8]) == 0 and (flib[i] or flib2[i])
+    ft[i] = int(final[i][8]) == 0 and (adv_ok[i] and other_ok[i])
 ax[0].scatter(final[ft, 0], final[ft, 2] / np.pi * 180, s=1, c="k")
 
 for i in range(final.shape[0]):
-    ft[i] = int(final[i][8]) == 0 and (flib[i] or flib2[i])
+    ft[i] = int(final[i][8]) == 0 and (adv_ok[i] and other_ok[i])
 ax[1].scatter(final[ft, 1], final[ft, 2] / np.pi * 180,  s=1, c="k")
 
 ax[0].set_xlim([rcenter - 1, rcenter + 1])
 ax[1].set_xlim([0,0.7])
 
-#ax[0].set_ylim([0,50])
-#ax[1].set_ylim([0,50])
-
-ax[0].set_ylim([0,20])
-ax[1].set_ylim([0,20])
-ax[0].axhline(y=1,ls="--")
-ax[1].axhline(y=1,ls="--")
+ax[0].set_ylim([0,50])
+ax[1].set_ylim([0,50])
+#ax[0].set_ylim([0,20])
+#ax[1].set_ylim([0,20])
+#ax[0].axhline(y=1,ls="--")
+#ax[1].axhline(y=1,ls="--")
 
 ax[0].set_ylabel("$i_f$ (deg)")
 ax[0].set_xlabel("$a_f$ (AU)")
@@ -206,9 +198,9 @@ ax[0].grid()
 ax[1].grid()
 
 for i in range(final.shape[0]):
-    ft[i] = int(final[i][8]) == 0 and (flib[i]) and resamp[i] > 1
+    ft[i] = int(final[i][8]) == 0 and (adv_ok[i] and other_ok[i]) and adv_resamp[i] > 1
 
-ax[2].scatter(final[ft, 1], resamp[ft], s=0.5, c="k", label="librators")
+ax[2].scatter(final[ft, 1], adv_resamp[ft], s=0.5, c="k", label="librators")
 ax[2].set_xlabel('$e_f$')
 ax[2].set_ylabel('Resonant amplitude (degrees)')
 ax[2].set_axisbelow(True)
@@ -217,7 +209,7 @@ ax[2].tick_params(axis="x",direction="in")
 ax[2].grid()
 
 plt.figure()
-y, edges = np.histogram(resamp[ft], bins=100)
+y, edges = np.histogram(adv_resamp[ft], bins=100)
 centers = (edges[1:] + edges[:-1]) / 2
 norm = y.sum()
 y = y / norm
@@ -246,7 +238,7 @@ y = y / norm
 plt.plot(centers, y, '-', label="Initial distribution")
 
 for i in range(final.shape[0]):
-    ft[i] = int(final[i][8]) == 0 and (flib[i] or flib2[i])
+    ft[i] = int(final[i][8]) == 0 and (adv_ok[i] and other_ok[i])
 y, edges = np.histogram(final[ft, 1], bins=100, range=[0, 0.8])
 y = y / norm
 centers = (edges[1:] + edges[:-1]) / 2

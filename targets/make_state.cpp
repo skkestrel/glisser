@@ -158,7 +158,7 @@ int main(int argc, char** argv)
 			sr::convert::from_elements(mu,a,e,inc,O,o, anom, &hd.particles.r()[i], &hd.particles.v()[i]);
 			hd.particles.id()[i] = i;
 			hd.particles.deathflags()[i] = 0;
-			hd.particles.deathtime()[i] = 0;
+			hd.particles.deathtime_map()[i] = 0;
 
 			sr::convert::to_elements(mu, hd.particles.r()[i], hd.particles.v()[i], nullptr, &a, &e, &inc, &O, &o, &M);
 			// std::cout << a << " " << e << " " << inc << " " << O << " " << o << " " << M << std::endl;

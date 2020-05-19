@@ -29,6 +29,8 @@ int main(int argc, char** argv)
 	{
 		sr::data::Configuration config = sr::data::Configuration::create_dummy();
 
+		std::cout << "Length of planet lookup file: " << std::endl;
+
 		sr::data::HostData hd;
 		hd.planets = sr::data::HostPlanetPhaseSpace(99);
 

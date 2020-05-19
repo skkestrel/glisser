@@ -13,7 +13,7 @@ def do_work(i, start_index, length):
 	print(" ".join([str(x) for x in ids]))
 	call(["bin/prune-track", sys.argv[2], "tmp/pruned", "-w{0}".format(",".join([str(x) for x in ids]))])
 	call(["bin/export-track", "--precision", "5", "tmp/pruned", "tmp/exported"])
-	call(["script/resamp.pl", "--if", "tmp/exported", "--of", "tmp/out{0}".format(i), "--tp", "{0}".format(particle_ids.max() + 1), "--p", "5", "--q", "2", "--pl", "4"])
+	call(["script/resamp.pl", "--if", "tmp/exported", "--of", "tmp/out{0}".format(i), "--tp", "{0}".format(particle_ids.max() + 1), "--p", "3", "--q", "1", "--pl", "4"])
 
 for i in range(len(particle_ids) // batch_size):
 	do_work(i, i * batch_size, batch_size)

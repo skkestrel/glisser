@@ -15,6 +15,7 @@ Usage:
 
 Options:
     -h, --help         Show this screen.
+    -s <val>           Set the length of the istat and rstat arrays. [default: 13]
 )";
 
 int main(int argc, char** argv)
@@ -25,6 +26,8 @@ int main(int argc, char** argv)
 	std::string tp = args["<tpin>"].asString();
 
 	std::string out = args["<outstate>"].asString();
+
+	size_t statlen = std::stoi(args["-s"].asString());
 
 	sr::data::HostData hd;
 
@@ -40,7 +43,7 @@ int main(int argc, char** argv)
 	{
 		plin >> hd.planets.m()[i];
 
-		hd.planets.m()[i] /= 365.24 * 365.24;
+		// hd.planets.m()[i] /= 365.24 * 365.24;
 
 		if (i == 0)
 		{
@@ -50,21 +53,21 @@ int main(int argc, char** argv)
 
 		plin >> hd.planets.r()[i].x >> hd.planets.r()[i].y >> hd.planets.r()[i].z;
 		plin >> hd.planets.v()[i].x >> hd.planets.v()[i].y >> hd.planets.v()[i].z;
-		hd.planets.v()[i] = hd.planets.v()[i] * (1 / 365.24);
+		// hd.planets.v()[i] = hd.planets.v()[i] * (1 / 365.24);
 		hd.planets.id()[i] = i;
 	}
 
 	tpin >> ntp;
-	hd.particles = sr::data::HostParticlePhaseSpace(ntp, false);
+	hd.particles = sr::data::HostParticlePhaseSpace(ntp);
 
 	for (size_t i = 0; i < ntp; i++)
 	{
 		tpin >> hd.particles.r()[i].x >> hd.particles.r()[i].y >> hd.particles.r()[i].z;
 		tpin >> hd.particles.v()[i].x >> hd.particles.v()[i].y >> hd.particles.v()[i].z;
-		hd.particles.v()[i] = hd.particles.v()[i] * (1 / 365.24);
+		// hd.particles.v()[i] = hd.particles.v()[i] * (1 / 365.24);
 		hd.particles.id()[i] = i;
 
-		for (size_t j = 0; j < 53; j++)
+		for (size_t j = 0; j < statlen; j++)
 		{
 			int istat;
 			tpin >> istat;
@@ -92,14 +95,14 @@ int main(int argc, char** argv)
 			}
 		}
 
-		for (size_t j = 0; j < 53; j++)
+		for (size_t j = 0; j < statlen; j++)
 		{
 			double rstat;
 			tpin >> rstat;
 
 			if (j == 0 && hd.particles.deathflags()[i])
 			{
-				hd.particles.deathtime()[i] = rstat * 365.24;
+				hd.particles.deathtime_map()[i] = rstat;
 			}
 		}
 	}

@@ -14,7 +14,7 @@ Usage:
 
 Options:
     -h, --help           Show this screen.
-    -t <t>, --time <t>   Set the max time
+    -t <t>, --time <t>   Set the max time to read the track until
 )";
 
 struct ParticleInfo
@@ -35,7 +35,7 @@ int main(int argc, char** argv)
 		std::unordered_map<uint32_t, ParticleInfo> map;
 
 		sr::data::TrackReaderOptions opt;
-		opt.remove_planets = true;
+		opt.take_all_planets = false;
 		opt.take_all_particles = true;
 
 		if (args["--time"])

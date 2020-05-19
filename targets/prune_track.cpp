@@ -15,7 +15,7 @@ Options:
     -h, --help                     Show this screen.
     -w <list>, --watch <list>      Take only the comma-separated list of particles, or "all" [default: none]
     -p <list>, --planets <list>    Take the comma-separated list of particles, or "none" [default: all]
-    -l <n>, --split <n>            Split output every n bytes
+    -l <n>, --split <n>            Split output files every n bytes
     -s <n>, --skip <n>             Take every n time steps [default: 1]
     -t <t>, --tmax <t>             Take only up to given time
 )";

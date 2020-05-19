@@ -96,7 +96,7 @@ elif mode == 1:
 		with open('temp-config.in', 'w') as cfgout:
 			cfgout.write(CONFIG.format(384, T, nstep * 1e-4, use_gpu, 4))
 		maxtime = run()
-		with open('prof/particle-prof.csv', 'a') as profout:
+		with open('gc-prof/particle-prof.csv', 'a') as profout:
 			profout.write('{0},{1},{2},{3},{4}\n'.format(4, T, 384, int(math.ceil(nstep / 384) * 384), maxtime))
 elif mode == 2:
 	nstep = 16384 * 2
