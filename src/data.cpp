@@ -339,7 +339,7 @@ namespace data
 		outstream << "Time-Step " << out.dt << std::endl;
 		outstream << "Final-Time " << out.t_f << std::endl;
 		outstream << "Time-Block-Size " << out.tbsize << std::endl;
-		outstream << "Encounter-RH-Factor " << out.cull_radius << std::endl;
+		outstream << "Encounter-RH-Factor " << out.encounter_sphere_factor << std::endl;
 		outstream << "Cull-Radius " << out.cull_radius << std::endl;
 		outstream << "Outer-Limit " << out.outer_radius << std::endl;
 		outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
@@ -739,6 +739,8 @@ namespace data
 				{
 					for (uint32_t j = 1; j < pl.n_alive; j++)
 					{
+
+						// I don't understand why need j != i
 						if (j != i)
 						{
 							center_mass += pl.m[j];

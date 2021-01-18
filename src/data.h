@@ -382,7 +382,7 @@ namespace data
 		bool write_bary_track;
 		bool interp_planets;
 		uint32_t interp_maxpl;
-		std:: string planet_history_file;
+		std::string planet_history_file;
 
 		double cull_radius;
 

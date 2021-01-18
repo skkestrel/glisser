@@ -55,10 +55,13 @@ namespace interp
 
 		private:
 		std::ifstream input;
+		std::ofstream temp_log;
 
 		double user_dt;
 
 		std::unordered_map<uint32_t, size_t> idmap;
+
+		bool use_bary_interp;
 	};
 
 	class EOSError : public std::runtime_error

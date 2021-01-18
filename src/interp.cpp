@@ -1,5 +1,6 @@
 #include "interp.h"
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 
 namespace sr
@@ -13,6 +14,7 @@ namespace interp
 	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file)
 		: input(file, std::ios_base::binary)
 	{
+		use_bary_interp = true;
 		cur_ts = 0;
 		user_dt = config.dt;
 
@@ -38,7 +40,7 @@ namespace interp
 		t1 = sr::data::read_binary<float64_t>(input);
 		t_m1 = std::numeric_limits<double>::quiet_NaN();
 
-		npl1 = sr::data::read_binary<uint32_t>(input) + 1;
+		npl1 = sr::data::read_binary<uint32_t>(input) + 1; 
 
 		pl.n_alive() = npl1;
 		pl.n_alive_old() = npl1;
@@ -88,6 +90,8 @@ namespace interp
 		pl.v()[0] = f64_3(0);
 		aei1[0] = f64_3(0);
 		oom1[0] = f64_3(0);
+
+		temp_log.open("temp_log.txt");
 	}
 
 	void Interpolator::fill_one(sr::data::HostPlanetPhaseSpace& pl, double relative_t)
@@ -99,7 +103,6 @@ namespace interp
 			f64_3 aei = reduced_aei_i[j] + reduced_daei[j] * relative_t;
 			f64_3 oom = reduced_oom_i[j] + reduced_doom[j] * relative_t;
 			double gm = reduced_m[j] + pl.m()[0];
-
 			f64_3 r, v;
 
 			sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
@@ -137,12 +140,13 @@ namespace interp
 			pl.v()[0] = f64_3(0);
 
 			// std::cout << "pt = " << relative_t << std::endl;
+			double two_body_energy1 = 0;
+			double two_body_energy2 = 0;
 			for (size_t j = 0; j < n_alive; j++)
 			{
 				f64_3 aei = reduced_aei_i[j] + reduced_daei[j] * relative_t;
 				f64_3 oom = reduced_oom_i[j] + reduced_doom[j] * relative_t;
 				double gm = reduced_m[j] + pl.m()[0];
-
 				f64_3 r, v;
 
 				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
@@ -150,9 +154,15 @@ namespace interp
 				// offset for the sun
 				pl.r()[j + 1] = r;
 				pl.v()[j + 1] = v;
-
+				
+				// if (j == 3) {
+				// 	temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(7) << " " << aei << " " << oom << std::endl;
+				// }
+				// two_body_energy1 += -reduced_m[j]*pl.m()[0]/(2*aei.x);
+				// two_body_energy2 += (v.lensq()/2 - pl.m()[0]/pow(r.lensq(),0.5))*reduced_m[j];
 				// std::cout << std::setprecision(17) << reduced_ids[j] << ": " << r << " " << v << std::endl;
 			}
+			// temp_log << t0 + relative_t << " " << two_body_energy1 << " " << two_body_energy2 << std::endl;
 
 			std::copy(pl.r().begin() + 1, pl.r().begin() + pl.n_alive(), pl.r_log().old.begin() + (pl.n_alive() - 1) * i);
 			std::copy(pl.v().begin() + 1, pl.v().begin() + pl.n_alive(), pl.v_log().old.begin() + (pl.n_alive() - 1) * i);
@@ -212,7 +222,8 @@ namespace interp
 			oom1[i] = f64_3(std::numeric_limits<double>::quiet_NaN());
 		}
 
-		size_t interval_planet_index = 0;
+		std::vector<size_t> ids;
+		std::vector<size_t> inds;
 		for (size_t i = 1; i < npl1; i++)
 		{
 			uint32_t id = sr::data::read_binary<uint32_t>(input);
@@ -226,7 +237,10 @@ namespace interp
 			{
 				ind = idmap[id];
 			}
+			ids.push_back(id);
+			inds.push_back(ind);
 
+			// Read heliocentric orbital elements of all planets.
 			pl.m()[ind] = sr::data::read_binary<float32_t>(input);
 			aei1[ind].x = sr::data::read_binary<float32_t>(input);
 			aei1[ind].y = sr::data::read_binary<float32_t>(input);
@@ -240,6 +254,64 @@ namespace interp
 			{
 				continue;
 			}
+		}
+
+
+		// Using barycentric orbital elements for interpolation
+		if(use_bary_interp)
+		{
+			Vf64_3 plr, plv;
+			plr.push_back(pl.r()[0]);
+			plv.push_back(pl.v()[0]);
+			size_t i = 0;
+			// temp_log << std::setprecision(9) << t0 << std::setprecision(7) << " " << aei1[4] << " " << oom1[4] << std::endl;
+			for (auto ind : inds)
+			{	
+				f64_3 aei = aei1[ind];
+				f64_3 oom = oom1[ind];
+				double gm = pl.m()[ind] + pl.m()[0];
+				f64_3 r, v;
+				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
+				plr.push_back(r);
+				plv.push_back(v);
+				i++;
+				// std::cout << r << ' ' << v << std::endl;
+			}
+			n_alive = i;
+			i = 1;
+			for (auto ind : inds)
+			{	
+				double center_mass = pl.m()[0];
+				f64_3 center_r = plr[0] * pl.m()[0];
+				f64_3 center_v = plv[0] * pl.m()[0];
+				for (uint32_t j = 1; j < n_alive + 1; j++)
+				{
+					if (j != i)
+					{
+						center_mass += pl.m()[j];
+						center_r += plr[j] * pl.m()[j];
+						center_v += plv[j] * pl.m()[j];
+					}
+				}
+				center_r /= center_mass;
+				center_v /= center_mass;
+
+				// std::cout << center_r << ' ' << center_v << ' ' << center_mass << std::endl;
+				double a, e, in, capom, om, f;
+				sr::convert::to_elements(pl.m()[i] + center_mass, plr[i] - center_r, plv[i] - center_v,
+					nullptr, &a, &e, &in, &capom, &om, &f);
+				double mean = sr::convert::get_mean_anomaly(e, f);
+				aei1[ind] = f64_3(a, e, in);
+				oom1[ind] = f64_3(capom, om, mean);
+				i++;
+			}
+			temp_log << std::setprecision(9) << t0 << std::setprecision(7) << " " << aei1[4] << " " << oom1[4] << std::endl;
+		}
+
+		size_t interval_planet_index = 0;
+		for (auto id : ids)
+		{
+			size_t ind = inds[interval_planet_index];
 
 			// interval_planet_index keeps track of the array index of the planets that are alive
 			// THROUGHOUT the current interval - that is, the planet must be alive both at the beginning
@@ -261,22 +333,28 @@ namespace interp
 			if (reduced_doom[interval_planet_index].x > M_PI) reduced_doom[interval_planet_index].x -= 2 * M_PI;
 			else if (reduced_doom[interval_planet_index].x < -M_PI) reduced_doom[interval_planet_index].x += 2 * M_PI;
 
+
+			// FIXED IT!
 			if (reduced_doom[interval_planet_index].y > M_PI) reduced_doom[interval_planet_index].y -= 2 * M_PI;
-			else if (reduced_doom[interval_planet_index].x < -M_PI) reduced_doom[interval_planet_index].y += 2 * M_PI;
+			else if (reduced_doom[interval_planet_index].y < -M_PI) reduced_doom[interval_planet_index].y += 2 * M_PI;
 
 			reduced_doom[interval_planet_index] /= dt;
 
-			// guess the mean motion frequency, a must be in AU and t in 
+			// guess the mean motion frequency, a must be in AU and t in years
 
-			double mmfreq = 2 * M_PI * std::sqrt(1 + pl.m()[ind] / pl.m()[0])
-				* (std::pow(aei0[ind].x, -1.5) + std::pow(aei1[ind].x, -1.5)) / 2;
-
+			double mmfreq = std::sqrt(pl.m()[ind] + pl.m()[0]) 
+							* (std::pow(aei0[ind].x, -1.5) + std::pow(aei1[ind].x, -1.5)) / 2;
+			// mmfreq -= (reduced_doom[interval_planet_index].x + reduced_doom[interval_planet_index].y);
 			// std::cout << ind << " predicted orbital period: " << 2 * M_PI / mmfreq << std::endl;
 			// std::cout << ind << " freq: " << mmfreq << std::endl;
+			// std::cout << ind << " dt: " << dt << std::endl;
+			// std::cout << ind << " oom0[ind].z: " << oom0[ind].z << std::endl;
+			// std::cout << ind << " oom1[ind].z: " << oom1[ind].z << std::endl;
 
 			double cmfin = oom0[ind].z + mmfreq * dt;
 			cmfin = std::fmod(cmfin, 2 * M_PI);
 			double corr = oom1[ind].z - cmfin;
+			// std::cout << ind << " corr: " << corr << std::endl;
 			if (corr > M_PI) corr -= 2 * M_PI;
 			else if (corr < -M_PI) corr += 2 * M_PI;
 
@@ -284,12 +362,13 @@ namespace interp
 
 			mmfreq += corr / dt;
 
+			// std::cout << ind << " corr: " << corr << std::endl;
+			// std::cout << ind << " freq: " << mmfreq << std::endl;
+
 			reduced_doom[interval_planet_index].z = mmfreq;
 
 			interval_planet_index++;
 		}
-
-		n_alive = interval_planet_index;
 	}
 }
 }

@@ -41,6 +41,7 @@ namespace exec
 
 		std::ostream& output;
 		std::ostream* encounter_output;
+		std::ofstream temp_log;
 
 		size_t resync_counter;
 		bool starting_lookup_interval;

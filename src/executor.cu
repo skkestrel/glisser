@@ -86,7 +86,7 @@ namespace exec
 	{
 		alloc_packed();
 			
-
+		// temp_log.open("temp_log_executor.txt");
 		// glisse only supports helio
 		sr::convert::to_helio(hd);
 
@@ -448,6 +448,10 @@ namespace exec
 		auto& planets = dd.planet_phase_space();
 
 		// copy in everything
+		// for (auto r_temp : hd.planets.r_log().log){
+		// 	temp_log << r_temp << std::endl;
+		// }
+
 		memcpy_htd(planets.r_log, hd.planets.r_log().log, htd_stream);
 		memcpy_htd(planets.m, hd.planets.m(), htd_stream);
 		memcpy_htd(planets.id, hd.planets.id(), htd_stream);

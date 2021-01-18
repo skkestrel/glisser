@@ -616,6 +616,7 @@ namespace wh
 
 		for (size_t j = 1; j < pl.n_alive(); j++)
 		{
+			// IMPORTANT (replace old with false)
 			f64_3 dr = pa.r()[particle_index] - pl.r_log().get<old>()[pl.log_index_at<old>(timestep_index, j)];
 #ifdef USE_FMA
 			float64_t planet_rji2 = std::fma(dr.x, dr.x, std::fma(dr.y, dr.y, dr.z * dr.z));
