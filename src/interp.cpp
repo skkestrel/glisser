@@ -262,7 +262,7 @@ namespace interp
 			else if (reduced_doom[interval_planet_index].x < -M_PI) reduced_doom[interval_planet_index].x += 2 * M_PI;
 
 			if (reduced_doom[interval_planet_index].y > M_PI) reduced_doom[interval_planet_index].y -= 2 * M_PI;
-			else if (reduced_doom[interval_planet_index].x < -M_PI) reduced_doom[interval_planet_index].y += 2 * M_PI;
+			else if (reduced_doom[interval_planet_index].y < -M_PI) reduced_doom[interval_planet_index].y += 2 * M_PI;
 
 			reduced_doom[interval_planet_index] /= dt;
 
