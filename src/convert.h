@@ -23,5 +23,6 @@ namespace convert
 	void to_elements(double mu, f64_3 r, f64_3 v, int* esign = nullptr, double* a = nullptr, double* e = nullptr, double* i = nullptr, double* capom = nullptr, double* om = nullptr, double* f = nullptr);
 
 	double get_mean_anomaly(double e, double f);
+	double get_bary_mu(double center_mass, double pl_mass);
 }
 }

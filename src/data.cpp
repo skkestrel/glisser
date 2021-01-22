@@ -728,34 +728,38 @@ namespace data
 			sr::data::write_binary(trackout, static_cast<uint64_t>(0));
 		}
 
-		for (uint32_t i = 1; i < pl.n_alive; i++)
+		if (to_elements) 
 		{
-			if (to_elements)
+			double center_mass = pl.m[0];
+			f64_3 center_r = pl.r[0] * pl.m[0];
+			f64_3 center_v = pl.v[0] * pl.m[0];
+			if (barycentric_elements)
 			{
-				double center_mass = pl.m[0];
-				f64_3 center_r = pl.r[0] * pl.m[0];
-				f64_3 center_v = pl.v[0] * pl.m[0];
-				if (barycentric_elements)
+				
+				for (uint32_t j = 1; j < pl.n_alive; j++) // pl.n_alive includes the Sun.
 				{
-					for (uint32_t j = 1; j < pl.n_alive; j++)
-					{
-
-						// I don't understand why need j != i
-						if (j != i)
-						{
-							center_mass += pl.m[j];
-							center_r += pl.r[j] * pl.m[j];
-							center_v += pl.v[j] * pl.m[j];
-						}
-					}
+					center_mass += pl.m[j];
+					center_r += pl.r[j] * pl.m[j];
+					center_v += pl.v[j] * pl.m[j];
 				}
 				center_r /= center_mass;
 				center_v /= center_mass;
+			}
 
-				double a, e, in, capom, om, f;
-				sr::convert::to_elements(pl.m[i] + center_mass, pl.r[i] - center_r, pl.v[i] - center_v,
+			for (uint32_t i = 1; i < pl.n_alive; i++)
+			{
+			
+				double a, e, in, capom, om, f;	
+				if (barycentric_elements) 
+				{
+					sr::convert::to_elements(sr::convert::get_bary_mu(center_mass, pl.m[i]), 
+					pl.r[i] - center_r, pl.v[i] - center_v, nullptr, &a, &e, &in, &capom, &om, &f);
+				}
+				else 
+				{
+					sr::convert::to_elements(pl.m[i] + pl.m[0], pl.r[i], pl.v[i],
 					nullptr, &a, &e, &in, &capom, &om, &f);
-	
+				}
 				sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
 				sr::data::write_binary(trackout, static_cast<float>(a));
 				sr::data::write_binary(trackout, static_cast<float>(e));
@@ -764,7 +768,10 @@ namespace data
 				sr::data::write_binary(trackout, static_cast<float>(om));
 				sr::data::write_binary(trackout, static_cast<float>(f));
 			}
-			else
+		}
+		else
+		{
+			for (uint32_t i = 1; i < pl.n_alive; i++)
 			{
 				sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
 				sr::data::write_binary(trackout, static_cast<float>(pl.r[i].x));
@@ -775,7 +782,6 @@ namespace data
 				sr::data::write_binary(trackout, static_cast<float>(pl.v[i].z));
 			}
 		}
-
 		sr::data::write_binary(trackout, static_cast<uint64_t>(pa.n_alive));
 		for (uint32_t i = 0; i < pa.n_alive; i++)
 		{
@@ -812,7 +818,6 @@ namespace data
 				sr::data::write_binary(trackout, static_cast<float>(pa.v[i].z));
 			}
 		}
-
 		trackout.flush();
 	}
 

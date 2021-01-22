@@ -468,5 +468,10 @@ namespace convert
 		if (f < 0) E = -E;
 		return E - e * std::sin(E);
 	}
+
+	double get_bary_mu(double center_mass, double pl_mass)
+	{
+		return std::pow(center_mass - pl_mass, 3) / std::pow(center_mass, 2);
+	}
 }
 }

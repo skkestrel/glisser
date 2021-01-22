@@ -380,7 +380,7 @@ namespace swift
 			size_t npl = pl.n_alive_old();
 
 			// interp n_alive doesn't include the sun
-			ASSERT(interp.n_alive_old + 1 == pl.n_alive_old(), "")
+			ASSERT(interp.pl_alive_old + 1 == pl.n_alive_old(), "")
 
 			sr::data::write_binary(file, static_cast<double>(0));
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
@@ -421,7 +421,7 @@ namespace swift
 			planet_id_list = interp.reduced_ids;
 
 			size_t npl = pl.n_alive();
-			ASSERT(interp.n_alive + 1 == pl.n_alive(), "")
+			ASSERT(interp.pl_alive + 1 == pl.n_alive(), "")
 
 			sr::data::write_binary(file, static_cast<double>(0));
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));

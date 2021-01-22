@@ -43,8 +43,8 @@ namespace interp
 
 		Vf64_3 reduced_daei, reduced_doom;
 
-		size_t n_alive;
-		size_t n_alive_old;
+		size_t pl_alive;
+		size_t pl_alive_old;
 
 		Vf64_3 reduced_aei_i, reduced_oom_i;
 		Vf64_3 reduced_aei_f, reduced_oom_f;
@@ -52,6 +52,11 @@ namespace interp
 		Vf64_3 reduced_aei_f_old, reduced_oom_f_old;
 		Vu32 reduced_ids, reduced_ids_old;
 		Vf64 reduced_m, reduced_m_old;
+
+		Vf64_3 bary_rs, bary_vs;
+		Vf64 bary_cms;
+
+		double center_mass;
 
 		private:
 		std::ifstream input;
