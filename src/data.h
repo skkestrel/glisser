@@ -379,8 +379,8 @@ namespace data
 		uint32_t num_swift, swift_part_min;
 
 		uint32_t swift_statlen;
-		bool write_bary_track;
-		bool interp_planets;
+		bool write_bary_track, write_rv_track;
+		bool interp_planets, use_bary_interp;
 		uint32_t interp_maxpl;
 		std::string planet_history_file;
 

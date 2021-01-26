@@ -152,7 +152,8 @@ int main(int argc, char** argv)
 			sr::data::HostParticleSnapshot snapshot_copy = ex.hd.particles.base;
 			snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
 
-			sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, true, config.write_bary_track);
+			// TODO: make to_elements a user parameter.
+			sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, !config.write_rv_track, config.write_bary_track);
 		}
 
 		if (config.swift_hist_every != 0)
@@ -241,7 +242,7 @@ int main(int argc, char** argv)
 						{
 							sr::data::HostParticleSnapshot snapshot_copy = ex.hd.particles.base;
 							snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
-							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, true, config.write_bary_track);
+							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, !config.write_rv_track, config.write_bary_track);
 						});
 				}
 

@@ -6,7 +6,7 @@ folder = "/home/yhuang/GLISSER/glisser/"
 filename1 = "benchmark/circular-particles-out-ecc-noread/tracks/track.0.out"
 filename2 = "benchmark/circular-particles-out-ecc-read/tracks/track.0.out"
 
-# data = np.loadtxt("temp_log.txt")
+# data = np.loadtxt("temp_log.txt",max_rows=200000)
 # t, a, e, i, Ome, ome, M = data[:,0], data[:,1], data[:,2], data[:,3], data[:,4], data[:,5], data[:,6]
 
 files = [filename1, filename2]
@@ -21,7 +21,7 @@ fig, [ax1, ax2, ax3, ax4, ax5] = plt.subplots(5, figsize=(9,12))
 # for ax in [ax1, ax2, ax3, ax4, ax5]:
 #     ax.set_xlim(0,t[-1])
 
-idx = 10
+idx = 1
 
 for filename,label in zip(files,["No Hist", "Use Hist"]):
     t, a1, e1, I1, O1, o1= [], [], [],[], [], []
@@ -73,5 +73,5 @@ ax1.legend()
 #     ax.set_xlim(0,1.5e8)
 
 # ax2.legend()
-plt.savefig("Ecc_particle_{id}.png".format(id=idx),dpi=300)
+plt.savefig("Ecc_particle_done_{id}.png".format(id=idx),dpi=300)
 # plt.show()

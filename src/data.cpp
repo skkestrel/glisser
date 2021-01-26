@@ -150,6 +150,7 @@ namespace data
 		dt = 1;
 		tbsize = 1024;
 		write_bary_track = true;
+		write_rv_track = false;
 		encounter_sphere_factor = 0;
 		cull_radius = 0.5;
 		interp_maxpl = 16;
@@ -165,6 +166,7 @@ namespace data
 		swift_part_min = 10;
 
 		interp_planets = false;
+		use_bary_interp = true;
 		planet_history_file = "";
 
 		dump_every = 1000;
@@ -201,6 +203,10 @@ namespace data
 			linenum++;
 			if (line.length() == 0) continue;
 			if (line[0] == '#') continue;
+			while(line[0] == ' ' or line[0] == '\t')
+			{
+				line.erase(0, 1);
+			}
 
 			size_t split = line.find(' ');
 			if (split == std::string::npos)
@@ -243,6 +249,8 @@ namespace data
 					out->interp_maxpl = std::stou(second);
 				else if (first == "Planet-History-File")
 					out->planet_history_file = second;
+				else if (first == "Use-Bary-Interpolation")
+					out->use_bary_interp = std::stoi(second) != 0;
 				else if (first == "Swift-Path")
 					out->swift_path = second;
 				else if (first == "Track-Interval")
@@ -257,6 +265,8 @@ namespace data
 					out->swift_statlen = std::stou(second);
 				else if (first == "Write-Barycentric-Track")
 					out->write_bary_track = std::stoi(second) != 0;
+				else if (first == "Write-RV-Track")
+					out->write_rv_track = std::stoi(second) != 0;
 				else if (first == "Split-Track-File")
 					out->split_track_file = std::stou(second);
 				else if (first == "Dump-Interval")
@@ -326,10 +336,10 @@ namespace data
 		{
 			throw std::runtime_error("Error: Read-Split-Input was selected but Particle-Input-File or Planet-Input-File were not specified");
 		}
-		if (!out->interp_planets && out->resolve_encounters)
-		{
-			throw std::runtime_error("Error: Cannot resolve encounters if not using an interpolated planetary history file");
-		}
+		// if (!out->interp_planets && out->resolve_encounters)
+		// {
+		// 	throw std::runtime_error("Error: Cannot resolve encounters if not using an interpolated planetary history file");
+		// }
 	}
 
 	void write_configuration(std::ostream& outstream, const Configuration& out)
@@ -348,6 +358,7 @@ namespace data
 		outstream << "Resync-Interval " << out.resync_every << std::endl;
 		outstream << "Swift-Path " << out.swift_path << std::endl;
 		outstream << "Write-Barycentric-Track " << out.write_bary_track << std::endl;
+		outstream << "Write-RV-Track " << out.write_rv_track << std::endl;
 		outstream << "Split-Track-File " << out.split_track_file << std::endl;
 		outstream << "Dump-Interval " << out.dump_every << std::endl;
 		outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
@@ -369,7 +380,8 @@ namespace data
 		outstream << "Swift-Process-Min-Particle-Count " << out.swift_part_min << std::endl;
 		outstream << "Swift-Status-Length " << out.swift_statlen << std::endl;
 		outstream << "Planet-History-File " << out.planet_history_file << std::endl;
-	}
+		outstream << "Use-Bary-Interpolation" << out.use_bary_interp << std::endl;
+	}	
 
 	bool load_planet_data(HostPlanetPhaseSpace& pl, const Configuration& config, std::istream& plin)
 	{
@@ -766,7 +778,7 @@ namespace data
 				sr::data::write_binary(trackout, static_cast<float>(in));
 				sr::data::write_binary(trackout, static_cast<float>(capom));
 				sr::data::write_binary(trackout, static_cast<float>(om));
-				sr::data::write_binary(trackout, static_cast<float>(f));
+				sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
 			}
 		}
 		else
@@ -805,7 +817,7 @@ namespace data
 				sr::data::write_binary(trackout, static_cast<float>(in));
 				sr::data::write_binary(trackout, static_cast<float>(capom));
 				sr::data::write_binary(trackout, static_cast<float>(om));
-				sr::data::write_binary(trackout, static_cast<float>(f));
+				sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
 			}
 			else
 			{

@@ -58,6 +58,8 @@ namespace interp
 
 		double center_mass;
 
+		size_t ind_max;
+
 		private:
 		std::ifstream input;
 		std::ofstream temp_log;

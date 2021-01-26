@@ -222,11 +222,13 @@ A planetary history file can be used to prove planetary locations instead of a d
 |`Track-Interval`|**If 0:**<br> Particle histories are disabled. <br>**If `Resolve-Encounters` is not set:** <br>Write particle history every `Log-Interval` timeblocks.<br> **Else:** <br>Write particle history every `Log-Interval` planetary history intervals.|0|
 |`Resync-Interval`|**If `Resolve-Encounters` is not set:** <br> Resort (defragment) the particle arrays every `Resync-Interval` timeblocks.<br> **Else:** <br> This parameter must be 1. |1 |
 |`Write-Barycentric-Track` |Write barycentric instead of heliocentric orbital elements to the particle histories if enabled. |1 |
+|`Write-RV-Track` |Write position and velocity vectors into track.||
 |`Split-Track-File` | **If 0:** <br> Write particle tracks into a single file named `tracks/track.0.out` in the output directory. <br>**Else:** <br>Write particle tracks to files with a maximum size of `Split-Track-File` in bytes, named sequentially in the `tracks` folder in the output directory. |0 |
 |`Dump-Interval` |**If 0:** <br> State dumps are disabled. <br>**If `Resolve-Encounters` is not set:** <br> Dump particle and planetary states every `Log-Interval` timeblocks.<br>**Else:**<br> Dump particle nad planetary states every `Log-Interval` planetary history intervals. |1000|
 |`Resolve-Encounters` |**If 0:** <br> Particles are removed when coming into an encounter with a planet. <br>**If 1:**<br> Particles are sent to SWIFT when coming into an encounter with a planet. `Resync-Interval` must be 1. `Read-Planetary-History` must be 1. `Swift-Path` must be set. |0|
 |`Read-Planetary-History` |Whether to read a planetary history file instead of performing direct planetary integration. |0|
 |`Planet-History-File` |The path of the planetary history file. ||
+|`Use-Bary-Interpolation` |Whether to use barycentric for orbital interpolation. ||
 |`Planet-History-Max-Planet-Count` |The total number of planets that the planetary history file contains.  |16
 |`Swift-Path` |The path to swift\_glisse\_ext. ||
 |`Swift-Process-Count` |The maximum number of concurrent SWIFT processes to run. |1 |
@@ -236,6 +238,8 @@ A planetary history file can be used to prove planetary locations instead of a d
 |`Read-Binary-Input` |Whether to write the input state file in binary format. |0 |
 |`Input-File` |The path of the input state file to read. ||
 |`Output-File` |The path of the output folder.||
+
+
 
 Output files
 ------------

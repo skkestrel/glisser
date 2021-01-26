@@ -17,6 +17,7 @@ namespace interp
 
 		cur_ts = 0;
 		user_dt = config.dt;
+		use_bary_interp = config.use_bary_interp;
 
 		pl = sr::data::HostPlanetPhaseSpace(config.interp_maxpl, config.tbsize);
 
@@ -54,6 +55,9 @@ namespace interp
 
 		idmap[0] = 0;
 
+
+		std::vector<size_t> ids;
+		std::vector<size_t> inds;
 		for (size_t i = 1; i < npl1; i++)
 		{
 			uint32_t id = sr::data::read_binary<uint32_t>(input);
@@ -69,7 +73,8 @@ namespace interp
 			{
 				ind = idmap[id];
 			}
-
+			ids.push_back(id);
+			inds.push_back(ind);
 			m1[ind] = sr::data::read_binary<float32_t>(input);
 			aei1[ind].x = sr::data::read_binary<float32_t>(input);
 			aei1[ind].y = sr::data::read_binary<float32_t>(input);
@@ -84,7 +89,60 @@ namespace interp
 			pl.r()[i] = r;
 			pl.v()[i] = v;
 			pl.id()[i] = id;
-			pl.m()[i] = m1[ind];
+			pl.m()[i] = m1[ind];	
+		}
+
+		// Using barycentric orbital elements for interpolation
+		if(use_bary_interp)
+		{
+			Vf64_3 plr, plv;
+			plr.push_back(pl.r()[0]);
+			plv.push_back(pl.v()[0]);
+
+
+			// Calculate center of mass for all massive bodies.
+			center_mass = pl.m()[0];
+			f64_3 center_r = pl.r()[0] * pl.m()[0];
+			f64_3 center_v = pl.v()[0] * pl.m()[0];
+
+			size_t i = 0;
+			// temp_log << std::setprecision(9) << t0 << std::setprecision(7) << " " << aei1[4] << " " << oom1[4] << std::endl;
+			for (auto ind : inds)
+			{	
+				f64_3 aei = aei1[ind];
+				f64_3 oom = oom1[ind];
+				double gm = pl.m()[ind] + pl.m()[0];
+				f64_3 r, v;
+				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
+				// temp_log << "Original Helio " << std::setprecision(9) << t1 << std::setprecision(14) << " " << r << " " << v << std::endl;
+
+				center_mass += pl.m()[ind];
+				center_r += r * pl.m()[ind];
+				center_v += v * pl.m()[ind];
+
+				plr.push_back(r);
+				plv.push_back(v);
+				i++;
+			}
+			center_r /= center_mass;
+			center_v /= center_mass;
+			// temp_log  << "Original center " << std::setprecision(9) << t1 << std::setprecision(14) << " " << center_r << " " << center_v  << std::endl;
+
+			i = 1;
+			for (auto ind : inds)
+			{	
+				double a, e, in, capom, om, f;
+				sr::convert::to_elements(sr::convert::get_bary_mu(center_mass, pl.m()[ind]), plr[i] - center_r, plv[i] - center_v,
+					nullptr, &a, &e, &in, &capom, &om, &f);
+
+				// temp_log << "Original Bary " << std::setprecision(9) << t1 << std::setprecision(14) << " " 
+				// << plr[i] - center_r << " " << plv[i] - center_v << std::endl;
+
+				double mean = sr::convert::get_mean_anomaly(e, f);
+				aei1[ind] = f64_3(a, e, in);
+				oom1[ind] = f64_3(capom, om, mean);
+				i++;
+			}
 		}
 		pl.r()[0] = f64_3(0);
 		pl.v()[0] = f64_3(0);
@@ -92,24 +150,61 @@ namespace interp
 		oom1[0] = f64_3(0);
 		center_mass = 0;
 		temp_log.open("temp_log.txt");
-		use_bary_interp = true;
+		
 	}
 
 	void Interpolator::fill_one(sr::data::HostPlanetPhaseSpace& pl, double relative_t)
 	{
 		pl.n_alive() = pl_alive + 1;
-		for (size_t j = 0; j < pl_alive; j++)
+
+		if(use_bary_interp)
 		{
-			f64_3 aei = reduced_aei_i[j] + reduced_daei[j] * relative_t;
-			f64_3 oom = reduced_oom_i[j] + reduced_doom[j] * relative_t;
-			double gm = reduced_m[j] + pl.m()[0];
-			f64_3 r, v;
+			f64_3 center_r = f64_3(0);
+			f64_3 center_v = f64_3(0);
+			Vf64_3 plr_bary, plv_bary;
+			// Recover the barycentric coords
+			for (size_t j = 0; j < pl_alive; j++)
+			{
+				f64_3 aei_bary = reduced_aei_i[j] + reduced_daei[j] * relative_t;
+				f64_3 oom_bary = reduced_oom_i[j] + reduced_doom[j] * relative_t;
+				f64_3 r_bary, v_bary;
+				
+				sr::convert::from_elements_M(sr::convert::get_bary_mu(center_mass, reduced_m[j]), aei_bary.x, aei_bary.y, aei_bary.z, 
+											oom_bary.x, oom_bary.y, oom_bary.z, &r_bary, &v_bary);
+				plr_bary.push_back(r_bary);
+				plv_bary.push_back(v_bary);
+				center_r += r_bary * reduced_m[j];
+				center_v += v_bary * reduced_m[j];
+				// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(10) << " " << aei_bary << " " << oom_bary << std::endl;
+			}
+			center_r /= pl.m()[0];
+			center_v /= pl.m()[0];
 
-			sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
+			// Convert back to Heliocentric coords
+			for (size_t j = 0; j < pl_alive; j++)
+			{
+				pl.r()[j + 1] = plr_bary[j] + center_r;
+				pl.v()[j + 1] = plv_bary[j] + center_v;
+				// temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
+			}
+			
+		}
+		else
+		{
+			for (size_t j = 0; j < pl_alive; j++)
+			{
+				f64_3 aei = reduced_aei_i[j] + reduced_daei[j] * relative_t;
+				f64_3 oom = reduced_oom_i[j] + reduced_doom[j] * relative_t;
+				double gm = reduced_m[j] + pl.m()[0];
+				f64_3 r, v;
 
-			// offset for the sun
-			pl.r()[j + 1] = r;
-			pl.v()[j + 1] = v;
+				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
+
+				// offset for the sun
+				pl.r()[j + 1] = r;
+				pl.v()[j + 1] = v;
+				// temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
+			}
 		}
 	}
 
@@ -157,18 +252,18 @@ namespace interp
 					center_r += r_bary * reduced_m[j];
 					center_v += v_bary * reduced_m[j];
 					// std::cout << std::setprecision(10) << bary_cms[j + 1] + reduced_m[j] << std::endl;
-					temp_log << "Recovered Bary " << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << r_bary << " " << v_bary << std::endl;
+					// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(10) << " " << aei_bary << " " << oom_bary << std::endl;
 				}
 				center_r /= pl.m()[0];
 				center_v /= pl.m()[0];
-				temp_log  << "Recovered center " << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << center_r << " " << center_v  << std::endl;
+				// temp_log  << "Recovered center " << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << center_r << " " << center_v  << std::endl;
 
 				// Convert back to Heliocentric coords
 				for (size_t j = 0; j < pl_alive; j++)
 				{
 					pl.r()[j + 1] = plr_bary[j] + center_r;
 					pl.v()[j + 1] = plv_bary[j] + center_v;
-					temp_log << "Recovered Helio " << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << plr_bary[j] + center_r << " " << plv_bary[j] + center_v << std::endl;
+					// temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
 				}
 				
 			}
@@ -182,12 +277,13 @@ namespace interp
 					sr::convert::from_elements_M(pl.m()[0] + reduced_m[j], aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
 					pl.r()[j + 1] = r;
 					pl.v()[j + 1] = v;
+					// temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
 				}
 			// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(7) << " " << aei << " " << oom << std::endl;
 			// offset for the sun
 			}
 
-
+			
 			// temp_log << t0 + relative_t << " " << two_body_energy1 << " " << two_body_energy2 << std::endl;
 
 			std::copy(pl.r().begin() + 1, pl.r().begin() + pl.n_alive(), pl.r_log().old.begin() + (pl.n_alive() - 1) * i);
@@ -310,7 +406,7 @@ namespace interp
 				double gm = pl.m()[ind] + pl.m()[0];
 				f64_3 r, v;
 				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
-				temp_log << "Original Helio " << std::setprecision(9) << t1 << std::setprecision(14) << " " << r << " " << v << std::endl;
+				// temp_log << "Original Helio " << std::setprecision(9) << t1 << std::setprecision(14) << " " << r << " " << v << std::endl;
 
 				center_mass += pl.m()[ind];
 				center_r += r * pl.m()[ind];
@@ -322,7 +418,7 @@ namespace interp
 			}
 			center_r /= center_mass;
 			center_v /= center_mass;
-			temp_log  << "Original center " << std::setprecision(9) << t1 << std::setprecision(14) << " " << center_r << " " << center_v  << std::endl;
+			// temp_log  << "Original center " << std::setprecision(9) << t1 << std::setprecision(14) << " " << center_r << " " << center_v  << std::endl;
 
 			i = 1;
 			for (auto ind : inds)
@@ -331,8 +427,8 @@ namespace interp
 				sr::convert::to_elements(sr::convert::get_bary_mu(center_mass, pl.m()[ind]), plr[i] - center_r, plv[i] - center_v,
 					nullptr, &a, &e, &in, &capom, &om, &f);
 
-				temp_log << "Original Bary " << std::setprecision(9) << t1 << std::setprecision(14) << " " 
-				<< plr[i] - center_r << " " << plv[i] - center_v << std::endl;
+				// temp_log << "Original Bary " << std::setprecision(9) << t1 << std::setprecision(14) << " " 
+				// << plr[i] - center_r << " " << plv[i] - center_v << std::endl;
 
 				double mean = sr::convert::get_mean_anomaly(e, f);
 				aei1[ind] = f64_3(a, e, in);

@@ -3,11 +3,11 @@ import matplotlib.pyplot as plt
 import struct
 
 folder = "/home/yhuang/GLISSER/glisser/"
-filename1 = "benchmark/circular-particles-out-noread/tracks/track.0.out"
-filename2 = "benchmark/circular-particles-out-test/tracks/track.0.out"
+filename1 = "benchmark/circular-particles-out-1000-noread/tracks/track.0.out"
+filename2 = "benchmark/circular-particles-out-1000-read/tracks/track.0.out"
 
 files = [filename1, filename2]
-idx = 0
+idx = 3
 fig, [ax1, ax2, ax3, ax4, ax5] = plt.subplots(5, figsize=(9,12))
 for filename,label in zip(files,["No Hist","Use Hist"]):
     t, a1, e1, I1, O1, o1= [], [], [],[], [], []
@@ -26,7 +26,7 @@ for filename,label in zip(files,["No Hist","Use Hist"]):
             # print(npa)
             for i in range(npa):
                 pid, a, e, I, O, o, F = struct.unpack('=I6f', f.read(28))
-                if(pid==3):
+                if(pid==idx):
                     idx = pid
                     a1.append(a)
                     e1.append(e)
@@ -53,5 +53,5 @@ ax4.set_ylabel("Omega")
 ax5.set_ylabel("omega")    
 ax1.legend()
 # ax2.legend()
-plt.savefig("particle_bary_interp_{id}.png".format(id=idx),dpi=300)
+plt.savefig("DONE_circular_particle_{id}.png".format(id=idx),dpi=300)
 # plt.show()
