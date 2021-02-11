@@ -21,6 +21,7 @@ example/*-out
 benchmark/*
 benchmark/*/*
 pics/*
+Rogue/*
 *.png
 *.txt
 .vscode

@@ -336,10 +336,10 @@ namespace data
 		{
 			throw std::runtime_error("Error: Read-Split-Input was selected but Particle-Input-File or Planet-Input-File were not specified");
 		}
-		// if (!out->interp_planets && out->resolve_encounters)
-		// {
-		// 	throw std::runtime_error("Error: Cannot resolve encounters if not using an interpolated planetary history file");
-		// }
+		if (!out->interp_planets && out->resolve_encounters)
+		{
+			throw std::runtime_error("Error: Cannot resolve encounters if not using an interpolated planetary history file");
+		}
 	}
 
 	void write_configuration(std::ostream& outstream, const Configuration& out)
@@ -890,6 +890,7 @@ namespace data
 			sr::data::write_binary(trackout, static_cast<float>(capom));
 			sr::data::write_binary(trackout, static_cast<float>(om));
 			sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
+			// std::cout << std::setprecision(17) << time << ' ' << a << std::endl;
 		}
 
 		trackout.flush();

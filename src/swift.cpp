@@ -39,6 +39,8 @@ namespace swift
 			istat.push_back(std::vector<int32_t>(npa));
 			rstat.push_back(std::vector<double>(npa));
 		}
+
+		temp_log.open("temp_log_swift.txt");
 	}
 
 	std::pair<double, double> SwiftEncounterIntegrator::begin_integrate(
@@ -290,7 +292,7 @@ namespace swift
 						}
 
 						// even if we're in encounter, don't udpate the particle encounter flag
-						// isntead, set the encounter flag to 0 and let the GPU detect that the particle is in encounter using hill radius
+						// instead, set the encounter flag to 0 and let the GPU detect that the particle is in encounter using hill radius
 					}
 					deathflags = 0;
 				}
@@ -365,16 +367,19 @@ namespace swift
 
 	// this function handles both two-step integrations, and initial one-step integrations
 	// no matter whether the integration is one or two step, the lookup is always bounded by interp.t0 and interp.t1
-	// since the swift integratio never crosses the lookup boundary
+	// since the swift integrator never crosses the lookup boundary
 	void SwiftEncounterIntegrator::write_planetary_history(const sr::data::HostPlanetPhaseSpace& pl, const sr::interp::Interpolator& interp, std::string dest)
 	{
 		std::ofstream file(dest, std::ios_base::binary);
 
 		sr::data::write_binary(file, static_cast<double>(pl.m()[0]));
 		sr::data::pad_binary(file, 32 - 8);
+		// temp_log << std::setprecision(17);
+		// temp_log << "solar mass: "<< pl.m()[0] << std::endl;
 
 		if (old_log)
 		{
+			// temp_log << "old_log" << std::endl;
 			planet_id_list = interp.reduced_ids_old;
 
 			size_t npl = pl.n_alive_old();
@@ -386,38 +391,50 @@ namespace swift
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 			sr::data::pad_binary(file, 32 - 8 - 4);
 
+			// temp_log << "planets alive: "<< npl - 1 << std::endl;
+
 			// reduced ones use a d
 			for (size_t i = 0; i < npl - 1; i++)
 			{
+				// temp_log << "planet: " << interp.reduced_ids_old[i] + 1 << std::endl;
+				// temp_log << interp.reduced_m_old[i] << std::endl;
+				// temp_log << interp.jacobi_aei_i_old[i] << ' ' << interp.jacobi_oom_i_old[i] << std::endl;
+
 				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids_old[i] + 1));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_m_old[i]));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i_old[i].x));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i_old[i].y));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i_old[i].z));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_i_old[i].x));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_i_old[i].y));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_i_old[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_i_old[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_i_old[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_i_old[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_i_old[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_i_old[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_i_old[i].z));
 			}
 
+			// temp_log << "t0: " << interp.t0 << " t_m1: " << interp.t_m1 << std::endl;
 			sr::data::write_binary(file, static_cast<double>(interp.t0 - interp.t_m1));
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 			sr::data::pad_binary(file, 32 - 8 - 4);
 
 			for (size_t i = 0; i < npl - 1; i++)
 			{
+				// temp_log << "planet: " << interp.reduced_ids_old[i] + 1 << std::endl;
+				// temp_log << interp.reduced_m_old[i] << std::endl;
+				// temp_log << interp.jacobi_aei_f_old[i] << ' ' << interp.jacobi_oom_f_old[i] << std::endl;
+
 				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids_old[i] + 1));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_m_old[i]));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f_old[i].x));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f_old[i].y));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f_old[i].z));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_f_old[i].x));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_f_old[i].y));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_f_old[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_f_old[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_f_old[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_f_old[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_f_old[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_f_old[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_f_old[i].z));
 			}
 
 		}
 		else
 		{
+			// temp_log << "new_log" << std::endl;
 			planet_id_list = interp.reduced_ids;
 
 			size_t npl = pl.n_alive();
@@ -426,33 +443,40 @@ namespace swift
 			sr::data::write_binary(file, static_cast<double>(0));
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 			sr::data::pad_binary(file, 32 - 8 - 4);
+			// temp_log << "planets alive: "<< npl - 1 << std::endl;
 
 			for (size_t i = 0; i < npl - 1; i++)
 			{
+				// temp_log << "planet: " << interp.reduced_ids[i] + 1 << std::endl;
+				// temp_log << interp.reduced_m[i] << std::endl;
+				// temp_log << interp.jacobi_aei_i[i] << ' ' << interp.jacobi_oom_i[i] << std::endl;
 				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids[i] + 1));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_m[i]));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i[i].x));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i[i].y));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_i[i].z));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_i[i].x));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_i[i].y));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_i[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_i[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_i[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_i[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_i[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_i[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_i[i].z));
 			}
-
+			// temp_log << "t0: " << interp.t0 << " t_m1: " << interp.t_m1 << std::endl;
 			sr::data::write_binary(file, static_cast<double>(interp.t1 - interp.t0));
 			sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 			sr::data::pad_binary(file, 32 - 8 - 4);
 
 			for (size_t i = 0; i < npl - 1; i++)
 			{
+				// temp_log << "planet: " << interp.reduced_ids[i] + 1 << std::endl;
+				// temp_log << interp.reduced_m[i] << std::endl;
+				// temp_log << interp.jacobi_aei_f[i] << ' ' << interp.jacobi_oom_f[i] << std::endl;
 				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids[i] + 1));
 				sr::data::write_binary(file, static_cast<float>(interp.reduced_m[i]));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f[i].x));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f[i].y));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_aei_f[i].z));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_f[i].x));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_f[i].y));
-				sr::data::write_binary(file, static_cast<float>(interp.reduced_oom_f[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_f[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_f[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_aei_f[i].z));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_f[i].x));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_f[i].y));
+				sr::data::write_binary(file, static_cast<float>(interp.jacobi_oom_f[i].z));
 			}
 		}
 	}

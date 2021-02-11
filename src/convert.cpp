@@ -75,7 +75,6 @@ namespace convert
 	{
 		// pick origin at baricenter
 		rj[0] = f64_3(0);
-
 		// first jacobi coordinate is same as heliocentric
 		rj[1] = p.r()[1];
 

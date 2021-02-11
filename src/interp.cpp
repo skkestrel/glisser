@@ -14,7 +14,7 @@ namespace interp
 	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file)
 		: input(file, std::ios_base::binary)
 	{
-
+		temp_log.open("temp_log_interp.txt");
 		cur_ts = 0;
 		user_dt = config.dt;
 		use_bary_interp = config.use_bary_interp;
@@ -34,8 +34,13 @@ namespace interp
 		reduced_daei = reduced_doom = Vf64_3(pl.n());
 		reduced_aei_i = reduced_aei_f = reduced_aei_i_old = reduced_aei_f_old = Vf64_3(pl.n());
 		reduced_oom_i = reduced_oom_f = reduced_oom_i_old = reduced_oom_f_old = Vf64_3(pl.n());
-
 		reduced_ids = reduced_ids_old = Vu32(pl.n());
+
+		jacobi_aei_i = jacobi_aei_f = jacobi_aei_i_old = jacobi_aei_f_old = Vf64_3(pl.n());
+		jacobi_oom_i = jacobi_oom_f = jacobi_oom_i_old = jacobi_oom_f_old = Vf64_3(pl.n());
+
+		planet_eta = Vf64(pl.n());
+		planet_rj = planet_vj = Vf64_3(pl.n());	
 
 		t0 = std::numeric_limits<double>::infinity();
 		t1 = sr::data::read_binary<float64_t>(input);
@@ -46,6 +51,7 @@ namespace interp
 		pl.n_alive() = npl1;
 		pl.n_alive_old() = npl1;
 
+	
 		sr::data::skip_binary(input, 32 - 8 - 4);
 
 		if (t1 > config.t_0)
@@ -93,63 +99,39 @@ namespace interp
 		}
 
 		// Using barycentric orbital elements for interpolation
-		if(use_bary_interp)
+		if(use_bary_interp) 
 		{
-			Vf64_3 plr, plv;
-			plr.push_back(pl.r()[0]);
-			plv.push_back(pl.v()[0]);
-
-
-			// Calculate center of mass for all massive bodies.
-			center_mass = pl.m()[0];
-			f64_3 center_r = pl.r()[0] * pl.m()[0];
-			f64_3 center_v = pl.v()[0] * pl.m()[0];
-
-			size_t i = 0;
-			// temp_log << std::setprecision(9) << t0 << std::setprecision(7) << " " << aei1[4] << " " << oom1[4] << std::endl;
-			for (auto ind : inds)
-			{	
-				f64_3 aei = aei1[ind];
-				f64_3 oom = oom1[ind];
-				double gm = pl.m()[ind] + pl.m()[0];
-				f64_3 r, v;
-				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
-				// temp_log << "Original Helio " << std::setprecision(9) << t1 << std::setprecision(14) << " " << r << " " << v << std::endl;
-
-				center_mass += pl.m()[ind];
-				center_r += r * pl.m()[ind];
-				center_v += v * pl.m()[ind];
-
-				plr.push_back(r);
-				plv.push_back(v);
-				i++;
+			planet_eta[0] = pl.m()[0];
+			for (size_t i = 1; i < pl.n_alive(); i++)
+			{
+				planet_eta[i] = planet_eta[i - 1] + pl.m()[i];
 			}
-			center_r /= center_mass;
-			center_v /= center_mass;
-			// temp_log  << "Original center " << std::setprecision(9) << t1 << std::setprecision(14) << " " << center_r << " " << center_v  << std::endl;
-
-			i = 1;
+			sr::convert::helio_to_jacobi_r_planets(pl, planet_eta, planet_rj);
+			sr::convert::helio_to_jacobi_v_planets(pl, planet_eta, planet_vj);
+			size_t i = 1;
 			for (auto ind : inds)
 			{	
 				double a, e, in, capom, om, f;
-				sr::convert::to_elements(sr::convert::get_bary_mu(center_mass, pl.m()[ind]), plr[i] - center_r, plv[i] - center_v,
+				sr::convert::to_elements(planet_eta[i], planet_rj[i], planet_vj[i],
 					nullptr, &a, &e, &in, &capom, &om, &f);
 
 				// temp_log << "Original Bary " << std::setprecision(9) << t1 << std::setprecision(14) << " " 
 				// << plr[i] - center_r << " " << plv[i] - center_v << std::endl;
 
-				double mean = sr::convert::get_mean_anomaly(e, f);
 				aei1[ind] = f64_3(a, e, in);
-				oom1[ind] = f64_3(capom, om, mean);
+				oom1[ind] = f64_3(capom, om, sr::convert::get_mean_anomaly(e, f));
+				jacobi_aei_f[i-1] = aei1[ind];
+				jacobi_oom_f[i-1] = oom1[ind];
+				// temp_log << std::setprecision(14) << t1 << " " << pl.r()[i] << std::endl;
 				i++;
 			}
+
 		}
 		pl.r()[0] = f64_3(0);
 		pl.v()[0] = f64_3(0);
 		aei1[0] = f64_3(0);
 		oom1[0] = f64_3(0);
 		center_mass = 0;
-		temp_log.open("temp_log.txt");
 		
 	}
 
@@ -159,35 +141,27 @@ namespace interp
 
 		if(use_bary_interp)
 		{
-			f64_3 center_r = f64_3(0);
-			f64_3 center_v = f64_3(0);
-			Vf64_3 plr_bary, plv_bary;
-			// Recover the barycentric coords
+			planet_rj[0] = f64_3(0);
+			planet_vj[0] = f64_3(0);
 			for (size_t j = 0; j < pl_alive; j++)
 			{
-				f64_3 aei_bary = reduced_aei_i[j] + reduced_daei[j] * relative_t;
-				f64_3 oom_bary = reduced_oom_i[j] + reduced_doom[j] * relative_t;
-				f64_3 r_bary, v_bary;
+				f64_3 aei_jacobi = reduced_aei_i[j] + reduced_daei[j] * relative_t;
+				f64_3 oom_jacobi = reduced_oom_i[j] + reduced_doom[j] * relative_t;
+				f64_3 r_jacobi, v_jacobi;
 				
-				sr::convert::from_elements_M(sr::convert::get_bary_mu(center_mass, reduced_m[j]), aei_bary.x, aei_bary.y, aei_bary.z, 
-											oom_bary.x, oom_bary.y, oom_bary.z, &r_bary, &v_bary);
-				plr_bary.push_back(r_bary);
-				plv_bary.push_back(v_bary);
-				center_r += r_bary * reduced_m[j];
-				center_v += v_bary * reduced_m[j];
-				// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(10) << " " << aei_bary << " " << oom_bary << std::endl;
+				sr::convert::from_elements_M(planet_eta[j + 1], aei_jacobi.x, aei_jacobi.y, aei_jacobi.z, 
+											oom_jacobi.x, oom_jacobi.y, oom_jacobi.z, &r_jacobi, &v_jacobi);
+				planet_rj[j + 1] = r_jacobi;
+				planet_vj[j + 1] = v_jacobi;
+				// std::cout << std::setprecision(10) << bary_cms[j + 1] + reduced_m[j] << std::endl;
+				// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(10) << " " << aei_jacobi << " " << oom_jacobi << std::endl;
 			}
-			center_r /= pl.m()[0];
-			center_v /= pl.m()[0];
 
-			// Convert back to Heliocentric coords
-			for (size_t j = 0; j < pl_alive; j++)
-			{
-				pl.r()[j + 1] = plr_bary[j] + center_r;
-				pl.v()[j + 1] = plv_bary[j] + center_v;
-				// temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
-			}
-			
+			sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
+			// for (size_t j = 0; j < pl_alive; j++)
+			// {
+			// 	temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
+			// }
 		}
 		else
 		{
@@ -235,36 +209,27 @@ namespace interp
 
 			if(use_bary_interp)
 			{
-				f64_3 center_r = f64_3(0);
-				f64_3 center_v = f64_3(0);
-				Vf64_3 plr_bary, plv_bary;
-				// Recover the barycentric coords
+				planet_rj[0] = f64_3(0);
+				planet_vj[0] = f64_3(0);
 				for (size_t j = 0; j < pl_alive; j++)
 				{
-					f64_3 aei_bary = reduced_aei_i[j] + reduced_daei[j] * relative_t;
-					f64_3 oom_bary = reduced_oom_i[j] + reduced_doom[j] * relative_t;
-					f64_3 r_bary, v_bary;
+					f64_3 aei_jacobi = reduced_aei_i[j] + reduced_daei[j] * relative_t;
+					f64_3 oom_jacobi = reduced_oom_i[j] + reduced_doom[j] * relative_t;
+					f64_3 r_jacobi, v_jacobi;
 					
-					sr::convert::from_elements_M(sr::convert::get_bary_mu(center_mass, reduced_m[j]), aei_bary.x, aei_bary.y, aei_bary.z, 
-												oom_bary.x, oom_bary.y, oom_bary.z, &r_bary, &v_bary);
-					plr_bary.push_back(r_bary);
-					plv_bary.push_back(v_bary);
-					center_r += r_bary * reduced_m[j];
-					center_v += v_bary * reduced_m[j];
+					sr::convert::from_elements_M(planet_eta[j + 1], aei_jacobi.x, aei_jacobi.y, aei_jacobi.z, 
+												oom_jacobi.x, oom_jacobi.y, oom_jacobi.z, &r_jacobi, &v_jacobi);
+					planet_rj[j + 1] = r_jacobi;
+					planet_vj[j + 1] = v_jacobi;
 					// std::cout << std::setprecision(10) << bary_cms[j + 1] + reduced_m[j] << std::endl;
-					// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(10) << " " << aei_bary << " " << oom_bary << std::endl;
+					// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(10) << " " << aei_jacobi << " " << oom_jacobi << std::endl;
 				}
-				center_r /= pl.m()[0];
-				center_v /= pl.m()[0];
-				// temp_log  << "Recovered center " << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << center_r << " " << center_v  << std::endl;
 
-				// Convert back to Heliocentric coords
-				for (size_t j = 0; j < pl_alive; j++)
-				{
-					pl.r()[j + 1] = plr_bary[j] + center_r;
-					pl.v()[j + 1] = plv_bary[j] + center_v;
-					// temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
-				}
+				sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
+				// for (size_t j = 0; j < pl_alive; j++)
+				// {
+				// 	temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
+				// }
 				
 			}
 			else 
@@ -308,15 +273,20 @@ namespace interp
 		rel_t = 0;
 
 		reduced_m_old = reduced_m;
+		reduced_ids_old = reduced_ids;
 
 		reduced_aei_i_old = reduced_aei_i;
 		reduced_aei_f_old = reduced_aei_f;
-
 		reduced_oom_i_old = reduced_oom_i;
 		reduced_oom_f_old = reduced_oom_f;
 
-		reduced_ids_old = reduced_ids;
+		jacobi_aei_i_old = jacobi_aei_i;
+		jacobi_aei_f_old = jacobi_aei_f;
+		jacobi_oom_i_old = jacobi_oom_i;
+		jacobi_oom_f_old = jacobi_oom_f;
 
+		jacobi_aei_i = jacobi_aei_f;
+		jacobi_oom_i = jacobi_oom_f;
 		pl_alive_old = pl_alive;
 
 		t1 = sr::data::read_binary<float64_t>(input);
@@ -373,32 +343,23 @@ namespace interp
 			oom1[ind].y = sr::data::read_binary<float32_t>(input);
 			oom1[ind].z = sr::data::read_binary<float32_t>(input);
 
+
 			// if there was no entry for the planet at the beginning of the interval, skip
 			if (std::isnan(aei0[ind].x))
 			{
 				continue;
 			}
 			pl_alive++;
+			
 		}
 
 		pl.n_alive() = pl_alive + 1;
 
-		
 		// Using barycentric orbital elements for interpolation
+
 		if(use_bary_interp)
 		{
-			Vf64_3 plr, plv;
-			plr.push_back(pl.r()[0]);
-			plv.push_back(pl.v()[0]);
-
-
-			// Calculate center of mass for all massive bodies.
-			center_mass = pl.m()[0];
-			f64_3 center_r = pl.r()[0] * pl.m()[0];
-			f64_3 center_v = pl.v()[0] * pl.m()[0];
-
 			size_t i = 0;
-			// temp_log << std::setprecision(9) << t0 << std::setprecision(7) << " " << aei1[4] << " " << oom1[4] << std::endl;
 			for (auto ind : inds)
 			{	
 				f64_3 aei = aei1[ind];
@@ -406,33 +367,36 @@ namespace interp
 				double gm = pl.m()[ind] + pl.m()[0];
 				f64_3 r, v;
 				sr::convert::from_elements_M(gm, aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
-				// temp_log << "Original Helio " << std::setprecision(9) << t1 << std::setprecision(14) << " " << r << " " << v << std::endl;
 
-				center_mass += pl.m()[ind];
-				center_r += r * pl.m()[ind];
-				center_v += v * pl.m()[ind];
-
-				plr.push_back(r);
-				plv.push_back(v);
+				pl.r()[i + 1] = r;
+				pl.v()[i + 1] = v;
 				i++;
 			}
-			center_r /= center_mass;
-			center_v /= center_mass;
-			// temp_log  << "Original center " << std::setprecision(9) << t1 << std::setprecision(14) << " " << center_r << " " << center_v  << std::endl;
+
+
+			planet_eta[0] = pl.m()[0];
+			for (size_t i = 1; i < pl.n_alive(); i++)
+			{
+				planet_eta[i] = planet_eta[i - 1] + pl.m()[i];
+			}
+			sr::convert::helio_to_jacobi_r_planets(pl, planet_eta, planet_rj);
+			sr::convert::helio_to_jacobi_v_planets(pl, planet_eta, planet_vj);
 
 			i = 1;
 			for (auto ind : inds)
 			{	
 				double a, e, in, capom, om, f;
-				sr::convert::to_elements(sr::convert::get_bary_mu(center_mass, pl.m()[ind]), plr[i] - center_r, plv[i] - center_v,
+				sr::convert::to_elements(planet_eta[i], planet_rj[i], planet_vj[i],
 					nullptr, &a, &e, &in, &capom, &om, &f);
 
 				// temp_log << "Original Bary " << std::setprecision(9) << t1 << std::setprecision(14) << " " 
 				// << plr[i] - center_r << " " << plv[i] - center_v << std::endl;
 
-				double mean = sr::convert::get_mean_anomaly(e, f);
 				aei1[ind] = f64_3(a, e, in);
-				oom1[ind] = f64_3(capom, om, mean);
+				oom1[ind] = f64_3(capom, om, sr::convert::get_mean_anomaly(e, f));
+				jacobi_aei_f[i-1] = aei1[ind];
+				jacobi_oom_f[i-1] = oom1[ind];
+				// temp_log << std::setprecision(14) << t1 << " " << pl.r()[i] << std::endl;
 				i++;
 			}
 			// temp_log << std::setprecision(9) << t0 << std::setprecision(7) << " " << aei1[4] << " " << oom1[4] << std::endl;
@@ -464,7 +428,7 @@ namespace interp
 			else if (reduced_doom[i].x < -M_PI) reduced_doom[i].x += 2 * M_PI;
 
 
-			// FIXED IT!
+			// FIXED!
 			if (reduced_doom[i].y > M_PI) reduced_doom[i].y -= 2 * M_PI;
 			else if (reduced_doom[i].y < -M_PI) reduced_doom[i].y += 2 * M_PI;
 

@@ -471,6 +471,7 @@ namespace wh
 
 	void WHIntegrator::recalculate_rh(const HostPlanetPhaseSpace& pl)
 	{
+		// TO FIX: change to r;
 		if (std::abs(encounter_sphere_factor) > 1e-6)
 		{
 			// reinterpret cull radius to be the sun's radius
@@ -482,8 +483,11 @@ namespace wh
 				double a, e;
 				sr::convert::to_elements(pl.m()[0] + pl.m()[i], pl.r()[i], pl.v()[i], nullptr, &a, &e);
 
-				planet_rh[i] = encounter_sphere_factor * a * (1 - e) * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
+				// planet_rh[i] = encounter_sphere_factor * a * (1 - e) * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
+				// temporarily modified
+				planet_rh[i] = encounter_sphere_factor * a * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
 			}
+
 		}
 		else
 		{
@@ -616,7 +620,6 @@ namespace wh
 
 		for (size_t j = 1; j < pl.n_alive(); j++)
 		{
-			// IMPORTANT (replace old with false)
 			f64_3 dr = pa.r()[particle_index] - pl.r_log().get<old>()[pl.log_index_at<old>(timestep_index, j)];
 #ifdef USE_FMA
 			float64_t planet_rji2 = std::fma(dr.x, dr.x, std::fma(dr.y, dr.y, dr.z * dr.z));

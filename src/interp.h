@@ -53,12 +53,18 @@ namespace interp
 		Vu32 reduced_ids, reduced_ids_old;
 		Vf64 reduced_m, reduced_m_old;
 
+		Vf64_3 jacobi_aei_i, jacobi_oom_i;
+		Vf64_3 jacobi_aei_f, jacobi_oom_f;
+		Vf64_3 jacobi_aei_i_old, jacobi_oom_i_old;
+		Vf64_3 jacobi_aei_f_old, jacobi_oom_f_old;
 		Vf64_3 bary_rs, bary_vs;
 		Vf64 bary_cms;
 
 		double center_mass;
 
 		size_t ind_max;
+		Vf64 planet_eta;
+		Vf64_3 planet_rj, planet_vj;
 
 		private:
 		std::ifstream input;

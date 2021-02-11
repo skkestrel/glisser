@@ -212,8 +212,8 @@ namespace exec
 		// upload planet data before the first timechunk
 		update_planets();
 
-		out_timing = std::ofstream(sr::util::joinpath(config.outfolder, "timing.out"));
-		out_timing << "t,      n_enc,  enc,    wswift, iswift, swift,  rswift, dswift, io,     planet, planetu,encup,  sort,   dl,     endenc, resync, cpu,    gpu,    total" << std::endl;
+		// out_timing = std::ofstream(sr::util::joinpath(config.outfolder, "timing.out"));
+		// out_timing << "t,      n_enc,  enc,    wswift, iswift, swift,  rswift, dswift, io,     planet, planetu,encup,  sort,   dl,     endenc, resync, cpu,    gpu,    total" << std::endl;
 	}
 
 	void Executor::swap_logs()
@@ -271,6 +271,7 @@ namespace exec
 
 			// select the size of the next timestep
 			// it can be no more than tbsize, and cannot go past the end of the interval
+			// The used tbsize is the minimum of config.tbsize and interpolator interval size.
 			cur_tbsize = std::min(config.tbsize, static_cast<uint32_t>(interpolator.n_ts - interpolator.cur_ts));
 
 			// fill the planet logs
@@ -613,7 +614,7 @@ namespace exec
 		// it's possible that not all particles have reached the current t, since they might be about to be stepped forward on SWIFT all the way until
 		// t + cur_tbsize * dt
 		// t = the time at the start of the block that is about to be calculated
-		t_initswift = t_delayswift = t_enc= t_swift = t_writeswift = t_readswift = t_io= t_planet = t_planetup= t_encup= t_sort= t_dl= t_enc2 =t_resync= 0;
+		t_initswift = t_delayswift = t_enc = t_swift = t_writeswift = t_readswift = t_io = t_planet = t_planetup = t_encup = t_sort = t_dl = t_enc2 = t_resync= 0;
 
 		auto total_clock = hrclock::now();
 
@@ -740,27 +741,27 @@ namespace exec
 			}
 		}
 
-		out_timing << std::left << std::fixed << std::setprecision(3);
-		out_timing << std::setw(8) << t;
-		out_timing << std::setw(8) << n_enc;
-		out_timing << std::setw(8) << t_enc;
-		out_timing << std::setw(8) << t_writeswift;
-		out_timing << std::setw(8) << t_initswift;
-		out_timing << std::setw(8) << t_swift;
-		out_timing << std::setw(8) << t_readswift;
-		out_timing << std::setw(8) << t_delayswift;
-		out_timing << std::setw(8) << t_io;
-		out_timing << std::setw(8) << t_planet;
-		out_timing << std::setw(8) << t_planetup;
-		out_timing << std::setw(8) << t_encup;
-		out_timing << std::setw(8) << t_sort;
-		out_timing << std::setw(8) << t_dl;
-		out_timing << std::setw(8) << t_enc2;
-		out_timing << std::setw(8) << t_resync;
-		out_timing << std::setw(8) << *cputimeout;
-		out_timing << std::setw(8) << *gputimeout;
-		out_timing << std::setw(8) << dt_ms(total_clock, hrclock::now());
-		out_timing << std::endl;
+		// out_timing << std::left << std::fixed << std::setprecision(3);
+		// out_timing << std::setw(8) << t;
+		// out_timing << std::setw(8) << n_enc;
+		// out_timing << std::setw(8) << t_enc;
+		// out_timing << std::setw(8) << t_writeswift;
+		// out_timing << std::setw(8) << t_initswift;
+		// out_timing << std::setw(8) << t_swift;
+		// out_timing << std::setw(8) << t_readswift;
+		// out_timing << std::setw(8) << t_delayswift;
+		// out_timing << std::setw(8) << t_io;
+		// out_timing << std::setw(8) << t_planet;
+		// out_timing << std::setw(8) << t_planetup;
+		// out_timing << std::setw(8) << t_encup;
+		// out_timing << std::setw(8) << t_sort;
+		// out_timing << std::setw(8) << t_dl;
+		// out_timing << std::setw(8) << t_enc2;
+		// out_timing << std::setw(8) << t_resync;
+		// out_timing << std::setw(8) << *cputimeout;
+		// out_timing << std::setw(8) << *gputimeout;
+		// out_timing << std::setw(8) << dt_ms(total_clock, hrclock::now());
+		// out_timing << std::endl;
 
 		// if not resolving encounters, every time is safe to end on
 		// if resolving encounters, only timechunks that end the lookup interval are safe

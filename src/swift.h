@@ -66,6 +66,8 @@ namespace swift
 		Vu32 planet_id_list;
 
 		std::vector<ChildProcess> _children;
+
+		std::ofstream temp_log;
 	};
 }
 }

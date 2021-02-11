@@ -3,15 +3,16 @@ import matplotlib.pyplot as plt
 import struct
 
 folder = "/home/yhuang/GLISSER/glisser/"
-filename1 = "benchmark/circular-particles-out-ecc-comp-noread/tracks/track.0.out"
+filename1 = "benchmark/circular-particles-out-1000-temp/tracks/track.0.out"
 # filename2 = "benchmark/circular-particles-out-ecc-read/tracks/track.0.out"
 
 number = 20000 * 4 + 4
-idx = 3
+idx = 1
+planet_list = ["Jupiter", "Saturn", "Uranus", "Neptune"]
 
 data = np.loadtxt("temp_log_helio_1000.txt")
 t, x1, y1, z1, vx1, vy1, vz1 = data[idx:number:4,0], data[idx:number:4,1], data[idx:number:4,2], data[idx:number:4,3], data[idx:number:4,4], data[idx:number:4,5], data[idx:number:4,6]
-data = np.loadtxt("temp_log.txt")
+data = np.loadtxt("temp_log_jacobi_1000.txt")
 t, x2, y2, z2, vx2, vy2, vz2 = data[idx:number:4,0], data[idx:number:4,1], data[idx:number:4,2], data[idx:number:4,3], data[idx:number:4,4], data[idx:number:4,5], data[idx:number:4,6]
 
 print(t.shape)
@@ -68,8 +69,8 @@ for filename,label in zip([filename1],["No Hist"]):
     dr = np.sqrt(dx**2+dy**2+dz**2)
     dv = np.sqrt(dvx**2+dvy**2+dvz**2)
 
-    ax1.scatter(np.array(t), dr/np.sqrt(x1**2+y1**2+z1**2), alpha=0.5, label='Bary', s=0.8)
-    ax2.scatter(np.array(t), dv/np.sqrt(vx1**2+vy1**2+vz1**2), alpha=0.5, label='Bary', s=0.8)
+    ax1.scatter(np.array(t), dr/np.sqrt(x1**2+y1**2+z1**2), alpha=0.5, label='Jacobi', s=0.8)
+    ax2.scatter(np.array(t), dv/np.sqrt(vx1**2+vy1**2+vz1**2), alpha=0.5, label='Jacobi', s=0.8)
 
 
 # idarray = np.argsort(np.abs(np.diff(a1)))[::-1]
@@ -95,5 +96,5 @@ for ax in [ax1, ax2]:
 
 
 
-plt.savefig("TEST_1000.png",dpi=300)
+plt.savefig("JACOBI_{planet}_1000.png".format(planet=planet_list[idx]),dpi=300)
 # plt.show()

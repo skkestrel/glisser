@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import struct
 
 folder = "/home/yhuang/GLISSER/glisser/"
-filename1 = "benchmark/rogue-particles-1000-out-read/tracks/track.0.out"
+filename1 = "benchmark/rogue-particles-10-out-read/tracks/track.0.out"
 # filename2 = "benchmark/kuiper-particles-out-1000-read/tracks/track.0.out"
 
 files = [filename1]
@@ -39,6 +39,8 @@ for filename,label in zip(files,["GLISSER"]):
                     o1.append(o)
             read = f.read(16)
     t = np.array(t)
+    print(a1)
+    print(e1)
     O1 = np.array(O1)
     o1 = np.array(o1)
     ax1.scatter(t, a1, alpha=0.5, label=label, s=0.5)
@@ -66,5 +68,5 @@ ax1.legend()
     # ax.set_xlim(-100,t[-1]/48)
 
 # ax2.legend()
-plt.savefig("test_{id}_1000.png".format(id=idx),dpi=200)
+plt.savefig("test_{id}_10.png".format(id=idx),dpi=200)
 # plt.show()
