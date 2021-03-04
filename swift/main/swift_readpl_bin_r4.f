@@ -68,7 +68,7 @@ c      the resolution we have in the output from mercury
 	real*8 t,tout,tdump,tfrac
 c JMP
 	real*8 dtin
-	real*4 ma4, a4, e4, ri4, omega4, capom4, capm4
+	real*4 ma4, a4, e4, ri4, capom4, omega4, capm4
 
 	real*8 rmin,rmax,rmaxu,qmin,rplsq(NPLMAX)
         logical*2 lclose 
@@ -134,7 +134,7 @@ c Initializes the a0 array
 	   end do
 	   do ip=2,nbod
 	      rn = rn + 1
-	      read (77, rec=rn) ipl, ma4, a4, e4, ri4, omega4, capom4,
+	      read (77, rec=rn) ipl, ma4, a4, e4, ri4, capom4, omega4,
      $           capm4
 	      rms(ipl) = ma4
 	      a0(ipl) = a4
@@ -259,7 +259,7 @@ c	   write(*,*)'dt=',dt
 	   end do
 	   do ipt=2,nbod
 	      rn = rn + 1
-	      read (77, rec=rn) ipl, ma4, a4, e4, ri4, omega4, capom4,
+	      read (77, rec=rn) ipl, ma4, a4, e4, ri4, capom4, omega4,
      $           capm4
 	      rms(ipl) = ma4
 	      a1(ipl) = a4

@@ -15,8 +15,8 @@ Planet-History-File benchmark/outer-planets-out/plhist.out
 Read-Planet-History 1
 Swift-Path swift/main/swift_glisse_ext
 Track-Interval 1
-Encounter-RH-Factor 3.5
-Cull-Radius 1
+Hill-Radius-Factor 3.5
+Particle-Inner-Boundary 1
 Log-Interval 100
 Dump-Interval 20000
 Input-File benchmark/outer-particles/state.in
@@ -35,8 +35,8 @@ Read-Planet-History 1
 Swift-Path swift/main/swift_glisse_ext
 Track-Interval 0
 Resync-Interval 1
-Encounter-RH-Factor 1
-Cull-Radius 1
+Hill-Radius-Factor 1
+Particle-Inner-Boundary 1
 Log-Interval 500
 Dump-Interval 0
 Input-File benchmark/circular-particles/state.in
@@ -60,7 +60,7 @@ while(num <= 140000):
 print(numlist)
 
 for lps in numlist:
-    ENDLINE1 = "Limit-Particle-Count " + str(lps)
+    ENDLINE1 = "Particle-Count-Limit " + str(lps)
     ENDLINE2 = "Output-Folder benchmark/circular-particles-out-"+ str(lps)
     CONFIG_NEW = CONFIG + ENDLINE1 + '\n' + ENDLINE2
     print(CONFIG_NEW)

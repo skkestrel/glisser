@@ -7,8 +7,8 @@ Planet-History-File example/threebody-planets-out/plhist.out
 Read-Planet-History 1
 Swift-Path swift/main/swift_glisse_ext
 Track-Interval 1
-Encounter-RH-Factor 3.5
-Cull-Radius 0.5
+Hill-Radius-Factor 3.5
+Particle-Inner-Boundary 0.5
 Log-Interval 256
 Output-Folder example/threebody-particles-out
 Dump-Interval 20000

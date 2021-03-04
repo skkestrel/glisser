@@ -69,8 +69,11 @@ namespace exec
 		void operator()(Tuple args) const
 		{
 			uint16_t flags = thrust::get<2>(args);
+			// If a particle is inside any big bodies:
 			if ((flags & 0x01) == 0x01)
 			{
+				// 0xFF00 = 1111 1111 0000 0000
+				// This is to 
 				flags = static_cast<uint16_t>((flags & 0xFF00) | 0x80);
 			}
 			thrust::get<2>(args) = flags;
@@ -93,7 +96,7 @@ namespace exec
 		if (config.interp_planets)
 		{
 			// setup interpolator
-			interpolator = sr::interp::Interpolator(config, hd.planets, config.planet_history_file);
+			interpolator = sr::interp::Interpolator(config, hd.planets, config.planet_history_file, config.read_single_hist);
 
 			// step interp forward until we're in the correct interval
 			while (interpolator.t1 <= t)
@@ -230,6 +233,7 @@ namespace exec
 
 		hrclock::time_point clock = hrclock::now();
 
+		// std::cout << t << std::endl;
 		integrator.recalculate_rh(hd.planets);
 
 		if (config.interp_planets)
@@ -820,25 +824,47 @@ namespace exec
 
 		// set the deathtime for dead particles - let's set the encounter particles deathtimes too, just to show when they entered encounter
 		// here t refers to the ending time of the timechunk
+		double deathtime = 0;
 		for (size_t i = particles.n_alive; i < prev_alive; i++)
 		{
 			// t = time at the end of this chunk
+			// deathtime = hd.particles.deathtime_map()[hd.particles.id()[i]];
 			hd.particles.deathtime_map()[hd.particles.id()[i]] = static_cast<float>(t);
+			deathtime = t;
 
 			if (hd.particles.deathflags()[i] & 0x04) 
 			{
-				output << "warning - particle " << hd.particles.id()[i] << " did not converge on GPU" << std::endl;
+				output << "Death: " << hd.particles.id()[i] << " did not converge on GPU" << " at " << deathtime << std::endl;
 			}
 
 			if (encounter_output)
 			{
-				if (hd.particles.deathflags()[i] & 0x80)
+				if (hd.particles.deathflags()[i] & 0x01)
 				{
-					*encounter_output << hd.particles.id()[i] << " death " << t << std::endl;
+					if (hd.particles.deathflags()[i] >> 8) 
+					{
+						*encounter_output << "Encounter: "<< hd.particles.id()[i] << " with " << (hd.particles.deathflags()[i] >> 8) << " at " << deathtime << std::endl;
+					}
+					else
+					{
+						*encounter_output << "Death:     "<< hd.particles.id()[i] << " enter inner bound at " << deathtime << std::endl;
+					}
 				}
-				else
+				else if (hd.particles.deathflags()[i] & 0x02)
 				{
-					*encounter_output << hd.particles.id()[i] << " encounter " << t << std::endl;
+					*encounter_output << "Death:     "<< hd.particles.id()[i] << " exceed outer bound at " << deathtime << std::endl;
+				}
+				else if (hd.particles.deathflags()[i] & 0x04)
+				{
+					*encounter_output << "Death:     "<< hd.particles.id()[i] << " did not converge at " << deathtime << std::endl;
+				}
+				else if (hd.particles.deathflags()[i] & 0x08)
+				{
+					*encounter_output << "Death:     "<< hd.particles.id()[i] << " orbit unbound at " << deathtime << std::endl;
+				}
+				else if (hd.particles.deathflags()[i] & 0x80)
+				{
+					*encounter_output << "Death:     "<< hd.particles.id()[i] << " absorbed by "  << (hd.particles.deathflags()[i] >> 8) << " at " << deathtime << std::endl;
 				}
 			}
 		}
@@ -885,7 +911,7 @@ namespace exec
 	void Executor::finish()
 	{
 		cudaStreamSynchronize(main_stream);
-		swift.write_stat(sr::util::joinpath(config.outfolder, "stat.out"));
+		// swift.write_stat(sr::util::joinpath(config.outfolder, "stat.out"));
 
 
 		for (auto& i : work) i();

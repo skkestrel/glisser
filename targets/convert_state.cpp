@@ -63,7 +63,7 @@ int main(int argc, char** argv)
 			{
 				config.hybridin = commands[i + 1];
 				config.readbinary = binary;
-				config.readmomenta = momentum;
+
 
 				load_data(hd.planets, hd.particles, config);
 
@@ -80,7 +80,6 @@ int main(int argc, char** argv)
 				config.plin = commands[i + 1];
 				config.icsin = commands[i + 2];
 
-				config.readmomenta = momentum;
 				config.readbinary = false;
 				config.readsplit = true;
 
@@ -110,7 +109,6 @@ int main(int argc, char** argv)
 			{
 				config.hybridout = commands[i + 1];
 				config.writebinary = binary;
-				config.writemomenta = momentum;
 
 				save_data(hd.planets.base, hd.particles, config, config.hybridout);
 

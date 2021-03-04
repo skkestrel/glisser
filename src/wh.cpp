@@ -11,8 +11,8 @@ namespace sr
 {
 namespace wh
 {
-	const uint32_t MAXKEP = 10;
 	const float64_t TOLKEP = 1E-14;
+	const uint32_t MAXKEP = 10;
 
 	using namespace sr::data;
 
@@ -471,11 +471,8 @@ namespace wh
 
 	void WHIntegrator::recalculate_rh(const HostPlanetPhaseSpace& pl)
 	{
-		// TO FIX: change to r;
-		if (std::abs(encounter_sphere_factor) > 1e-6)
-		{
 			// reinterpret cull radius to be the sun's radius
-			planet_rh[0] = cull_radius;
+			planet_rh[0] = inner_bound;
 
 			// for the rest of the planets, use the factor times the hill sphere
 			for (size_t i = 1; i < pl.n(); i++)
@@ -483,20 +480,14 @@ namespace wh
 				double a, e;
 				sr::convert::to_elements(pl.m()[0] + pl.m()[i], pl.r()[i], pl.v()[i], nullptr, &a, &e);
 
-				// planet_rh[i] = encounter_sphere_factor * a * (1 - e) * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
+				// planet_rh[i] = hill_factor * a * (1 - e) * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
 				// temporarily modified
-				planet_rh[i] = encounter_sphere_factor * a * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
+				planet_rh[i] = hill_factor * a * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
+				// std::cout << i << " " << planet_rh[i] << std::endl;
 			}
 
-		}
-		else
-		{
-			for (size_t i = 0; i < pl.n(); i++)
-			{
-				planet_rh[i] = cull_radius;
-			}
-		}
 	}
+	
 
 	WHIntegrator::WHIntegrator() { }
 	WHIntegrator::WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config)
@@ -520,9 +511,10 @@ namespace wh
 
 		planet_h0_log = sr::util::History<Vf64_3>(config.tbsize);
 
-		outer_radius = config.outer_radius;
-		encounter_sphere_factor = config.encounter_sphere_factor;
-		cull_radius = config.cull_radius;
+		outer_bound = config.outer_bound;
+		hill_factor = config.hill_factor;
+		inner_bound = config.inner_bound;
+		max_kep = config.max_kep;
 
 		planet_eta[0] = pl.m()[0];
 		for (size_t i = 1; i < pl.n(); i++)
@@ -571,7 +563,7 @@ namespace wh
 				pa.deathflags()[i] = 0x0080;
 			}
 
-			if (rji2 > config.outer_radius * config.outer_radius)
+			if (rji2 > config.outer_bound * config.outer_bound)
 			{
 				pa.deathtime_map()[pa.id()[i]] = static_cast<float>(config.t_0);
 				pa.deathflags()[i] = 0x0002;
@@ -653,7 +645,7 @@ namespace wh
 			pa.deathflags()[particle_index] = 0x0001;
 		}
 
-		if (planet_rji2 > outer_radius * outer_radius)
+		if (planet_rji2 > outer_bound * outer_bound)
 		{
 			pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
 			pa.deathflags()[particle_index] = 0x0002;

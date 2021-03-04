@@ -57,7 +57,7 @@ In the basic case, integration without close encounters, one must supply an init
 *   `Dump-Interval`: the interval (in units of time-blocks) between times where GLISSER should output full binary dumps of particle and planet positions
 *   `Input-File`: the input state which contains planet and particle initial positions
 
-Since we are not resolving encounters, particles are removed if they come within 0.5 au of a planet (can be changed by the parameter `Cull-Radius`). The check is made every timestep. In addition, the integration will terminate if any of the planets’ orbits become unbound or fail to converge (e.g. in a situation where two planets come very close to each other).
+Since we are not resolving encounters, particles are removed if they come within 0.5 au of a planet (can be changed by the parameter `Particle-Inner-Boundary`). The check is made every timestep. In addition, the integration will terminate if any of the planets’ orbits become unbound or fail to converge (e.g. in a situation where two planets come very close to each other).
 
 ### Planetary history pre-integration
 
@@ -72,14 +72,14 @@ GLISSER can also be used to only integrate planets to generate a file for planet
     Log-Interval 64
     Output-Folder example/threebody-planets-out
     Dump-Interval 0
-    Limit-Particle-Count 0
+    Particle-Count-Limit 0
     Input-File example/threebody-planets/state.in
-    Swift-History-Interval 100
+    Planet-History-Interval 100
 
 
 *   encounter resolution is explicitly disabled by setting `Resolve-Encounters` to 0
-*   particle integration on the GPU is disabled by setting `Limit-Particle-Count` to 0
-*   planetary history output is enabled by setting `Swift-History-Interval` to 100, which outputs a planetary state for interpolation every 100 timeblocks (100 years)
+*   particle integration on the GPU is disabled by setting `Particle-Count-Limit` to 0
+*   planetary history output is enabled by setting `Planet-History-Interval` to 100, which outputs a planetary state for interpolation every 100 timeblocks (100 years)
 
 This takes less than one second on my machine to run, and outputs the file `example/threebody-planets-out/plhist.out` which can be used as an interpolated planetary history.
 
@@ -96,8 +96,8 @@ A planetary history file can be used instead of direct integration of planets. W
     Read-Planet-History 1
     Swift-Path swift/main/swift_glisse_ext
     Track-Interval 1
-    Encounter-RH-Factor 3.5
-    Cull-Radius 0.5
+    Hill-Radius-Factor 3
+    Particle-Inner-Boundary 0.5
     Log-Interval 256
     Output-Folder example/threebody-particles-out
     Dump-Interval 20000
@@ -109,8 +109,8 @@ A planetary history file can be used instead of direct integration of planets. W
 *   `Planet-History-File` points to the planetary history file
 *   `Swift-Path` points to the location of `swift_glisse_ext` on the machine
 *   `Track-Interval`, `Log-Interval`, and `Dump-Interval` instead refer to an interval in units of planetary history intervals, instead of timeblocks, when `Resolve-Encounters` is enabled
-*   `Encounter-RH-Factor` is the distance in multiples of Hill spheres at which a particle is marked as entering an encounter, and should be set to the same number as `RHSCALE` in `swift/rmvs/rmvs.inc`
-*   `Cull-Radius` instead refers to the distance to the sun below which particles should be removed when `Encounter-RH-Factor` is enabled
+*   `Hill-Radius-Factor` is the distance in multiples of Hill spheres at which a particle is marked as entering an encounter, and should be set to the same number as `RHSCALE` in `swift/rmvs/rmvs.inc`
+*   `Particle-Inner-Boundary` instead refers to the distance to the sun below which particles should be removed when `Hill-Radius-Factor` is enabled
 
 Inputs
 ------
@@ -214,22 +214,22 @@ A planetary history file can be used to prove planetary locations instead of a d
 |`Final-Time`|The time to stop the integration.| |
 |`Time-Block-Size`|The timeblock size; the planetary chunk size. The number of timesteps that the GPU will advance in one kernel launch.|1024|
 |`Big-G`|The numerical value of G.|1|
-|`Encounter-RH-Factor` |**If not 0:**<br> Particles are marked as in an encounter if they come within `Encounter-RH-Factor` \* rHr\_HrH​ of a planet.| 0 |
-|`Cull-Radius`|**If `Encounter-RH-Factor` is not set:** <br>Particles are marked as in an encounter if they come within this radius of any planet. <br>**Else:** <br>Particles are marked as in an encounter if they come within this radius of the sun.|0.5|
-|`Outer-Limit`|Particles are removed if they are this far away from the sun.|300|
-|`Limit-Particle-Count`|Limit the number of particles that are read and integrated from the input file.**If 0:**Performs CPU integration of planets exclusively.|MAX\_INT|
+|`Hill-Radius-Factor` |**If not 0:**<br> Particles are marked as in an encounter if they come within `Hill-Radius-Factor` \* rHr\_HrH​ of a planet.| 0 |
+|`Particle-Inner-Boundary`|**If `Hill-Radius-Factor` is not set:** <br>Particles are marked as in an encounter if they come within this radius of any planet. <br>**Else:** <br>Particles are marked as in an encounter if they come within this radius of the sun.|0.5|
+|`Particle-Outer-Boundary`|Particles are removed if they are this far away from the sun.|300|
+|`Particle-Count-Limit`|Limit the number of particles that are read and integrated from the input file.**If 0:**Performs CPU integration of planets exclusively.|MAX\_INT|
 |`Log-Interval` |**If 0:**<br> Progress printing is disabled.<br> **If `Resolve-Encounters` is not set:** <br>Print the current progress every `Log-Interval` timeblocks. <br>**Else:** <br>Print the current progress every `Log-Interval` planetary history intervals.|10 |
 |`Track-Interval`|**If 0:**<br> Particle histories are disabled. <br>**If `Resolve-Encounters` is not set:** <br>Write particle history every `Log-Interval` timeblocks.<br> **Else:** <br>Write particle history every `Log-Interval` planetary history intervals.|0|
 |`Resync-Interval`|**If `Resolve-Encounters` is not set:** <br> Resort (defragment) the particle arrays every `Resync-Interval` timeblocks.<br> **Else:** <br> This parameter must be 1. |1 |
-|`Write-Barycentric-Track` |Write barycentric instead of heliocentric orbital elements to the particle histories if enabled. |1 |
-|`Write-RV-Track` |Write position and velocity vectors into track.||
+|`Write-Bary-Track` |Write barycentric instead of heliocentric orbital elements to the particle histories if enabled. |1 |
+|`Write-Elements-Track` |Write position and velocity vectors into track.||
 |`Split-Track-File` | **If 0:** <br> Write particle tracks into a single file named `tracks/track.0.out` in the output directory. <br>**Else:** <br>Write particle tracks to files with a maximum size of `Split-Track-File` in bytes, named sequentially in the `tracks` folder in the output directory. |0 |
 |`Dump-Interval` |**If 0:** <br> State dumps are disabled. <br>**If `Resolve-Encounters` is not set:** <br> Dump particle and planetary states every `Log-Interval` timeblocks.<br>**Else:**<br> Dump particle nad planetary states every `Log-Interval` planetary history intervals. |1000|
 |`Resolve-Encounters` |**If 0:** <br> Particles are removed when coming into an encounter with a planet. <br>**If 1:**<br> Particles are sent to SWIFT when coming into an encounter with a planet. `Resync-Interval` must be 1. `Read-Planetary-History` must be 1. `Swift-Path` must be set. |0|
 |`Read-Planetary-History` |Whether to read a planetary history file instead of performing direct planetary integration. |0|
 |`Planet-History-File` |The path of the planetary history file. ||
-|`Use-Bary-Interpolation` |Whether to use barycentric for orbital interpolation. ||
-|`Planet-History-Max-Planet-Count` |The total number of planets that the planetary history file contains.  |16
+|`Use-Jacobi-Interpolation` |Whether to use barycentric for orbital interpolation. ||
+|`Planet-History-Max-Body-Count` |The total number of planets that the planetary history file contains.  |16
 |`Swift-Path` |The path to swift\_glisse\_ext. ||
 |`Swift-Process-Count` |The maximum number of concurrent SWIFT processes to run. |1 |
 |`Swift-Process-Min-Particle-Count`|The minimum number of particles on each SWIFT process to warrant launching a new SWIFT process.|10|

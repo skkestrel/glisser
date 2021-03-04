@@ -421,7 +421,7 @@ namespace convert
 						f =  acos( fac/ e ) * vdotr/fabs(vdotr);
 
 						// KZ
-						if (isnan(f)) {
+						if (std::isnan(f)) {
 							if ( rr < a ) {		/* determine apside */
 								f = 0.0;
 							} else {

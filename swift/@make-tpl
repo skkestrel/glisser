@@ -8,6 +8,7 @@ export SWIFT_DIR=THE-DIRECTORY
 # To Profile the code:
 #export FFLAGS='-G -c'
 
+echo Using "$FORTRAN" Compiler
 
 for file1 in *.f; do
     file2=${file1/.f/}

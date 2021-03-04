@@ -19,7 +19,7 @@ Resync-Interval {4}
 CPU-Thread-Count 1
 Enable-GPU {3}
 Output-Folder temp-data
-Limit-Particle-Count {1}
+Particle-Count-Limit {1}
 Dump-Interval 25000
 Input-File temp-state.in
 Write-Binary-Output 0

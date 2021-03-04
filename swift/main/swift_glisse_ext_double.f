@@ -13,6 +13,8 @@ c
 c                   parameter file like       param.in
 c                    planet file like          pl.in
 c                   test particle file like   tp.in
+c Probe           PLAN TO CHANGE THE INTERNAL INTERPORLATION ALGORITHM
+c                  TO JACOBI ELEMENTS.
 c
 c Authors:  Hal Levison \& Martin Duncan
 c Date:    8/25/94
@@ -43,12 +45,16 @@ c      the resolution we have in the output from mercury
         real*8 xht(NTPMAX),yht(NTPMAX),zht(NTPMAX)
         real*8 vxht(NTPMAX),vyht(NTPMAX),vzht(NTPMAX)
 
-        real*8 mass(NPLMAX),j2rp2,j4rp4
+        real*8 mass(NPLMAX),eta(NPLMAX),j2rp2,j4rp4
         real*8 xh(NPLMAX),yh(NPLMAX),zh(NPLMAX)
         real*8 vxh(NPLMAX),vyh(NPLMAX),vzh(NPLMAX)
+        real*8 xj(NPLMAX),yj(NPLMAX),zj(NPLMAX)
+        real*8 vxj(NPLMAX),vyj(NPLMAX),vzj(NPLMAX)
         
         real*8 xhend(NPLMAX),yhend(NPLMAX),zhend(NPLMAX)
         real*8 vxhend(NPLMAX),vyhend(NPLMAX),vzhend(NPLMAX)
+        real*8 xjend(NPLMAX),yjend(NPLMAX),zjend(NPLMAX)
+        real*8 vxjend(NPLMAX),vyjend(NPLMAX),vzjend(NPLMAX)
         real*8 ta,tb
 
         integer istat(NTPMAX,NSTAT),i1st,i1sthill,n,nstep
@@ -64,6 +70,7 @@ c      the resolution we have in the output from mercury
         real*8 aa(NPLMAX),da(NPLMAX),ea(NPLMAX),de(NPLMAX)
         real*8 ria(NPLMAX),di(NPLMAX),oma(NPLMAX)
         real*8 dom(NPLMAX),coma(NPLMAX),dcom(NPLMAX)
+        real*8 dcur,lam0,lam1,Omefreq,cirfreq,mmfreq
         real*8 cma(NPLMAX),freq(NPLMAX)
         real*8 Cmfin,corr, eoff
         real*8 gm,a,e,inc,capom,omega,capm
@@ -72,7 +79,7 @@ c      the resolution we have in the output from mercury
         real*8 t,tout,tdump,tfrac
 c JMP
         real*8 dtin
-        real*4 ma4, a4, e4, ri4, capom4, omega4, capm4
+        real*8 ma4, a4, e4, ri4, capom4, omega4, capm4
 
         real*8 rmin,rmax,rmaxu,qmin,rplsq(NPLMAX)
         logical*2 lclose 
@@ -87,6 +94,7 @@ c...    Executable code
 
 c       initialise a0 to 0 because it will be the test to check whether
 c       a planetesimal already existed at the beginning of the timestep
+
         do ip=1,NPLMAX
            a0(ip)=0.d0
         enddo
@@ -106,11 +114,12 @@ c Prompt and read name of planet data file
         call get_command_argument(2, inplfile)
 c JMP: switch to R*4 orbital elements
         open(unit=77,file=inplfile,status='old',err=100,
-     $     form='unformatted',access='direct',recl=32)
+     $     form='unformatted',access='direct',recl=60)
 999     format(a)
         rn = 1
         read (77, rec=rn) rms(1)
         mass(1)=rms(1)
+        eta(1)=mass(1)
  99     continue
         rn = rn + 1
         read (77, rec=rn, err=111) t, nbod
@@ -134,6 +143,7 @@ c Initializes the a0 array
         do ip = 1, NPLMAX
            a0(ip) = 0.d0
         end do
+
         do ip=2,nbod
            rn = rn + 1
            read (77, rec=rn) ipl, ma4, a4, e4, ri4, capom4, omega4,
@@ -152,16 +162,22 @@ c Initializes the a0 array
            capom=capom0(ipl)
            omega=omega0(ipl)
            capm=capm0(ipl)
-           gm = mass(1)+mass(ip)
+           eta(ip)=eta(ip-1)+mass(ip)
            if (a .lt. 0.d0) then
               print *, t, ip, ipl, a, e, inc, capom, omega, capm, gm
            end if
            ialpha = -1
-           call orbel_el2xv(gm,ialpha,a,e,inc,capom,omega,capm,
-     $           xh(ip),yh(ip),zh(ip),
-     $           vxh(ip),vyh(ip),vzh(ip))
-        enddo
-
+           
+           call orbel_el2xv(eta(ip),ialpha,a,e,inc,capom,omega,capm,
+     $             xj(ip),yj(ip),zj(ip),
+     $             vxj(ip),vyj(ip),vzj(ip))
+         enddo
+            call coord_j2h(nbod,mass,xj,yj,zj,
+     $             vxj,vyj,vzj,
+     $             xh,yh,zh,
+     $             vxh,vyh,vzh)
+            ! write(*,*) t,nbod,a,e,inc,capom,omega,capm,xh(nbod)
+    
         ta=t
 
 c Get data for the run and the test particles
@@ -250,6 +266,7 @@ c force integer steps
 	   a1(ipt) = 0.
 	end do
 
+c  Probe: We read in Jacobi Orbital elements instead.
 	do ipt=2,nbod
 	   rn = rn + 1
 	   read (77, rec=rn) ipl, ma4, a4, e4, ri4, capom4, omega4,
@@ -280,28 +297,41 @@ c       be lost soon anyway (probably next time step).
 	      di(ip)=(ri1(ipl)-ri0(ipl))/dtin
 	      oma(ip)=omega0(ipl)
 	      dom(ip)=omega1(ipl)-omega0(ipl)
-	      if(dom(ip).gt.pi)dom(ip)=dom(ip)-2.d0*pi
-	      if(dom(ip).lt.-pi)dom(ip)=dom(ip)+2.d0*pi
-	      dom(ip)=dom(ip)/dtin
 	      coma(ip)=capom0(ipl)
 	      dcom(ip)=capom1(ipl)-capom0(ipl)
+         cma(ip)=capm0(ipl)
+
+         dcur=dcom(ip)+dom(ip)
+         lam0=capom0(ipl)+omega0(ipl)+capm0(ipl)
+         lam1=capom1(ipl)+omega1(ipl)+capm1(ipl)
+
 	      if(dcom(ip).gt.pi)dcom(ip)=dcom(ip)-2.d0*pi
 	      if(dcom(ip).lt.-pi)dcom(ip)=dcom(ip)+2.d0*pi
-	      dcom(ip)=dcom(ip)/dtin
-	      cma(ip)=capm0(ipl)
+	      Omefreq=dcom(ip)/dtin
+	      
+         if(dcur.gt.pi)dcur=dcur-2.d0*pi
+	      if(dcur.lt.-pi)dcur=dcur+2.d0*pi
+	      cirfreq=dcur/dtin
+
 c       ss the right mean motion frequency. Here a must be in AU and t in
-c       rs.
-         freq(ip)=sqrt(mass(ip)+mass(1))
+c       days.
+	      mmfreq=sqrt(mass(ip)+mass(1))
 c     $            /aa(ip)**1.5d0
      $             *(1.d0/aa(ip)**1.5d0+1.d0/a1(ipl)**1.5d0)/2.d0
-	      Cmfin=cma(ip)+freq(ip)*dtin
+	      Cmfin=lam0+mmfreq*dtin
 	      Cmfin=mod(Cmfin,2.d0*pi)
-	      corr=capm1(ipl)-Cmfin
+	      corr=lam1-Cmfin
 	      if(corr.gt.pi)corr=corr-2.d0*pi
 	      if(corr.lt.-pi)corr=corr+2.d0*pi
 c       rects the mean motion frequency in order to have the good final 
 c       ition of the planetesimal
-	      freq(ip)=freq(ip)+corr/dtin
+	      mmfreq=mmfreq+corr/dtin
+
+         dcom(ip)=Omefreq
+         dom(ip)=cirfreq-Omefreq
+         freq(ip)=mmfreq-cirfreq
+
+
 c JMP
 c	      if ((e .ge. 1.d0) .or. (a .lt. 0.d0)) then
 c	         print *, t, ip, ipl, a, e, inc, capom, omega,
@@ -318,11 +348,12 @@ c	      end if
 	   capm0(ipl)=capm1(ipl)
 	end do
 	nbod=ip
-c       write (*,*) 'Actual number of planets: ', nbod-1
+       write (*,*) 'Actual number of planets: ', nbod-1
 	
 c this l looks useless during the integration but it is not
 c since  number and order of planetesimals might have changed
 c so thahe planetesimal pointed by the index ip might have changed
+
 	do ip=2,nbod
 	   a=aa(ip)+da(ip)*(t-ta)
 	   e=ea(ip)+de(ip)*(t-ta)
@@ -330,16 +361,20 @@ c so thahe planetesimal pointed by the index ip might have changed
 	   capom=coma(ip)+dcom(ip)*(t-ta)
 	   omega=oma(ip)+dom(ip)*(t-ta)
 	   capm=cma(ip)+freq(ip)*(t-ta)
-	   gm = mass(1)+mass(ip)
 	   ialpha = -1
-	   call orbel_el2xv(gm,ialpha,a,e,inc,capom,omega,capm,
-     $          xh(ip),yh(ip),zh(ip),
-     $          vxh(ip),vyh(ip),vzh(ip))
+	   call orbel_el2xv(eta(ip),ialpha,a,e,inc,capom,omega,capm,
+     $      xj(ip),yj(ip),zj(ip),
+     $      vxj(ip),vyj(ip),vzj(ip))
 	enddo
 	
+      call coord_j2h(nbod,mass,xj,yj,zj,
+     $      vxj,vyj,vzj,
+     $      xh,yh,zh,
+     $      vxh,vyh,vzh)
+      ! write(*,*) t-ta,nbod,a,e,inc,capom,omega,capm,xh(nbod)
+
 	do while ( (n .le. nstep))
 c          write(*,*) "nbod = ", nbod
-	   
 	   do ip=2,nbod
 	      a=aa(ip)+da(ip)*(t+dt-ta)
 	      e=ea(ip)+de(ip)*(t+dt-ta)
@@ -347,16 +382,21 @@ c          write(*,*) "nbod = ", nbod
 	      capom=coma(ip)+dcom(ip)*(t+dt-ta)
 	      omega=oma(ip)+dom(ip)*(t+dt-ta)
 	      capm=cma(ip)+freq(ip)*(t+dt-ta)
-	      gm = mass(1)+mass(ip)
 	      ialpha = -1
 c JMP
 c	      if ((e .ge. 1.d0) .or. (a .lt. 0.d0)) then
 c	         print *, t, ip, a, e, inc, capom, omega, capm, gm
 c	      end if
-	      call orbel_el2xv(gm,ialpha,a,e,inc,capom,omega,capm,
-     $             xhend(ip),yhend(ip),zhend(ip),
-     $             vxhend(ip),vyhend(ip),vzhend(ip))
-	   enddo
+	      call orbel_el2xv(eta(ip),ialpha,a,e,inc,capom,omega,capm,
+     $        xjend(ip),yjend(ip),zjend(ip),
+     $        vxjend(ip),vyjend(ip),vzjend(ip))
+      enddo
+
+      call coord_j2h(nbod,mass,xjend,yjend,zjend,
+     $      vxjend,vyjend,vzjend,
+     $      xhend,yhend,zhend,
+     $      vxhend,vyhend,vzhend)
+         !  write(*,*) t+dt-ta,nbod,a,e,inc,capom,omega,capm,xhend(nbod)
 
 c          write(*,*) "xyzp=",xht(1),yht(1),zht(1),
 c    $             vxht(1),vyht(1),vzht(1)

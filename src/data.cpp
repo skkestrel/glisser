@@ -9,6 +9,7 @@
 #include <limits>
 #include <algorithm>
 #include <numeric>
+#include <cmath>
 
 namespace sr
 {
@@ -150,23 +151,24 @@ namespace data
 		dt = 1;
 		tbsize = 1024;
 		write_bary_track = true;
-		write_rv_track = false;
-		encounter_sphere_factor = 0;
-		cull_radius = 0.5;
+		write_ele_track = true;
+		hill_factor = 3;
+		inner_bound = 0.005;
 		interp_maxpl = 16;
+		max_kep = 10;
 
-		outer_radius = 300;
+		outer_bound = 3000;
 		resync_every = 1;
-		swift_hist_every = 0;
+		planet_hist_every = 0;
 		swift_statlen = 13;
-		print_every = 10;
+		log_every = 10;
 		track_every = 0;
-		split_track_file = 500000000;
+		split_track_file = 0;
 		num_swift = 1;
 		swift_part_min = 10;
 
 		interp_planets = false;
-		use_bary_interp = true;
+		use_jacobi_interp = true;
 		planet_history_file = "";
 
 		dump_every = 1000;
@@ -182,8 +184,6 @@ namespace data
 		writebinary = 0;
 		readbinary = 0;
 		outfolder = "output/";
-		readmomenta = false;
-		writemomenta = false;
 		swift_path = "";
 	}
 
@@ -221,80 +221,102 @@ namespace data
 
 			try
 			{
-				if (first == "Initial-Time")
-					out->t_0 = std::stod(second);
-				else if (first == "Time-Step")
-					out->dt = std::stod(second);
-				else if (first == "Final-Time")
-					out->t_f = std::stod(second);
-				else if (first == "Time-Block-Size")
-					out->tbsize = std::stou(second);
-				else if (first == "Big-G")
-					out->big_g = std::stod(second);
-				else if (first == "Encounter-RH-Factor")
-					out->encounter_sphere_factor = std::stod(second);
-				else if (first == "Cull-Radius")
-					out->cull_radius = std::stod(second);
-				else if (first == "Outer-Limit")
-					out->outer_radius = std::stod(second);
-				else if (first == "Limit-Particle-Count")
-					out->max_particle = std::stou(second);
-				else if (first == "Log-Interval")
-					out->print_every = std::stou(second);
-				else if (first == "Resync-Interval")
-					out->resync_every = std::stou(second);
-				else if (first == "Read-Planet-History")
-					out->interp_planets = std::stoi(second) != 0;
-				else if (first == "Planet-History-Max-Planet-Count")
-					out->interp_maxpl = std::stou(second);
-				else if (first == "Planet-History-File")
-					out->planet_history_file = second;
-				else if (first == "Use-Bary-Interpolation")
-					out->use_bary_interp = std::stoi(second) != 0;
-				else if (first == "Swift-Path")
-					out->swift_path = second;
-				else if (first == "Track-Interval")
-					out->track_every = std::stou(second);
-				else if (first == "Swift-History-Interval")
-					out->swift_hist_every = std::stou(second);
-				else if (first == "Swift-Process-Count")
-					out->num_swift = std::stou(second);
-				else if (first == "Swift-Process-Min-Particle-Count")
-					out->swift_part_min = std::stou(second);
-				else if (first == "Swift-Status-Length")
-					out->swift_statlen = std::stou(second);
-				else if (first == "Write-Barycentric-Track")
-					out->write_bary_track = std::stoi(second) != 0;
-				else if (first == "Write-RV-Track")
-					out->write_rv_track = std::stoi(second) != 0;
-				else if (first == "Split-Track-File")
-					out->split_track_file = std::stou(second);
-				else if (first == "Dump-Interval")
-					out->dump_every = std::stou(second);
-				else if (first == "Resolve-Encounters")
-					out->resolve_encounters = std::stoi(second) != 0;
-				else if (first == "Write-Split-Output")
-					out->writesplit = std::stoi(second) != 0;
-				else if (first == "Read-Split-Input")
-					out->readsplit = std::stoi(second) != 0;
-				else if (first == "Write-Binary-Output")
-					out->writebinary = std::stoi(second) != 0;
-				else if (first == "Read-Binary-Input")
-					out->readbinary = std::stoi(second) != 0;
-				else if (first == "Input-File")
+				// Directories
+				if (first == "Input-File")
 					out->hybridin = second;
-				else if (first == "Output-File")
-					out->hybridout = second;
-				else if (first == "Particle-Input-File")
-					out->icsin = second;
-				else if (first == "Planet-Input-File")
-					out->plin = second;
 				else if (first == "Output-Folder")
 					out->outfolder = second;
-				else if (first == "Read-Input-Momenta")
-					out->readmomenta = std::stoi(second) != 0;
-				else if (first == "Write-Output-Momenta")
-					out->writemomenta = std::stoi(second) != 0;
+				else if (first == "Output-File")
+					out->hybridout = second;
+				else if (first == "Read-Split-Input")
+					out->readsplit = std::stoi(second) != 0;
+					// If "Read-Split-Input" is set to 0, the following parameters will be ignored.
+					else if (first == "Planet-Input-File")
+						out->plin = second;
+					else if (first == "Particle-Input-File")
+						out->icsin = second;
+				else if (first == "Read-Binary-Input")
+					out->readbinary = std::stoi(second) != 0;
+				else if (first == "Write-Split-Output")
+					out->writesplit = std::stoi(second) != 0;
+				else if (first == "Write-Binary-Output")
+					out->writebinary = std::stoi(second) != 0;
+
+				// Read Planet History
+				else if (first == "Read-Planet-History")
+					out->interp_planets = std::stoi(second) != 0;
+					// If "Read-Planet-History" is set to 0, the following parameters will be ignored.
+					else if (first == "Planet-History-File")
+						out->planet_history_file = second;
+					else if (first == "Planet-History-Max-Body-Count")
+						out->interp_maxpl = std::stou(second);
+					else if (first == "Read-Single-Precision-History")
+						out->read_single_hist = std::stoi(second) != 0;
+					else if (first == "Use-Jacobi-Interpolation")
+						out->use_jacobi_interp = std::stoi(second) != 0;
+
+				// Time
+				else if (first == "Initial-Time")
+					out->t_0 = std::stod(second);
+				else if (first == "Final-Time")
+					out->t_f = std::stod(second);
+				else if (first == "Time-Step")
+					out->dt = std::stod(second);
+				else if (first == "Time-Block-Size")
+					out->tbsize = std::stou(second);
+
+				// Write Intervals
+				else if (first == "Resync-Interval")
+					out->resync_every = std::stou(second);	
+				else if (first == "Log-Interval")
+					out->log_every = std::stou(second);
+				else if (first == "Dump-Interval")
+					out->dump_every = std::stou(second);
+				else if (first == "Track-Interval")
+					out->track_every = std::stou(second);
+					// If "Track-Interval" is set to 0, the following parameters will be ignored.
+					else if (first == "Write-Single-Precision-Track")
+						out->write_single_track = std::stoi(second) != 0;
+					else if (first == "Write-Elements-Track")
+						out->write_ele_track = std::stoi(second) != 0;
+						// If "Write-Elements-Track" is set to 0, the following parameter will be ignored.
+						else if (first == "Write-Bary-Track")
+							out->write_bary_track = std::stoi(second) != 0;
+					else if (first == "Split-Track-File")
+					out->split_track_file = std::stou(second);
+				else if (first == "Planet-History-Interval")
+					out->planet_hist_every = std::stou(second);
+					// If "Planet-History-Interval" is set to 0, the following parameters will be ignored.
+					else if (first == "Write-Single-Precision-History")
+						out->write_single_hist = std::stoi(second) != 0;
+		
+				// Close Encounters
+				else if (first == "Resolve-Encounters")
+					out->resolve_encounters = std::stoi(second) != 0;
+					// If "Resolve-Encounters" is set to 0, the following parameters will be ignored.
+					else if (first == "Swift-Path")
+						out->swift_path = second;
+					else if (first == "Swift-Process-Count")
+						out->num_swift = std::stou(second);
+					else if (first == "Swift-Process-Min-Particle-Count")
+						out->swift_part_min = std::stou(second);
+					else if (first == "Swift-Status-Length")
+						out->swift_statlen = std::stou(second);
+
+				// Other Parameters
+				else if (first == "Big-G")
+					out->big_g = std::stod(second);
+				else if (first == "Max-Kepler-Iterations")
+					out->max_kep = std::stou(second);
+				else if (first == "Hill-Radius-Factor")
+					out->hill_factor = std::stod(second);
+				else if (first == "Particle-Inner-Boundary")
+					out->inner_bound = std::stod(second);
+				else if (first == "Particle-Outer-Boundary")
+					out->outer_bound = std::stod(second);
+				else if (first == "Particle-Count-Limit")
+					out->max_particle = std::stou(second);
+
 				else
 					throw std::invalid_argument("bad");
 			}
@@ -319,7 +341,6 @@ namespace data
 		{
 			std::cerr << "Warning: Write-Split-Input was selected but Write-Binary-Input was also specified. Ignoring Write-Binary-Input" << std::endl;
 		}
-
 		if (!out->writesplit && out->hybridout == "")
 		{
 			throw std::runtime_error("Error: Output-File was not specified");
@@ -345,42 +366,77 @@ namespace data
 	void write_configuration(std::ostream& outstream, const Configuration& out)
 	{
 		outstream << std::setprecision(17);
-		outstream << "Initial-Time " << out.t_0 << std::endl;
-		outstream << "Time-Step " << out.dt << std::endl;
-		outstream << "Final-Time " << out.t_f << std::endl;
-		outstream << "Time-Block-Size " << out.tbsize << std::endl;
-		outstream << "Encounter-RH-Factor " << out.encounter_sphere_factor << std::endl;
-		outstream << "Cull-Radius " << out.cull_radius << std::endl;
-		outstream << "Outer-Limit " << out.outer_radius << std::endl;
-		outstream << "Limit-Particle-Count " << out.max_particle << std::endl;
-		outstream << "Log-Interval " << out.print_every << std::endl;
-		outstream << "Track-Interval " << out.track_every << std::endl;
-		outstream << "Resync-Interval " << out.resync_every << std::endl;
-		outstream << "Swift-Path " << out.swift_path << std::endl;
-		outstream << "Write-Barycentric-Track " << out.write_bary_track << std::endl;
-		outstream << "Write-RV-Track " << out.write_rv_track << std::endl;
-		outstream << "Split-Track-File " << out.split_track_file << std::endl;
-		outstream << "Dump-Interval " << out.dump_every << std::endl;
-		outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
-		outstream << "Write-Split-Output " << out.writesplit << std::endl;
-		outstream << "Write-Binary-Output " << out.writebinary << std::endl;
-		outstream << "Read-Split-Input " << out.readsplit << std::endl;
-		outstream << "Read-Binary-Input " << out.readbinary << std::endl;
-		outstream << "Input-File " << out.hybridin << std::endl;
-		outstream << "Output-File " << out.hybridout << std::endl;
-		outstream << "Particle-Input-File " << out.icsin << std::endl;
-		outstream << "Planet-Input-File " << out.plin << std::endl;
+		outstream << "# Directories" << std::endl;
+		if (out.hybridin != "") outstream << "Input-File " << out.hybridin << std::endl;
 		outstream << "Output-Folder " << out.outfolder << std::endl;
-		outstream << "Read-Input-Momenta " << out.readmomenta << std::endl;
-		outstream << "Write-Output-Momenta " << out.writemomenta << std::endl;
-		outstream << "Read-Planet-History " << out.interp_planets << std::endl;
-		outstream << "Planet-History-Max-Planet-Count " << out.interp_maxpl << std::endl;
-		outstream << "Swift-History-Interval " << out.swift_hist_every << std::endl;
-		outstream << "Swift-Process-Count " << out.num_swift << std::endl;
-		outstream << "Swift-Process-Min-Particle-Count " << out.swift_part_min << std::endl;
-		outstream << "Swift-Status-Length " << out.swift_statlen << std::endl;
-		outstream << "Planet-History-File " << out.planet_history_file << std::endl;
-		outstream << "Use-Bary-Interpolation" << out.use_bary_interp << std::endl;
+		if (out.hybridout != "state.out") outstream << "Output-File " << out.hybridout << std::endl;
+
+		if (out.readsplit) 
+		{
+			outstream << "Read-Split-Input " << out.readsplit << std::endl;
+			outstream << "    Planet-Input-File " << out.plin << std::endl;
+			outstream << "    Particle-Input-File " << out.icsin << std::endl;
+		}
+		if (out.readbinary) outstream << "Read-Binary-Input " << out.readbinary << std::endl;
+		if (out.writesplit) outstream << "Write-Split-Output " << out.writesplit << std::endl;
+		if (out.writebinary) outstream << "Write-Binary-Output " << out.writebinary << std::endl;
+		outstream << std::endl;
+		
+		if (out.interp_planets) 
+		{
+			outstream << "# Read Planet History" << std::endl;
+			outstream << "Read-Planet-History " << out.interp_planets << std::endl;
+			outstream << "    Planet-History-File " << out.planet_history_file << std::endl;
+			outstream << "    Planet-History-Max-Body-Count " << out.interp_maxpl << std::endl;
+			outstream << "    Read-Single-Precision-History " << out.read_single_hist << std::endl;
+			outstream << "    Use-Jacobi-Interpolation " << out.use_jacobi_interp << std::endl;
+			outstream << std::endl;
+		}
+		
+		outstream << "# Time" << std::endl;
+		outstream << "Initial-Time " << out.t_0 << std::endl;
+		outstream << "Final-Time " << out.t_f << std::endl;
+		outstream << "Time-Step " << out.dt << std::endl;
+		outstream << "Time-Block-Size " << out.tbsize << std::endl;
+		outstream << std::endl;
+		
+		outstream << "# Write Intervals" << std::endl;
+		outstream << "Resync-Interval " << out.resync_every << std::endl;
+		outstream << "Log-Interval " << out.log_every << std::endl;
+		outstream << "Dump-Interval " << out.dump_every << std::endl;
+		outstream << "Track-Interval " << out.track_every << std::endl;
+		if (out.track_every) 
+		{
+			outstream << "    Write-Single-Precision-Track " << out.write_single_track << std::endl;
+			outstream << "    Write-Elements-Track " << out.write_ele_track << std::endl;
+			if (out.write_ele_track) outstream << "        Write-Bary-Track " << out.write_bary_track << std::endl;
+			if (out.split_track_file) outstream << "    Split-Track-File " << out.split_track_file << std::endl;
+		}
+		if (out.planet_hist_every) 
+		{
+			outstream << "Planet-History-Interval " << out.planet_hist_every << std::endl;
+			outstream << "    Write-Single-Precision-History " << out.write_single_hist << std::endl;
+		}
+		outstream << std::endl;
+
+		if (out.resolve_encounters) 
+		{
+			outstream << "# Close Encounters" << std::endl;
+			outstream << "Resolve-Encounters " << out.resolve_encounters << std::endl;
+			outstream << "    Swift-Path " << out.swift_path << std::endl;
+			outstream << "    Swift-Process-Count " << out.num_swift << std::endl;
+			outstream << "    Swift-Process-Min-Particle-Count " << out.swift_part_min << std::endl;
+			outstream << "    Swift-Status-Length " << out.swift_statlen << std::endl;
+			outstream << std::endl;
+		}
+
+		outstream << "# Other Parameters" << std::endl;
+		if (std::fabs(out.big_g - 1.0) > 1e-14) outstream << "Big-G " << out.big_g << std::endl;
+		outstream << "Max-Kepler-Iterations " << out.max_kep << std::endl;
+		outstream << "Hill-Radius-Factor " << out.hill_factor << std::endl;
+		outstream << "Particle-Inner-Boundary " << out.inner_bound << std::endl;
+		outstream << "Particle-Outer-Boundary " << out.outer_bound << std::endl;
+		outstream << "Particle-Count-Limit " << out.max_particle << std::endl;		
 	}	
 
 	bool load_planet_data(HostPlanetPhaseSpace& pl, const Configuration& config, std::istream& plin)
@@ -583,11 +639,6 @@ namespace data
 		{
 			for (size_t i = 0; i < pl.n(); i++)
 			{
-				if (config.readmomenta)
-				{
-					pl.v()[i] /= pl.m()[i];
-				}
-
 				pl.m()[i] *= config.big_g;
 			}
 		}
@@ -605,13 +656,12 @@ namespace data
 			write_binary(out, pl.id[i]);
 			write_binary(out, m);
 
-			if (!config.writemomenta) m = 1;
 			write_binary(out, pl.r[i].x);
 			write_binary(out, pl.r[i].y);
 			write_binary(out, pl.r[i].z);
-			write_binary(out, pl.v[i].x * m);
-			write_binary(out, pl.v[i].y * m);
-			write_binary(out, pl.v[i].z * m);
+			write_binary(out, pl.v[i].x);
+			write_binary(out, pl.v[i].y);
+			write_binary(out, pl.v[i].z);
 		}
 
 		write_binary(out, static_cast<uint64_t>(pa.n()));
@@ -638,9 +688,8 @@ namespace data
 		{
 			double m = pl.m[i];
 			out << m << std::endl;
-			if (!config.writemomenta) m = 1;
 			out << pl.r[i].x << " " << pl.r[i].y << " " << pl.r[i].z << std::endl;
-			out << pl.v[i].x * m << " " << pl.v[i].y * m << " " << pl.v[i].z * m << std::endl;
+			out << pl.v[i].x << " " << pl.v[i].y << " " << pl.v[i].z << std::endl;
 			out << pl.id[i] << std::endl;
 		}
 
@@ -664,9 +713,8 @@ namespace data
 			double m = pl.m[i];
 			plout << m << std::endl;
 
-			if (!config.writemomenta) m = 1;
 			plout << pl.r[i].x << " " << pl.r[i].y << " " << pl.r[i].z << std::endl;
-			plout << pl.v[i].x * m << " " << pl.v[i].y * m << " " << pl.v[i].z * m << std::endl;
+			plout << pl.v[i].x << " " << pl.v[i].y << " " << pl.v[i].z << std::endl;
 		}
 
 		icsout << pa.n() << std::endl;
@@ -727,7 +775,7 @@ namespace data
 		}
 	}
 
-	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_elements)
+	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_elements, bool single_precision)
 	{
 		sr::data::write_binary(trackout, static_cast<double>(time));
 
@@ -772,13 +820,27 @@ namespace data
 					sr::convert::to_elements(pl.m[i] + pl.m[0], pl.r[i], pl.v[i],
 					nullptr, &a, &e, &in, &capom, &om, &f);
 				}
+
 				sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
-				sr::data::write_binary(trackout, static_cast<float>(a));
-				sr::data::write_binary(trackout, static_cast<float>(e));
-				sr::data::write_binary(trackout, static_cast<float>(in));
-				sr::data::write_binary(trackout, static_cast<float>(capom));
-				sr::data::write_binary(trackout, static_cast<float>(om));
-				sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
+
+				if (single_precision)
+				{
+					sr::data::write_binary(trackout, static_cast<float>(a));
+					sr::data::write_binary(trackout, static_cast<float>(e));
+					sr::data::write_binary(trackout, static_cast<float>(in));
+					sr::data::write_binary(trackout, static_cast<float>(capom));
+					sr::data::write_binary(trackout, static_cast<float>(om));
+					sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
+				}
+				else
+				{
+					sr::data::write_binary(trackout, static_cast<double>(a));
+					sr::data::write_binary(trackout, static_cast<double>(e));
+					sr::data::write_binary(trackout, static_cast<double>(in));
+					sr::data::write_binary(trackout, static_cast<double>(capom));
+					sr::data::write_binary(trackout, static_cast<double>(om));
+					sr::data::write_binary(trackout, static_cast<double>(sr::convert::get_mean_anomaly(e, f)));
+				}
 			}
 		}
 		else
@@ -786,12 +848,25 @@ namespace data
 			for (uint32_t i = 1; i < pl.n_alive; i++)
 			{
 				sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
-				sr::data::write_binary(trackout, static_cast<float>(pl.r[i].x));
-				sr::data::write_binary(trackout, static_cast<float>(pl.r[i].y));
-				sr::data::write_binary(trackout, static_cast<float>(pl.r[i].z));
-				sr::data::write_binary(trackout, static_cast<float>(pl.v[i].x));
-				sr::data::write_binary(trackout, static_cast<float>(pl.v[i].y));
-				sr::data::write_binary(trackout, static_cast<float>(pl.v[i].z));
+
+				if (single_precision)
+				{
+					sr::data::write_binary(trackout, static_cast<float>(pl.r[i].x));
+					sr::data::write_binary(trackout, static_cast<float>(pl.r[i].y));
+					sr::data::write_binary(trackout, static_cast<float>(pl.r[i].z));
+					sr::data::write_binary(trackout, static_cast<float>(pl.v[i].x));
+					sr::data::write_binary(trackout, static_cast<float>(pl.v[i].y));
+					sr::data::write_binary(trackout, static_cast<float>(pl.v[i].z));
+				}
+				else
+				{
+					sr::data::write_binary(trackout, static_cast<double>(pl.r[i].x));
+					sr::data::write_binary(trackout, static_cast<double>(pl.r[i].y));
+					sr::data::write_binary(trackout, static_cast<double>(pl.r[i].z));
+					sr::data::write_binary(trackout, static_cast<double>(pl.v[i].x));
+					sr::data::write_binary(trackout, static_cast<double>(pl.v[i].y));
+					sr::data::write_binary(trackout, static_cast<double>(pl.v[i].z));
+				}
 			}
 		}
 		sr::data::write_binary(trackout, static_cast<uint64_t>(pa.n_alive));
@@ -812,35 +887,61 @@ namespace data
 						nullptr, &a, &e, &in, &capom, &om, &f);
 
 				sr::data::write_binary(trackout, static_cast<uint32_t>(pa.id[i]));
-				sr::data::write_binary(trackout, static_cast<float>(a));
-				sr::data::write_binary(trackout, static_cast<float>(e));
-				sr::data::write_binary(trackout, static_cast<float>(in));
-				sr::data::write_binary(trackout, static_cast<float>(capom));
-				sr::data::write_binary(trackout, static_cast<float>(om));
-				sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
+
+				if (single_precision)
+				{
+					sr::data::write_binary(trackout, static_cast<float>(a));
+					sr::data::write_binary(trackout, static_cast<float>(e));
+					sr::data::write_binary(trackout, static_cast<float>(in));
+					sr::data::write_binary(trackout, static_cast<float>(capom));
+					sr::data::write_binary(trackout, static_cast<float>(om));
+					sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
+				}
+				else
+				{
+					sr::data::write_binary(trackout, static_cast<double>(a));
+					sr::data::write_binary(trackout, static_cast<double>(e));
+					sr::data::write_binary(trackout, static_cast<double>(in));
+					sr::data::write_binary(trackout, static_cast<double>(capom));
+					sr::data::write_binary(trackout, static_cast<double>(om));
+					sr::data::write_binary(trackout, static_cast<double>(sr::convert::get_mean_anomaly(e, f)));
+				}
 			}
 			else
 			{
-				sr::data::write_binary(trackout, static_cast<uint32_t>(pa.id[i]));
-				sr::data::write_binary(trackout, static_cast<float>(pa.r[i].x));
-				sr::data::write_binary(trackout, static_cast<float>(pa.r[i].y));
-				sr::data::write_binary(trackout, static_cast<float>(pa.r[i].z));
-				sr::data::write_binary(trackout, static_cast<float>(pa.v[i].x));
-				sr::data::write_binary(trackout, static_cast<float>(pa.v[i].y));
-				sr::data::write_binary(trackout, static_cast<float>(pa.v[i].z));
+				if (single_precision)
+				{
+					sr::data::write_binary(trackout, static_cast<float>(pl.r[i].x));
+					sr::data::write_binary(trackout, static_cast<float>(pl.r[i].y));
+					sr::data::write_binary(trackout, static_cast<float>(pl.r[i].z));
+					sr::data::write_binary(trackout, static_cast<float>(pl.v[i].x));
+					sr::data::write_binary(trackout, static_cast<float>(pl.v[i].y));
+					sr::data::write_binary(trackout, static_cast<float>(pl.v[i].z));
+				}
+				else
+				{
+					sr::data::write_binary(trackout, static_cast<double>(pl.r[i].x));
+					sr::data::write_binary(trackout, static_cast<double>(pl.r[i].y));
+					sr::data::write_binary(trackout, static_cast<double>(pl.r[i].z));
+					sr::data::write_binary(trackout, static_cast<double>(pl.v[i].x));
+					sr::data::write_binary(trackout, static_cast<double>(pl.v[i].y));
+					sr::data::write_binary(trackout, static_cast<double>(pl.v[i].z));
+				}
 			}
 		}
 		trackout.flush();
 	}
 
-	void begin_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl)
+	void begin_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, bool single_precision)
 	{
+		size_t binary_chunk_size = (single_precision) ? 32 : 60;
 		sr::data::write_binary(trackout, static_cast<double>(pl.m[0]));
-		sr::data::pad_binary(trackout, 32 - 8);
+		sr::data::pad_binary(trackout, binary_chunk_size - 8);
 	}
 
-	void save_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, double time)
+	void save_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, double time, bool single_precision)
 	{
+		size_t binary_chunk_size = (single_precision) ? 32 : 60;
 		sr::data::write_binary(trackout, static_cast<double>(time));
 
 		if (pl.n_alive > 0)
@@ -852,7 +953,7 @@ namespace data
 			sr::data::write_binary(trackout, static_cast<uint32_t>(0));
 		}
 
-		sr::data::pad_binary(trackout, 32 - 8 - 4);
+		sr::data::pad_binary(trackout, binary_chunk_size - 8 - 4);
 		// record finished
 
 		for (uint32_t i = 1; i < pl.n_alive; i++)
@@ -883,14 +984,26 @@ namespace data
 				nullptr, &a, &e, &in, &capom, &om, &f);
 
 			sr::data::write_binary(trackout, static_cast<uint32_t>(pl.id[i]));
-			sr::data::write_binary(trackout, static_cast<float>(pl.m[i]));
-			sr::data::write_binary(trackout, static_cast<float>(a));
-			sr::data::write_binary(trackout, static_cast<float>(e));
-			sr::data::write_binary(trackout, static_cast<float>(in));
-			sr::data::write_binary(trackout, static_cast<float>(capom));
-			sr::data::write_binary(trackout, static_cast<float>(om));
-			sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
-			// std::cout << std::setprecision(17) << time << ' ' << a << std::endl;
+			if (single_precision)
+			{
+				sr::data::write_binary(trackout, static_cast<float>(pl.m[i]));
+				sr::data::write_binary(trackout, static_cast<float>(a));
+				sr::data::write_binary(trackout, static_cast<float>(e));
+				sr::data::write_binary(trackout, static_cast<float>(in));
+				sr::data::write_binary(trackout, static_cast<float>(capom));
+				sr::data::write_binary(trackout, static_cast<float>(om));
+				sr::data::write_binary(trackout, static_cast<float>(sr::convert::get_mean_anomaly(e, f)));
+			}
+			else
+			{
+				sr::data::write_binary(trackout, static_cast<double>(pl.m[i]));
+				sr::data::write_binary(trackout, static_cast<double>(a));
+				sr::data::write_binary(trackout, static_cast<double>(e));
+				sr::data::write_binary(trackout, static_cast<double>(in));
+				sr::data::write_binary(trackout, static_cast<double>(capom));
+				sr::data::write_binary(trackout, static_cast<double>(om));
+				sr::data::write_binary(trackout, static_cast<double>(sr::convert::get_mean_anomaly(e, f)));
+			}
 		}
 
 		trackout.flush();

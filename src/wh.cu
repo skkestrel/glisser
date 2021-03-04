@@ -9,7 +9,6 @@ namespace wh
 {
 	using namespace sr::data;
 
-	const size_t MAXKEP = 10;
 	const float64_t TOLKEP = 1E-14;
 
 	struct MVSKernel
@@ -25,8 +24,9 @@ namespace wh
 
 		const float64_t outer_r;
 		const float64_t* planet_rh;
+		const uint32_t max_kep;
 
-		MVSKernel(const DevicePlanetPhaseSpace& planets, const Dvf64_3& h0_log, const Dvf64& _planet_rh, double _outer_r, uint32_t _tbsize, float64_t _dt) :
+		MVSKernel(const DevicePlanetPhaseSpace& planets, const Dvf64_3& h0_log, const Dvf64& _planet_rh, double _outer_r, uint32_t _tbsize, float64_t _dt, uint32_t _max_kep) :
 			planet_m(planets.m.data().get()),
 			planet_id(planets.id.data().get()),
 			mu(planets.m[0]),
@@ -36,18 +36,19 @@ namespace wh
 			tbsize(_tbsize),
 			dt(_dt),
 			outer_r(_outer_r),
-			planet_rh(_planet_rh.data().get())
+			planet_rh(_planet_rh.data().get()),
+			max_kep(_max_kep)
 		{ }
 
 		__host__ __device__
-		static void kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE, uint16_t& flags)
+		static void kepeq(double dM, double ecosEo, double esinEo, double* dE, double* sindE, double* cosdE, uint16_t& flags, uint32_t max_kep)
 		{
 			double f, fp, delta;
 
 			*sindE = sin(*dE);
 			*cosdE = cos(*dE);
 
-			for (size_t i = 0; i < MAXKEP; i++)
+			for (size_t i = 0; i < max_kep; i++)
 			{
 				f = *dE - ecosEo * (*sindE) + esinEo * (1. - *cosdE) - dM;
 				fp = 1. - ecosEo * (*cosdE) + esinEo * (*sindE);
@@ -72,7 +73,7 @@ done: ;
 		}
 
 		__host__ __device__
-		static void drift(f64_3& r, f64_3& v, uint16_t& flags, double dt, double mu)
+		static void drift(f64_3& r, f64_3& v, uint16_t& flags, double dt, double mu, uint32_t max_kep)
 		{
 			float64_t dist = sqrt(r.lensq());
 			float64_t vdotr = v.x * r.x + v.y * r.y + v.z * r.z;
@@ -96,7 +97,7 @@ done: ;
 			// call kepler equation solver with initial guess in dE already
 			float64_t dE = dM - esinEo + esinEo * cos(dM) + ecosEo * sin(dM);
 			float64_t sindE, cosdE;
-			kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE, flags);
+			kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE, flags, max_kep);
 
 			float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
 			float64_t f = 1.0 + a * (cosdE - 1.0) / dist;
@@ -123,9 +124,10 @@ done: ;
 				const float64_t* m,
 				const uint32_t* pl_id,
 				const float64_t* rh,
-				double outer_radius,
+				double outer_bound,
 				float64_t dt,
-				float64_t mu)
+				float64_t mu,
+				uint32_t max_kep)
 		{
 			deathtime_index = 0;
 
@@ -137,7 +139,7 @@ done: ;
 					// if step = 0, the acceleration is preloaded - this comes from 
 					v = v + a * (dt / 2);
 
-					drift(r, v, flags, dt, mu);
+					drift(r, v, flags, dt, mu, max_kep);
 
 					a = h0_log[step];
 
@@ -164,7 +166,7 @@ done: ;
 					{
 						flags = 0x0001;
 					}
-					if (rad > outer_radius * outer_radius)
+					if (rad > outer_bound * outer_bound)
 					{
 						flags = 0x0002;
 					}
@@ -195,7 +197,7 @@ done: ;
 			f64_3 a = thrust::get<1>(args);
 
 			step_forward(r, v, flags, a, deathtime_index, _tbsize,
-				planet_n, h0_log, r_log, m, ids, rh, this->outer_r, this->dt, this->mu);
+				planet_n, h0_log, r_log, m, ids, rh, this->outer_r, this->dt, this->mu, this->max_kep);
 
 			thrust::get<0>(thrust::get<0>(args)) = r;
 			thrust::get<1>(thrust::get<0>(args)) = v;
@@ -223,7 +225,8 @@ done: ;
 			const float64_t* rh,
 			double outer_r,
 			float64_t dt,
-			float64_t mu)
+			float64_t mu,
+			uint32_t max_kep)
 	{
 		// max timeblock size: 384
 		__shared__ f64_3 h0_log_shared[384];
@@ -256,7 +259,7 @@ done: ;
 			uint32_t deathtime_indexi;
 		
 			MVSKernel::step_forward(ri, vi, flagsi, ai, deathtime_indexi, tbsize,
-					planet_n, h0_log_shared, r_log_shared, m, pl_id, rh, outer_r, dt, mu);
+					planet_n, h0_log_shared, r_log_shared, m, pl_id, rh, outer_r, dt, mu, max_kep);
 
 			r[i] = ri;
 			v[i] = vi;
@@ -353,9 +356,10 @@ done: ;
 					pl,
 					device_h0_log(planet_data_id),
 					device_planet_rh,
-					base.outer_radius,
+					base.outer_bound,
 					static_cast<uint32_t>(pl.log_len),
-					dt
+					dt,
+					base.max_kep
 				)
 		);
 #else
@@ -387,9 +391,10 @@ done: ;
 				pl.m.data().get(),
 				pl.id.data().get(),
 				device_planet_rh.data().get(),
-				base.outer_radius,
+				base.outer_bound,
 				dt,
-				pl.m[0]
+				pl.m[0],
+				base.maxkep
 		);
 #endif
 	}

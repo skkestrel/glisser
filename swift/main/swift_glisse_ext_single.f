@@ -70,6 +70,7 @@ c      the resolution we have in the output from mercury
         real*8 aa(NPLMAX),da(NPLMAX),ea(NPLMAX),de(NPLMAX)
         real*8 ria(NPLMAX),di(NPLMAX),oma(NPLMAX)
         real*8 dom(NPLMAX),coma(NPLMAX),dcom(NPLMAX)
+        real*8 dcur,lam0,lam1,Omefreq,cirfreq,mmfreq
         real*8 cma(NPLMAX),freq(NPLMAX)
         real*8 Cmfin,corr, eoff
         real*8 gm,a,e,inc,capom,omega,capm
@@ -78,7 +79,7 @@ c      the resolution we have in the output from mercury
         real*8 t,tout,tdump,tfrac
 c JMP
         real*8 dtin
-        real*4 ma4, a4, e4, ri4, omega4, capom4, capm4
+        real*4 ma4, a4, e4, ri4, capom4, omega4, capm4
 
         real*8 rmin,rmax,rmaxu,qmin,rplsq(NPLMAX)
         logical*2 lclose 
@@ -145,7 +146,7 @@ c Initializes the a0 array
 
         do ip=2,nbod
            rn = rn + 1
-           read (77, rec=rn) ipl, ma4, a4, e4, ri4, omega4, capom4,
+           read (77, rec=rn) ipl, ma4, a4, e4, ri4, capom4, omega4,
      $        capm4
            rms(ipl) = ma4
            a0(ipl) = a4
@@ -268,7 +269,7 @@ c force integer steps
 c  Probe: We read in Jacobi Orbital elements instead.
 	do ipt=2,nbod
 	   rn = rn + 1
-	   read (77, rec=rn) ipl, ma4, a4, e4, ri4, omega4, capom4,
+	   read (77, rec=rn) ipl, ma4, a4, e4, ri4, capom4, omega4,
      $        capm4
 	   rms(ipl) = ma4
 	   a1(ipl) = a4
@@ -285,39 +286,51 @@ c       timestep. It will be considered in the following one
 c JMP   o reject planetesimals that go on hyperbolic orbits. They'll
 c       be lost soon anyway (probably next time step).
 
-	   if ((a0(ipl).gt.0.) .and. (a1(ipl).gt.0.)) then
-	      ip=ip+1
-	      mass(ip)=rms(ipl)
-	      aa(ip)=a0(ipl)
-	      da(ip)=(a1(ipl)-a0(ipl))/dtin
-	      ea(ip)=e0(ipl)
-	      de(ip)=(e1(ipl)-e0(ipl))/dtin
-	      ria(ip)=ri0(ipl)
-	      di(ip)=(ri1(ipl)-ri0(ipl))/dtin
-	      oma(ip)=omega0(ipl)
-	      dom(ip)=omega1(ipl)-omega0(ipl)
-	      if(dom(ip).gt.pi)dom(ip)=dom(ip)-2.d0*pi
-	      if(dom(ip).lt.-pi)dom(ip)=dom(ip)+2.d0*pi
-	      dom(ip)=dom(ip)/dtin
-	      coma(ip)=capom0(ipl)
-	      dcom(ip)=capom1(ipl)-capom0(ipl)
-	      if(dcom(ip).gt.pi)dcom(ip)=dcom(ip)-2.d0*pi
-	      if(dcom(ip).lt.-pi)dcom(ip)=dcom(ip)+2.d0*pi
-	      dcom(ip)=dcom(ip)/dtin
-	      cma(ip)=capm0(ipl)
+      if ((a0(ipl).gt.0.) .and. (a1(ipl).gt.0.)) then
+         ip=ip+1
+         mass(ip)=rms(ipl)
+         aa(ip)=a0(ipl)
+         da(ip)=(a1(ipl)-a0(ipl))/dtin
+         ea(ip)=e0(ipl)
+         de(ip)=(e1(ipl)-e0(ipl))/dtin
+         ria(ip)=ri0(ipl)
+         di(ip)=(ri1(ipl)-ri0(ipl))/dtin
+         oma(ip)=omega0(ipl)
+         dom(ip)=omega1(ipl)-omega0(ipl)
+         coma(ip)=capom0(ipl)
+         dcom(ip)=capom1(ipl)-capom0(ipl)
+         cma(ip)=capm0(ipl)
+
+         dcur=dcom(ip)+dom(ip)
+         lam0=capom0(ipl)+omega0(ipl)+capm0(ipl)
+         lam1=capom1(ipl)+omega1(ipl)+capm1(ipl)
+
+         if(dcom(ip).gt.pi)dcom(ip)=dcom(ip)-2.d0*pi
+         if(dcom(ip).lt.-pi)dcom(ip)=dcom(ip)+2.d0*pi
+         Omefreq=dcom(ip)/dtin
+         
+         if(dcur.gt.pi)dcur=dcur-2.d0*pi
+         if(dcur.lt.-pi)dcur=dcur+2.d0*pi
+         cirfreq=dcur/dtin
+
 c       ss the right mean motion frequency. Here a must be in AU and t in
-c       rs.
-	      freq(ip)=sqrt(mass(ip)+mass(1))
+c       days.
+         mmfreq=sqrt(mass(ip)+mass(1))
 c     $            /aa(ip)**1.5d0
      $             *(1.d0/aa(ip)**1.5d0+1.d0/a1(ipl)**1.5d0)/2.d0
-	      Cmfin=cma(ip)+freq(ip)*dtin
-	      Cmfin=mod(Cmfin,2.d0*pi)
-	      corr=capm1(ipl)-Cmfin
-	      if(corr.gt.pi)corr=corr-2.d0*pi
-	      if(corr.lt.-pi)corr=corr+2.d0*pi
+         Cmfin=lam0+mmfreq*dtin
+         Cmfin=mod(Cmfin,2.d0*pi)
+         corr=lam1-Cmfin
+         if(corr.gt.pi)corr=corr-2.d0*pi
+         if(corr.lt.-pi)corr=corr+2.d0*pi
 c       rects the mean motion frequency in order to have the good final 
 c       ition of the planetesimal
-	      freq(ip)=freq(ip)+corr/dtin
+         mmfreq=mmfreq+corr/dtin
+
+         dcom(ip)=Omefreq
+         dom(ip)=cirfreq-Omefreq
+         freq(ip)=mmfreq-cirfreq
+
 c JMP
 c	      if ((e .ge. 1.d0) .or. (a .lt. 0.d0)) then
 c	         print *, t, ip, ipl, a, e, inc, capom, omega,

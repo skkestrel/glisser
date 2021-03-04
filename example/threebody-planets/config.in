@@ -7,6 +7,6 @@ Track-Interval 1
 Log-Interval 64
 Output-Folder example/threebody-planets-out
 Dump-Interval 0
-Limit-Particle-Count 0
+Particle-Count-Limit 0
 Input-File example/threebody-planets/state.in
-Swift-History-Interval 100
+Planet-History-Interval 100

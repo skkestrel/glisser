@@ -368,25 +368,26 @@ namespace data
 	struct Configuration
 	{
 		double t_0, t_f, dt, big_g;
-		uint32_t tbsize, print_every, dump_every, track_every, max_particle;
+		uint32_t tbsize, log_every, dump_every, track_every, max_particle;
 
-		double encounter_sphere_factor;
+		double hill_factor;
 		uint32_t split_track_file;
-		double outer_radius;
+		double outer_bound;
 
 		uint32_t resync_every;
-		uint32_t swift_hist_every;
+		uint32_t planet_hist_every;
 		uint32_t num_swift, swift_part_min;
 
 		uint32_t swift_statlen;
-		bool write_bary_track, write_rv_track;
-		bool interp_planets, use_bary_interp;
+		bool write_bary_track, write_ele_track, write_single_track, write_single_hist;
+		bool interp_planets, use_jacobi_interp, read_single_hist;
 		uint32_t interp_maxpl;
 		std::string planet_history_file;
+		uint32_t max_kep;
 
-		double cull_radius;
+		double inner_bound;
 
-		bool resolve_encounters, readmomenta, writemomenta, trackbinary, readsplit, writesplit, dumpbinary, writebinary, readbinary;
+		bool resolve_encounters, trackbinary, readsplit, writesplit, dumpbinary, writebinary, readbinary;
 
 		std::string icsin, plin, hybridin, hybridout;
 		std::string outfolder;
@@ -603,9 +604,9 @@ namespace data
 	void read_configuration(std::istream& in, Configuration* out);
 	void write_configuration(std::ostream& in, const Configuration& config);
 
-	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_elements);
-	void begin_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl);
-	void save_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, double time);
+	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_elements, bool single_precision);
+	void begin_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, bool single_precision);
+	void save_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, double time, bool single_precision);
 
 	struct TrackReader
 	{

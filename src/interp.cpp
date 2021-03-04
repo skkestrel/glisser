@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <cmath>
 
 namespace sr
 {
@@ -11,18 +12,20 @@ namespace interp
 	{
 	}
 
-	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file)
-		: input(file, std::ios_base::binary)
+	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool single_precision)
+		: input(file, std::ios_base::binary), single_precision(single_precision)
 	{
-		temp_log.open("temp_log_interp.txt");
+		// temp_log.open("temp_log_interp.txt");
+		// temp_log << std::setprecision(17);
 		cur_ts = 0;
 		user_dt = config.dt;
-		use_bary_interp = config.use_bary_interp;
+		use_jacobi_interp = config.use_jacobi_interp;
 
 		pl = sr::data::HostPlanetPhaseSpace(config.interp_maxpl, config.tbsize);
 
+		binary_chunk_size = (single_precision) ? 32 : 60;
 		pl.m()[0] = sr::data::read_binary<float64_t>(input);
-		sr::data::skip_binary(input, 32 - 8);
+		sr::data::skip_binary(input, binary_chunk_size - 8);
 
 		aei0 = aei1 = oom0 = oom1 = bary_rs = bary_vs = Vf64_3(pl.n());
 		m0 = m1 = bary_cms = Vf64(pl.n());
@@ -52,7 +55,7 @@ namespace interp
 		pl.n_alive_old() = npl1;
 
 	
-		sr::data::skip_binary(input, 32 - 8 - 4);
+		sr::data::skip_binary(input, binary_chunk_size - 8 - 4);
 
 		if (t1 > config.t_0)
 		{
@@ -81,13 +84,27 @@ namespace interp
 			}
 			ids.push_back(id);
 			inds.push_back(ind);
-			m1[ind] = sr::data::read_binary<float32_t>(input);
-			aei1[ind].x = sr::data::read_binary<float32_t>(input);
-			aei1[ind].y = sr::data::read_binary<float32_t>(input);
-			aei1[ind].z = sr::data::read_binary<float32_t>(input);
-			oom1[ind].x = sr::data::read_binary<float32_t>(input);
-			oom1[ind].y = sr::data::read_binary<float32_t>(input);
-			oom1[ind].z = sr::data::read_binary<float32_t>(input);
+
+			if(single_precision)
+			{
+				m1[ind] = sr::data::read_binary<float32_t>(input);
+				aei1[ind].x = sr::data::read_binary<float32_t>(input);
+				aei1[ind].y = sr::data::read_binary<float32_t>(input);
+				aei1[ind].z = sr::data::read_binary<float32_t>(input);
+				oom1[ind].x = sr::data::read_binary<float32_t>(input);
+				oom1[ind].y = sr::data::read_binary<float32_t>(input);
+				oom1[ind].z = sr::data::read_binary<float32_t>(input);
+			}
+			else
+			{
+				m1[ind] = sr::data::read_binary<double>(input);
+				aei1[ind].x = sr::data::read_binary<double>(input);
+				aei1[ind].y = sr::data::read_binary<double>(input);
+				aei1[ind].z = sr::data::read_binary<double>(input);
+				oom1[ind].x = sr::data::read_binary<double>(input);
+				oom1[ind].y = sr::data::read_binary<double>(input);
+				oom1[ind].z = sr::data::read_binary<double>(input);
+			}
 
 			f64_3 r, v;
 			sr::convert::from_elements_M(pl.m()[0] + m1[ind], aei1[ind].x, aei1[ind].y, aei1[ind].z, oom1[ind].x, oom1[ind].y, oom1[ind].z, &r, &v);
@@ -99,7 +116,7 @@ namespace interp
 		}
 
 		// Using barycentric orbital elements for interpolation
-		if(use_bary_interp) 
+		if(use_jacobi_interp) 
 		{
 			planet_eta[0] = pl.m()[0];
 			for (size_t i = 1; i < pl.n_alive(); i++)
@@ -115,14 +132,11 @@ namespace interp
 				sr::convert::to_elements(planet_eta[i], planet_rj[i], planet_vj[i],
 					nullptr, &a, &e, &in, &capom, &om, &f);
 
-				// temp_log << "Original Bary " << std::setprecision(9) << t1 << std::setprecision(14) << " " 
-				// << plr[i] - center_r << " " << plv[i] - center_v << std::endl;
-
 				aei1[ind] = f64_3(a, e, in);
 				oom1[ind] = f64_3(capom, om, sr::convert::get_mean_anomaly(e, f));
 				jacobi_aei_f[i-1] = aei1[ind];
 				jacobi_oom_f[i-1] = oom1[ind];
-				// temp_log << std::setprecision(14) << t1 << " " << pl.r()[i] << std::endl;
+				// temp_log  << t1 << " " << pl.r()[i] << std::endl;
 				i++;
 			}
 
@@ -139,7 +153,7 @@ namespace interp
 	{
 		pl.n_alive() = pl_alive + 1;
 
-		if(use_bary_interp)
+		if(use_jacobi_interp)
 		{
 			planet_rj[0] = f64_3(0);
 			planet_vj[0] = f64_3(0);
@@ -153,15 +167,11 @@ namespace interp
 											oom_jacobi.x, oom_jacobi.y, oom_jacobi.z, &r_jacobi, &v_jacobi);
 				planet_rj[j + 1] = r_jacobi;
 				planet_vj[j + 1] = v_jacobi;
-				// std::cout << std::setprecision(10) << bary_cms[j + 1] + reduced_m[j] << std::endl;
-				// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(10) << " " << aei_jacobi << " " << oom_jacobi << std::endl;
+				// if (j==pl_alive-1) temp_log << t0 + relative_t << " " << aei_jacobi << " " << oom_jacobi << std::endl;
 			}
 
 			sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
-			// for (size_t j = 0; j < pl_alive; j++)
-			// {
-			// 	temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
-			// }
+			// temp_log << t0 + relative_t << " " << pl.r()[pl_alive] << std::endl;
 		}
 		else
 		{
@@ -177,7 +187,6 @@ namespace interp
 				// offset for the sun
 				pl.r()[j + 1] = r;
 				pl.v()[j + 1] = v;
-				// temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
 			}
 		}
 	}
@@ -207,7 +216,7 @@ namespace interp
 			pl.r()[0] = f64_3(0);
 			pl.v()[0] = f64_3(0);
 
-			if(use_bary_interp)
+			if(use_jacobi_interp)
 			{
 				planet_rj[0] = f64_3(0);
 				planet_vj[0] = f64_3(0);
@@ -221,15 +230,11 @@ namespace interp
 												oom_jacobi.x, oom_jacobi.y, oom_jacobi.z, &r_jacobi, &v_jacobi);
 					planet_rj[j + 1] = r_jacobi;
 					planet_vj[j + 1] = v_jacobi;
-					// std::cout << std::setprecision(10) << bary_cms[j + 1] + reduced_m[j] << std::endl;
-					// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(10) << " " << aei_jacobi << " " << oom_jacobi << std::endl;
+					// if (j==pl_alive-1) temp_log << t0 + relative_t << " " << aei_jacobi << " " << oom_jacobi << std::endl;
 				}
 
 				sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
-				// for (size_t j = 0; j < pl_alive; j++)
-				// {
-				// 	temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
-				// }
+				// temp_log << t0 + relative_t << " " << pl.r()[pl_alive] << std::endl;
 				
 			}
 			else 
@@ -242,14 +247,11 @@ namespace interp
 					sr::convert::from_elements_M(pl.m()[0] + reduced_m[j], aei.x, aei.y, aei.z, oom.x, oom.y, oom.z, &r, &v);
 					pl.r()[j + 1] = r;
 					pl.v()[j + 1] = v;
-					// temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(14) << " " << pl.r()[j + 1] << " " << pl.v()[j + 1] << std::endl;
 				}
-			// if (j==3) temp_log << std::setprecision(9) << t0 + relative_t << std::setprecision(7) << " " << aei << " " << oom << std::endl;
 			// offset for the sun
 			}
 
 			
-			// temp_log << t0 + relative_t << " " << two_body_energy1 << " " << two_body_energy2 << std::endl;
 
 			std::copy(pl.r().begin() + 1, pl.r().begin() + pl.n_alive(), pl.r_log().old.begin() + (pl.n_alive() - 1) * i);
 			std::copy(pl.v().begin() + 1, pl.v().begin() + pl.n_alive(), pl.v_log().old.begin() + (pl.n_alive() - 1) * i);
@@ -305,7 +307,7 @@ namespace interp
 		n_ts = std::max<size_t>(1, static_cast<size_t>(std::round(dt / user_dt)));
 		eff_dt = dt / static_cast<double>(n_ts);
 
-		sr::data::skip_binary(input, 32 - 8 - 4);
+		sr::data::skip_binary(input, binary_chunk_size - 8 - 4);
 
 		for (size_t i = 1; i < pl.n(); i++)
 		{
@@ -335,13 +337,27 @@ namespace interp
 			inds.push_back(ind);
 
 			// Read heliocentric orbital elements of all planets.
-			pl.m()[ind] = sr::data::read_binary<float32_t>(input);
-			aei1[ind].x = sr::data::read_binary<float32_t>(input);
-			aei1[ind].y = sr::data::read_binary<float32_t>(input);
-			aei1[ind].z = sr::data::read_binary<float32_t>(input);
-			oom1[ind].x = sr::data::read_binary<float32_t>(input);
-			oom1[ind].y = sr::data::read_binary<float32_t>(input);
-			oom1[ind].z = sr::data::read_binary<float32_t>(input);
+			if (single_precision)
+			{
+				pl.m()[ind] = sr::data::read_binary<float32_t>(input);
+				aei1[ind].x = sr::data::read_binary<float32_t>(input);
+				aei1[ind].y = sr::data::read_binary<float32_t>(input);
+				aei1[ind].z = sr::data::read_binary<float32_t>(input);
+				oom1[ind].x = sr::data::read_binary<float32_t>(input);
+				oom1[ind].y = sr::data::read_binary<float32_t>(input);
+				oom1[ind].z = sr::data::read_binary<float32_t>(input);
+			}
+			else
+			{
+				pl.m()[ind] = sr::data::read_binary<double>(input);
+				aei1[ind].x = sr::data::read_binary<double>(input);
+				aei1[ind].y = sr::data::read_binary<double>(input);
+				aei1[ind].z = sr::data::read_binary<double>(input);
+				oom1[ind].x = sr::data::read_binary<double>(input);
+				oom1[ind].y = sr::data::read_binary<double>(input);
+				oom1[ind].z = sr::data::read_binary<double>(input);
+			}
+
 
 
 			// if there was no entry for the planet at the beginning of the interval, skip
@@ -357,7 +373,7 @@ namespace interp
 
 		// Using barycentric orbital elements for interpolation
 
-		if(use_bary_interp)
+		if(use_jacobi_interp)
 		{
 			size_t i = 0;
 			for (auto ind : inds)
@@ -389,17 +405,12 @@ namespace interp
 				sr::convert::to_elements(planet_eta[i], planet_rj[i], planet_vj[i],
 					nullptr, &a, &e, &in, &capom, &om, &f);
 
-				// temp_log << "Original Bary " << std::setprecision(9) << t1 << std::setprecision(14) << " " 
-				// << plr[i] - center_r << " " << plv[i] - center_v << std::endl;
-
 				aei1[ind] = f64_3(a, e, in);
 				oom1[ind] = f64_3(capom, om, sr::convert::get_mean_anomaly(e, f));
 				jacobi_aei_f[i-1] = aei1[ind];
 				jacobi_oom_f[i-1] = oom1[ind];
-				// temp_log << std::setprecision(14) << t1 << " " << pl.r()[i] << std::endl;
 				i++;
 			}
-			// temp_log << std::setprecision(9) << t0 << std::setprecision(7) << " " << aei1[4] << " " << oom1[4] << std::endl;
 		}
 
 		size_t i = 0;
@@ -424,17 +435,21 @@ namespace interp
 			reduced_daei[i] = (aei1[ind] - aei0[ind]) / dt;
 
 			reduced_doom[i] = oom1[ind] - oom0[ind];
+			double dcur = reduced_doom[i].x + reduced_doom[i].y;
+			double lam0 = oom0[ind].x + oom0[ind].y + oom0[ind].z;
+			double lam1 = oom1[ind].x + oom1[ind].y + oom1[ind].z;
+
+			// Omega
 			if (reduced_doom[i].x > M_PI) reduced_doom[i].x -= 2 * M_PI;
 			else if (reduced_doom[i].x < -M_PI) reduced_doom[i].x += 2 * M_PI;
+			double Omefreq = reduced_doom[i].x / dt;
 
+			// Curly pi (longitude of apo)
+			if (dcur > M_PI) dcur -= 2 * M_PI;
+			else if (dcur < -M_PI) dcur += 2 * M_PI;
+			double cirfreq = dcur / dt;
 
-			// FIXED!
-			if (reduced_doom[i].y > M_PI) reduced_doom[i].y -= 2 * M_PI;
-			else if (reduced_doom[i].y < -M_PI) reduced_doom[i].y += 2 * M_PI;
-
-			reduced_doom[i] /= dt;
-
-			// guess the mean motion frequency, a must be in AU and t in years
+			// guess the mean motion frequency, a must be in AU and t in days
 
 			double mmfreq = std::sqrt(pl.m()[ind] + pl.m()[0]) 
 							* (std::pow(aei0[ind].x, -1.5) + std::pow(aei1[ind].x, -1.5)) / 2;
@@ -445,9 +460,9 @@ namespace interp
 			// std::cout << ind << " oom0[ind].z: " << oom0[ind].z << std::endl;
 			// std::cout << ind << " oom1[ind].z: " << oom1[ind].z << std::endl;
 
-			double cmfin = oom0[ind].z + mmfreq * dt;
+			double cmfin = lam0 + mmfreq * dt;
 			cmfin = std::fmod(cmfin, 2 * M_PI);
-			double corr = oom1[ind].z - cmfin;
+			double corr = lam1 - cmfin;
 			// std::cout << ind << " corr: " << corr << std::endl;
 			if (corr > M_PI) corr -= 2 * M_PI;
 			else if (corr < -M_PI) corr += 2 * M_PI;
@@ -459,7 +474,9 @@ namespace interp
 			// std::cout << ind << " corr: " << corr << std::endl;
 			// std::cout << ind << " freq: " << mmfreq << std::endl;
 
-			reduced_doom[i].z = mmfreq;
+			reduced_doom[i].x = Omefreq;
+			reduced_doom[i].y = cirfreq - Omefreq;
+			reduced_doom[i].z = mmfreq - cirfreq;
 			i++;
 		}
 		pl_alive = i;

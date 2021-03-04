@@ -37,7 +37,8 @@ namespace wh
 
 		Vf64 planet_rh;
 
-		double outer_radius, cull_radius, encounter_sphere_factor;
+		double outer_bound, inner_bound, hill_factor;
+		uint16_t max_kep;
 
 		WHIntegrator();
 		WHIntegrator(HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& pa, const Configuration& config);

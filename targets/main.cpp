@@ -136,7 +136,7 @@ int main(int argc, char** argv)
 	bool crashed = false;
 	std::ofstream trackout;
 
-	std::ofstream swifthistout;
+	std::ofstream plhistout;
 
 	signal(SIGTERM, term);
 	signal(SIGINT, term);
@@ -153,14 +153,14 @@ int main(int argc, char** argv)
 			snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
 
 			// TODO: make to_elements a user parameter.
-			sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, !config.write_rv_track, config.write_bary_track);
+			sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, config.write_ele_track, config.write_bary_track, config.write_single_track);
 		}
 
-		if (config.swift_hist_every != 0)
+		if (config.planet_hist_every != 0)
 		{
-			swifthistout = std::ofstream(sr::util::joinpath(config.outfolder, "plhist.out"), std::ios_base::binary);
-			sr::data::begin_swift_plhist(swifthistout, ex.hd.planets_snapshot);
-			sr::data::save_swift_plhist(swifthistout, ex.hd.planets_snapshot, ex.t);
+			plhistout = std::ofstream(sr::util::joinpath(config.outfolder, "plhist.out"), std::ios_base::binary);
+			sr::data::begin_swift_plhist(plhistout, ex.hd.planets_snapshot, config.write_single_hist);
+			sr::data::save_swift_plhist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
 		}
 
 		while (ex.t < config.t_f)
@@ -168,7 +168,7 @@ int main(int argc, char** argv)
 			double cputimeout, gputimeout;
 
 			// if we are not in a safe time to output, skip everything
-		       	if (!ex.loop(&cputimeout, &gputimeout))
+		    if (!ex.loop(&cputimeout, &gputimeout))
 			{
 				continue;
 			}
@@ -176,7 +176,7 @@ int main(int argc, char** argv)
 			counter++;
 			ex.add_job([&timelog, &tout, &ex, &config, counter, cputimeout, gputimeout]()
 				{
-					bool log_out = config.print_every != 0 && (counter % config.print_every == 0);
+					bool log_out = config.log_every != 0 && (counter % config.log_every == 0);
 
 					if (!log_out) return;
 
@@ -197,9 +197,9 @@ int main(int argc, char** argv)
 			
 			bool dump = config.dump_every != 0 && counter % config.dump_every == 0;
 			bool track = config.track_every != 0 && counter % config.track_every == 0;
-			bool swifthist = config.swift_hist_every != 0 && counter % config.swift_hist_every == 0;
+			bool plhist = config.planet_hist_every != 0 && counter % config.planet_hist_every == 0;
 
-			if (dump || track || swifthist)
+			if (dump || track || plhist)
 			{
 				// NOTE: this is not needed when we use a resync function that always downloads everything
 				// ex.download_data();
@@ -207,10 +207,10 @@ int main(int argc, char** argv)
 				if (dump)
 				{
 					sr::data::Configuration out_config = config.output_config();
-					out_config.t_f = config.t_f - config.t_0 + ex.t;
+					// out_config.t_f = config.t_f - config.t_0 + ex.t;
 					out_config.t_0 = ex.t;
-					out_config.writesplit = false;
-					out_config.writebinary = true;
+					// out_config.writesplit = false;
+					// out_config.writebinary = true;
 
 					ex.add_job([&tout, &ex, &out_config, &config, &dump_num]()
 						{
@@ -242,15 +242,15 @@ int main(int argc, char** argv)
 						{
 							sr::data::HostParticleSnapshot snapshot_copy = ex.hd.particles.base;
 							snapshot_copy.sort_by_id(0, snapshot_copy.n_alive);
-							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, !config.write_rv_track, config.write_bary_track);
+							sr::data::save_binary_track(trackout, ex.hd.planets_snapshot, snapshot_copy, ex.t, config.write_ele_track, config.write_bary_track, config.write_single_track);
 						});
 				}
 
-				if (swifthist)
+				if (plhist)
 				{
-					ex.add_job([&swifthistout, &ex, &config]()
+					ex.add_job([&plhistout, &ex, &config]()
 						{
-							sr::data::save_swift_plhist(swifthistout, ex.hd.planets_snapshot, ex.t);
+							sr::data::save_swift_plhist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
 						});
 				}
 			}
@@ -295,9 +295,7 @@ int main(int argc, char** argv)
 
 						// TODO dump on next 
 						sr::data::Configuration out_config = config.output_config();
-						out_config.t_f = config.t_f;
 						out_config.t_0 = ex.t;
-						out_config.writesplit = false;
 
 						tout << "Dumping to disk. t = " << ex.t << std::endl;
 						std::ofstream configout(tokens[1]);
@@ -337,13 +335,13 @@ int main(int argc, char** argv)
 	ex.download_data(0, ex.hd.particles.n());
 
 	// save last time into the history
-	sr::data::save_swift_plhist(swifthistout, ex.hd.planets_snapshot, ex.t);
+	sr::data::save_swift_plhist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_track);
 
 	tout << "Saving to disk." << std::endl;
 	save_data(hd.planets_snapshot, hd.particles, config, sr::util::joinpath(config.outfolder, "state.out"));
 
 	sr::data::Configuration out_config = config.output_config();
-	out_config.t_f = config.t_f - config.t_0 + ex.t;
+	// out_config.t_f = config.t_f - config.t_0 + ex.t;
 	out_config.t_0 = ex.t;
 
 	std::ofstream configout(sr::util::joinpath(config.outfolder, "config.out"));

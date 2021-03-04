@@ -13,7 +13,7 @@ namespace interp
 	{
 		public:
 		Interpolator();
-		Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file);
+		Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool single_precision);
 		void next(sr::data::HostPlanetPhaseSpace& pl);
 
 		void fill_one(sr::data::HostPlanetPhaseSpace& pl, double relative_t);
@@ -74,7 +74,9 @@ namespace interp
 
 		std::unordered_map<uint32_t, size_t> idmap;
 
-		bool use_bary_interp;
+		bool use_jacobi_interp;
+		bool single_precision;
+		size_t binary_chunk_size;
 	};
 
 	class EOSError : public std::runtime_error

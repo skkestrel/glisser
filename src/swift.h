@@ -61,7 +61,7 @@ namespace swift
 		std::string outfolder;
 		size_t swift_part_min;
 		size_t num_swift;
-		double outer_radius;
+		double inner_bound, outer_bound;
 
 		Vu32 planet_id_list;
 

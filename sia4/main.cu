@@ -400,7 +400,7 @@ void to_elements(double mu, f64_3 r, f64_3 v, int* esign, double* a, double* e, 
 
 
 
-bool load_data(HostData& hd, std::string plin, std::string icsin, size_t max_particle, bool readmomenta)
+bool load_data(HostData& hd, std::string plin, std::string icsin, size_t max_particle)
 {
 	std::ifstream plinfile(plin), icsinfile(icsin);
 
@@ -418,13 +418,6 @@ bool load_data(HostData& hd, std::string plin, std::string icsin, size_t max_par
 		plinfile >> hd.m_planet[i];
 		plinfile >> hd.r_planet[i].x >> hd.r_planet[i].y >> hd.r_planet[i].z;
 		plinfile >> hd.v_planet[i].x >> hd.v_planet[i].y >> hd.v_planet[i].z;
-
-		if (readmomenta)
-		{
-			hd.v_planet[i].x /= hd.m_planet[i];
-			hd.v_planet[i].y /= hd.m_planet[i];
-			hd.v_planet[i].z /= hd.m_planet[i];
-		}
 	}
 
 	icsinfile >> hd.n_part;
@@ -679,7 +672,7 @@ int main(int argv, char** argc)
 	size_t max_particle = static_cast<size_t>(-1);
 	if (argv >= 5) max_particle = static_cast<size_t>(std::stoi(argc[4]));
 
-	if (load_data(hd, "pl.in", "ics.in", max_particle, false)) return -1;
+	if (load_data(hd, "pl.in", "ics.in", max_particle)) return -1;
 
 	if (hd.r_planet[0].x == 0 && hd.v_planet[0].x == 0)
 	{
@@ -701,7 +694,7 @@ int main(int argv, char** argc)
 	transfer_data(hd, dd);
 	std::cout << "       Starting simulation.       " << std::endl << std::endl;
 
-	size_t print_every = 10;
+	size_t log_every = 10;
 	size_t print_counter = 0;
 
 	size_t prune_every = 10;
@@ -738,7 +731,7 @@ int main(int argv, char** argc)
 
 	while (hd.t < hd.t_f)
 	{
-		if (print_counter % print_every == 0)
+		if (print_counter % log_every == 0)
 		{
 			auto now = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<double, std::milli> millis = now - starttime;
