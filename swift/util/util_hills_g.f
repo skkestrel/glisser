@@ -20,7 +20,7 @@ c Authors:  Hal Levison , KZ
 c Date:    2/19/93
 c Last revision: 1/6/97
 
-      subroutine util_hills2(nbod,mass,xh,yh,zh,vxh,vyh,vzh,r2hill) 
+      subroutine util_hills_g(nbod,mass,xh,yh,zh,vxh,vyh,vzh,r2hill) 
 
       include '../swift.inc'
 
@@ -41,8 +41,9 @@ c...  Executable code
 
       do i=2,nbod
          if(mass(i).ne.0.0d0) then
-            mu = mass(1)*mass(i)/(mass(1)+mass(i))
-            r2hill(i) = xh(i)*xh(i) + yh(i)*yh(i) + zh(i)*zh(i)
+            r = sqrt(xh(i)*xh(i) + yh(i)*yh(i) + zh(i)*zh(i))
+            rhil = r * (((mass(i)/(mass(1)))/3.0)**(0.3333333333))
+            r2hill(i) = rhil*rhil
          else
             r2hill(i) = 0.0d0
          endif
@@ -51,6 +52,6 @@ c...  Executable code
       r2hill(1) = 0.0
       
       return
-      end                       ! util_hills2
+      end                       ! util_hills_g
 
 c---------------------------------------------------

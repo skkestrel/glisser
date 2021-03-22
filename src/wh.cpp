@@ -477,12 +477,12 @@ namespace wh
 			// for the rest of the planets, use the factor times the hill sphere
 			for (size_t i = 1; i < pl.n(); i++)
 			{
-				double a, e;
-				sr::convert::to_elements(pl.m()[0] + pl.m()[i], pl.r()[i], pl.v()[i], nullptr, &a, &e);
+				double r_dist = sqrt(pl.r()[i].lensq());
+				// sr::convert::to_elements(pl.m()[0] + pl.m()[i], pl.r()[i], pl.v()[i], nullptr, &a, &e);
 
 				// planet_rh[i] = hill_factor * a * (1 - e) * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
 				// temporarily modified
-				planet_rh[i] = hill_factor * a * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
+				planet_rh[i] = hill_factor * r_dist * std::pow(pl.m()[i] / (3 * pl.m()[0]), 1. / 3);
 				// std::cout << i << " " << planet_rh[i] << std::endl;
 			}
 

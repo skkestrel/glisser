@@ -76,7 +76,7 @@ c...  Executable code
 c...  if first time through, calc hill's shere for the planets
 c     KZ calc hill sphere with r instead of a
         if(i1sthill.eq.0) then
-           call util_hills2(nbod,mass,xh,yh,zh,vxh,vyh,vzh,r2hill)
+           call util_hills_g(nbod,mass,xh,yh,zh,vxh,vyh,vzh,r2hill)
            i1sthill = 1
         endif
 
