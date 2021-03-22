@@ -80,34 +80,39 @@ done: ;
 
 			float64_t energy = v.lensq() * 0.5 - mu / dist;
 
-			flags = static_cast<uint16_t>((energy >= 0) << 3);
+			if (energy >= 0)
+			{
+				flags = 0x0008;
+			}
+			else
+			{
+				float64_t a = -0.5 * mu / energy;
+				float64_t n_ = sqrt(mu / (a * a * a));
+				float64_t ecosEo = 1.0 - dist / a;
+				float64_t esinEo = vdotr / (n_ * a * a);
+				float64_t e = sqrt(ecosEo * ecosEo + esinEo * esinEo);
 
-			float64_t a = -0.5 * mu / energy;
-			float64_t n_ = sqrt(mu / (a * a * a));
-			float64_t ecosEo = 1.0 - dist / a;
-			float64_t esinEo = vdotr / (n_ * a * a);
-			float64_t e = sqrt(ecosEo * ecosEo + esinEo * esinEo);
+				// subtract off an integer multiple of complete orbits
+				float64_t dM = dt * n_ - M_2PI * (int) (dt * n_ / M_2PI);
 
-			// subtract off an integer multiple of complete orbits
-			float64_t dM = dt * n_ - M_2PI * (int) (dt * n_ / M_2PI);
+				// remaining time to advance
+				float64_t _dt = dM / n_;
 
-			// remaining time to advance
-			float64_t _dt = dM / n_;
+				// call kepler equation solver with initial guess in dE already
+				float64_t dE = dM - esinEo + esinEo * cos(dM) + ecosEo * sin(dM);
+				float64_t sindE, cosdE;
+				kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE, flags, max_kep);
 
-			// call kepler equation solver with initial guess in dE already
-			float64_t dE = dM - esinEo + esinEo * cos(dM) + ecosEo * sin(dM);
-			float64_t sindE, cosdE;
-			kepeq(dM, ecosEo, esinEo, &dE, &sindE, &cosdE, flags, max_kep);
+				float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
+				float64_t f = 1.0 + a * (cosdE - 1.0) / dist;
+				float64_t g = _dt + (sindE - dE) / n_;
+				float64_t fdot = -n_ * sindE * a / (dist * fp);
+				float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
 
-			float64_t fp = 1.0 - ecosEo * cosdE + esinEo * sindE;
-			float64_t f = 1.0 + a * (cosdE - 1.0) / dist;
-			float64_t g = _dt + (sindE - dE) / n_;
-			float64_t fdot = -n_ * sindE * a / (dist * fp);
-			float64_t gdot = 1.0 + (cosdE - 1.0) / fp;
-
-			f64_3 r0 = r;
-			r = r0 * f + v * g;
-			v = r0 * fdot + v * gdot;
+				f64_3 r0 = r;
+				r = r0 * f + v * g;
+				v = r0 * fdot + v * gdot;
+			}
 		}
 
 		__host__ __device__
@@ -130,17 +135,43 @@ done: ;
 				uint32_t max_kep)
 		{
 			deathtime_index = 0;
-
 			for (uint32_t step = 0; step < static_cast<uint32_t>(_tbsize); step++)
 			{
+
+				if (step == 0)
+				{
+					// planet 0 is not counted
+					for (uint32_t i = 1; i < static_cast<uint32_t>(planet_n); i++)
+					{
+						f64_3 dr = r - r_log[step * (planet_n - 1) + i - 1];
+
+						float64_t rad = dr.lensq();
+
+						if (rad < rh[i] * rh[i] && flags == 0)
+						{
+							flags = static_cast<uint16_t>((pl_id[i] << 8) | 0x0001);
+						}
+					}
+
+					float64_t rad = r.lensq();
+					if (rad < rh[0] * rh[0])
+					{
+						flags = 0x0001;
+					}
+					if (rad > outer_bound * outer_bound)
+					{
+						flags = 0x0002;
+					}
+					deathtime_index = step;
+				}
+
+				
 				if (flags == 0)
 				{
 					// kick
 					// if step = 0, the acceleration is preloaded - this comes from 
 					v = v + a * (dt / 2);
-
 					drift(r, v, flags, dt, mu, max_kep);
-
 					a = h0_log[step];
 
 					// planet 0 is not counted
@@ -154,10 +185,8 @@ done: ;
 						{
 							flags = static_cast<uint16_t>((pl_id[i] << 8) | 0x0001);
 						}
-
 						float64_t inv3 = 1. / (rad * sqrt(rad));
 						float64_t fac = m[i] * inv3;
-
 						a -= dr * fac;
 					}
 
@@ -172,8 +201,8 @@ done: ;
 					}
 
 					v = v + a * (dt / 2);
-
 					deathtime_index = step + 1;
+
 				}
 			}
 		}

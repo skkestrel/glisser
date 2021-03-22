@@ -158,26 +158,45 @@ int main(int argc, char** argv)
 
 		if (config.planet_hist_every != 0)
 		{
-			plhistout = std::ofstream(sr::util::joinpath(config.outfolder, "plhist.out"), std::ios_base::binary);
-			sr::data::begin_swift_plhist(plhistout, ex.hd.planets_snapshot, config.write_single_hist);
-			sr::data::save_swift_plhist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
+			if (config.write_binary_hist)
+			{
+				plhistout = std::ofstream(sr::util::joinpath(config.outfolder, "plhist.out"), std::ios_base::binary);
+				sr::data::save_binary_hist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
+			}
+			else
+			{
+				plhistout = std::ofstream(sr::util::joinpath(config.outfolder, "plhist.out"));
+				sr::data::save_txt_hist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
+			}
 		}
 
+		double cumulated_cputime, cumulated_gputime, cumulated_looptime;
+		size_t cumulated_encounter;
+
+		cumulated_cputime = cumulated_gputime = cumulated_looptime = 0;
+		cumulated_encounter = 0;
 		while (ex.t < config.t_f)
 		{
-			double cputimeout, gputimeout;
+			double cputime, gputime, looptime;
+			size_t n_encounter;
+
+			bool output_safe = ex.loop(&cputime, &gputime, &looptime, &n_encounter);
+			cumulated_cputime += cputime;
+			cumulated_gputime += gputime;
+			cumulated_looptime += looptime;
+			cumulated_encounter += n_encounter;
+			// tout << cputime << " " << looptime << " " << n_encounter << std::endl;
 
 			// if we are not in a safe time to output, skip everything
-		    if (!ex.loop(&cputimeout, &gputimeout))
+		    if (!output_safe)
 			{
 				continue;
 			}
 
 			counter++;
-			ex.add_job([&timelog, &tout, &ex, &config, counter, cputimeout, gputimeout]()
-				{
+			ex.add_job([&timelog, &tout, &ex, &config, counter, cputime, gputime, looptime, n_encounter, &cumulated_cputime, &cumulated_gputime, &cumulated_looptime, &cumulated_encounter]()
+				{	
 					bool log_out = config.log_every != 0 && (counter % config.log_every == 0);
-
 					if (!log_out) return;
 
 					double elapsed = ex.time();
@@ -185,13 +204,23 @@ int main(int argc, char** argv)
 
 					if (log_out)
 					{
-						tout << std::setprecision(4);
-						tout << "t=" << ex.t << " (" << elapsed / total * 100 << "% " << elapsed << "m elapsed, "
-							<< total << "m total " << total - elapsed << "m remain)" << std::endl;
-						tout << ex.hd.particles.n_alive() << " particles remaining, "
-							<< ex.hd.particles.n_encounter() << " in encounter" << std::endl;
+						tout << std::setprecision(4) << std::endl;
+						tout << "t=" << ex.t << " (" << std::setw(4) << elapsed / total * 100 << "%) | " << std::setw(6) << elapsed << "m elapsed | "
+							 << std::setw(6) << total << "m total | " << std::setw(6) <<  total - elapsed << "m remain | ";
+						tout << ex.hd.particles.n_alive() << " particles alive " << std::endl;
 
-						tout << "GPU time: " << std::setprecision(4) << gputimeout << ", CPU time: " << cputimeout << " (ms)" << std::endl;
+						tout << "GPU time (First)    : " << std::setw(6) << gputime                << " | CPU time (First):     " 
+							 << std::setw(6) << cputime                 << " | LOOP time (First):     " 
+							 << std::setw(6) << looptime                << " (ms)" << " | N encounters (First):     " 
+							 << n_encounter << std::endl;
+
+						tout << "GPU time (Cumulative): " << std::setw(6) << cumulated_gputime/1000 << " | CPU time (Cumulative): " 
+							 << std::setw(6) << cumulated_cputime/1000  << " | LOOP time (Cumulative): " 
+							 << std::setw(6) << cumulated_looptime/1000 << "  (s)" << " | N encounters (Cumulative): " 
+							 << cumulated_encounter << std::endl;
+
+						cumulated_cputime = cumulated_gputime = cumulated_looptime = 0;
+						cumulated_encounter = 0;
 					}
 				});
 			
@@ -250,7 +279,14 @@ int main(int argc, char** argv)
 				{
 					ex.add_job([&plhistout, &ex, &config]()
 						{
-							sr::data::save_swift_plhist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
+							if (config.write_binary_hist)
+							{
+								sr::data::save_binary_hist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
+							}
+							else
+							{
+								sr::data::save_txt_hist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
+							}
 						});
 				}
 			}
@@ -335,7 +371,14 @@ int main(int argc, char** argv)
 	ex.download_data(0, ex.hd.particles.n());
 
 	// save last time into the history
-	sr::data::save_swift_plhist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_track);
+	if (config.write_binary_hist)
+	{
+		sr::data::save_binary_hist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
+	}
+	else
+	{
+		sr::data::save_txt_hist(plhistout, ex.hd.planets_snapshot, ex.t, config.write_single_hist);
+	}
 
 	tout << "Saving to disk." << std::endl;
 	save_data(hd.planets_snapshot, hd.particles, config, sr::util::joinpath(config.outfolder, "state.out"));

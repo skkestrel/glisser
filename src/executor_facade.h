@@ -33,7 +33,7 @@ namespace sr
 			void init();
 			void download_data(size_t begin, size_t length);
 			double time() const;
-			bool loop(double* cputimeout, double* gputimeout);
+			bool loop(double* cputimeout, double* gputimeout, double* totaltimeout, size_t* nencounter);
 			void add_job(const std::function<void()>& job);
 			void finish();
 		};

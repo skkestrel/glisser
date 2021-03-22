@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import struct
 
 folder = "/home/yhuang/GLISSER/glisser/"
-filename1 = "benchmark/rogue-particles-30m-onlyN/tracks/track.0.out"
+filename1 = "benchmark/rogue-particles-UNR/tracks/track.0.out"
 # filename1 = "sockeye_results/track_100.out"
 # filename2 = "benchmark/kuiper-particles-out-1000-read/tracks/track.0.out"
 
@@ -15,16 +15,16 @@ label = "GLISSER"
 
 t, a_pl, e_pl, I_pl, O_pl, o_pl= [], [], [], [], [], []
 a_pa, e_pa, I_pa, O_pa, o_pa= [], [], [], [], []
-file = open("discard_opio_onlyN_5.out", "w+")
+file = open("discard_opio_UNR.out", "w+")
 with open(folder + filename, 'rb') as f:
-    read = f.read(16)
-    while len(read) == 16:
-        time, npl = struct.unpack('=dQ', read)
+    read = f.read(24)
+    while len(read) == 24:
+        time, solar_mass, npl = struct.unpack('=2dQ', read)
         t.append(time)
         # print(time, npl)
         a1, e1, I1, O1, o1= [], [], [], [], []
         for i in range(npl):
-            pid, a, e, I, O, o, F = struct.unpack('=I6d', f.read(52))
+            pid, pl_mass, a, e, I, O, o, F = struct.unpack('=I7d', f.read(60))
             a1.append(a)
             e1.append(e)
             I1.append(I)
@@ -51,7 +51,7 @@ with open(folder + filename, 'rb') as f:
         I_pa.append(np.array(I1))
         O_pa.append(np.array(O1))
         o_pa.append(np.array(o1))
-        read = f.read(16)
+        read = f.read(24)
         file.write(str(int(time)))
         file.write(' ')
         file.write(str(int(1000-npa)))

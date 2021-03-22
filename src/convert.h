@@ -8,8 +8,6 @@ namespace convert
 {
 	using namespace sr::data;
 
-	// void helio_to_jacobi_r_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p);
-	// void helio_to_jacobi_v_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p);
 	void jacobi_to_helio_planets(const Vf64& eta, const Vf64_3& rj, const Vf64_3& vj, HostPlanetPhaseSpace& pl);
 	void helio_to_jacobi_v_planets(const HostPlanetPhaseSpace& p, const Vf64& eta, Vf64_3& vj);
 	void helio_to_jacobi_r_planets(const HostPlanetPhaseSpace& p, const Vf64& eta, Vf64_3& rj);

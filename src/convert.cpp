@@ -27,24 +27,6 @@ namespace convert
 		}
 	}
 
-	/*
-	void helio_to_jacobi_r_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p)
-	{
-		for (size_t i = 0; i < p.n(); i++)
-		{
-			p.rj[i] = p.r()[i] - pl.bary_r;
-		}
-	}
-
-	void helio_to_jacobi_v_particles(const HostPlanetPhaseSpace& pl, HostParticlePhaseSpace& p)
-	{
-		for (size_t i = 0; i < p.n(); i++)
-		{
-			p.vj[i] = p.v()[i] - pl.bary_v;
-		}
-	}
-	*/
-
 	void helio_to_jacobi_v_planets(const HostPlanetPhaseSpace& p, const Vf64& eta, Vf64_3& vj)
 	{
 		// COM
@@ -238,10 +220,6 @@ namespace convert
 		// fix the sign of f
 		if (E < 0) f = -f;
 
-		/*
-		std::cout << "M = " << M << " f = " << f << std::endl;
-		std::cout << "E - e sin E = " << E - e * std::sin(E) << std::endl;
-		*/
 
 		from_elements(mu, a, e, i, capom, om, f, r_, v);
 	}

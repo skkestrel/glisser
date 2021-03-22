@@ -13,7 +13,7 @@ namespace interp
 	{
 		public:
 		Interpolator();
-		Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool single_precision);
+		Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool binary_hist, bool single_precision);
 		void next(sr::data::HostPlanetPhaseSpace& pl);
 
 		void fill_one(sr::data::HostPlanetPhaseSpace& pl, double relative_t);
@@ -37,6 +37,7 @@ namespace interp
 		Vf64_3 aei0, aei1;
 		Vf64_3 oom0, oom1;
 		Vf64 m0, m1;
+		Vf64 rplsq0, rplsq1;
 		float64_t t0, t1, t_m1;
 		size_t npl0, npl1;
 
@@ -52,6 +53,7 @@ namespace interp
 		Vf64_3 reduced_aei_f_old, reduced_oom_f_old;
 		Vu32 reduced_ids, reduced_ids_old;
 		Vf64 reduced_m, reduced_m_old;
+		Vf64 reduced_rplsq, reduced_rplsq_old;
 
 		Vf64_3 jacobi_aei_i, jacobi_oom_i;
 		Vf64_3 jacobi_aei_f, jacobi_oom_f;
@@ -75,7 +77,7 @@ namespace interp
 		std::unordered_map<uint32_t, size_t> idmap;
 
 		bool use_jacobi_interp;
-		bool single_precision;
+		bool binary_hist, single_precision;
 		size_t binary_chunk_size;
 	};
 

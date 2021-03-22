@@ -255,30 +255,39 @@ namespace swift
 				}
 
 				uint16_t deathflags = 0x0000;
+				
 				// particle is dead
-
 				if (istat[0][statindex] == 1)
 				{
 					if (istat[1][statindex] == -1)
 					{
+						// Kepler didn't converge
 						deathflags = 0x04;
 					}
-					else if (istat[1][statindex] == -2 || istat[1][statindex] == -3)
+					else if (istat[1][statindex] == -2)
 					{
+						// Orbit unbound (two body energy > 0)
+						deathflags = 0x08;
+					}
+					else if (istat[1][statindex] == -3)
+					{
+						// Exceed outer bound
 						deathflags = 0x02;
 					}
 					else if (istat[1][statindex] == -4 || istat[1][statindex] == 1)
 					{
-						deathflags = 0x80;
+						// enter inner bound
+						deathflags = 0x01;
 					}
 					else
 					{
 						// first planet is index 1 here, or index 2 in swift
-						uint32_t planet_index = istat[1][statindex] - 1;
-
+						uint32_t planet_index = istat[1][statindex] - 2;
 						deathflags = static_cast<uint16_t>(planet_id_list[planet_index] << 8) | 0x80;
+						// std::cout << istat[1][statindex] << " " << planet_id_list[planet_index] << std::endl;
 					}
 				}
+				
 				// particle is alive
 				else
 				{
@@ -286,13 +295,13 @@ namespace swift
 					if (istat[1][statindex] != 0)
 					{
 						uint32_t swift_planet_index = std::abs(istat[1][statindex]);
-						// if we're in inner region, decrease the istat count of that planet by one since we are ending in an encounter
+						// if we're in planet's hill sphere, decrease the istat count of that planet by one since we are ending in an encounter
 						if (istat[1][statindex] < 0)
 						{
 							istat[swift_planet_index + 1][statindex] -= 1;
 						}
 
-						// even if we're in encounter, don't udpate the particle encounter flag
+						// even if we're in encounter, don't update the particle encounter flag
 						// instead, set the encounter flag to 0 and let the GPU detect that the particle is in encounter using hill radius
 					}
 					deathflags = 0;
@@ -331,7 +340,6 @@ namespace swift
 	void SwiftEncounterIntegrator::write_param_in(std::string dest) const
 	{
 		std::ofstream file(dest);
-
 		file << rel_t - static_cast<double>(prev_tbsize) * dt << " " << rel_t + static_cast<double>(cur_tbsize) * dt << " " << dt << std::endl;
 		file << std::setprecision(17);
 		file << "99999999 99999999" << std::endl;
@@ -346,7 +354,6 @@ namespace swift
 	{
 		std::ofstream file(dest);
 		file << chunk_end - chunk_begin << std::endl;
-
 		for (size_t i = chunk_begin; i < chunk_end; i++)
 		{
 			file << std::setprecision(17);
@@ -373,7 +380,7 @@ namespace swift
 	{
 		std::ofstream file(dest, std::ios_base::binary);
 
-		size_t binary_chunk_size = 60;
+		size_t binary_chunk_size = 68;
 		sr::data::write_binary(file, static_cast<double>(pl.m()[0]));
 		sr::data::pad_binary(file, binary_chunk_size - 8);
 		// temp_log << std::setprecision(17);
@@ -404,6 +411,7 @@ namespace swift
 
 				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids_old[i] + 1));
 				sr::data::write_binary(file, static_cast<double>(interp.reduced_m_old[i]));
+				sr::data::write_binary(file, static_cast<double>(interp.reduced_rplsq_old[i]));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_i_old[i].x));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_i_old[i].y));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_i_old[i].z));
@@ -425,6 +433,7 @@ namespace swift
 
 				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids_old[i] + 1));
 				sr::data::write_binary(file, static_cast<double>(interp.reduced_m_old[i]));
+				sr::data::write_binary(file, static_cast<double>(interp.reduced_rplsq_old[i]));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_f_old[i].x));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_f_old[i].y));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_f_old[i].z));
@@ -454,6 +463,7 @@ namespace swift
 				// temp_log << interp.jacobi_aei_i[i] << ' ' << interp.jacobi_oom_i[i] << std::endl;
 				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids[i] + 1));
 				sr::data::write_binary(file, static_cast<double>(interp.reduced_m[i]));
+				sr::data::write_binary(file, static_cast<double>(interp.reduced_rplsq[i]));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_i[i].x));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_i[i].y));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_i[i].z));
@@ -473,6 +483,7 @@ namespace swift
 				// temp_log << interp.jacobi_aei_f[i] << ' ' << interp.jacobi_oom_f[i] << std::endl;
 				sr::data::write_binary(file, static_cast<uint32_t>(interp.reduced_ids[i] + 1));
 				sr::data::write_binary(file, static_cast<double>(interp.reduced_m[i]));
+				sr::data::write_binary(file, static_cast<double>(interp.reduced_rplsq[i]));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_f[i].x));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_f[i].y));
 				sr::data::write_binary(file, static_cast<double>(interp.jacobi_aei_f[i].z));

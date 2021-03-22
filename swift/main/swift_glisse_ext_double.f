@@ -79,7 +79,7 @@ c      the resolution we have in the output from mercury
         real*8 t,tout,tdump,tfrac
 c JMP
         real*8 dtin
-        real*8 ma4, a4, e4, ri4, capom4, omega4, capm4
+        real*8 ma4, rplsq4, a4, e4, ri4, capom4, omega4, capm4
 
         real*8 rmin,rmax,rmaxu,qmin,rplsq(NPLMAX)
         logical*2 lclose 
@@ -114,7 +114,7 @@ c Prompt and read name of planet data file
         call get_command_argument(2, inplfile)
 c JMP: switch to R*4 orbital elements
         open(unit=77,file=inplfile,status='old',err=100,
-     $     form='unformatted',access='direct',recl=60)
+     $     form='unformatted',access='direct',recl=68)
 999     format(a)
         rn = 1
         read (77, rec=rn) rms(1)
@@ -135,10 +135,6 @@ c       nbod is the number of planetesimals. Swift wants to add the sun
            stop
         endif
 
-        do ip=2,nbod
-           rplsq(ip)=(0.0001645 * 0.0001645)
-        enddo
-
 c Initializes the a0 array
         do ip = 1, NPLMAX
            a0(ip) = 0.d0
@@ -146,9 +142,10 @@ c Initializes the a0 array
 
         do ip=2,nbod
            rn = rn + 1
-           read (77, rec=rn) ipl, ma4, a4, e4, ri4, capom4, omega4,
-     $        capm4
+           read (77, rec=rn) ipl, ma4, rplsq4, a4, e4, ri4, 
+     $      capom4, omega4, capm4
            rms(ipl) = ma4
+           rplsq(ipl)= rplsq4
            a0(ipl) = a4
            e0(ipl) = e4
            ri0(ipl) = ri4
@@ -269,9 +266,10 @@ c force integer steps
 c  Probe: We read in Jacobi Orbital elements instead.
 	do ipt=2,nbod
 	   rn = rn + 1
-	   read (77, rec=rn) ipl, ma4, a4, e4, ri4, capom4, omega4,
-     $        capm4
+	   read (77, rec=rn) ipl, ma4, rplsq4, a4, e4, ri4, 
+     $   capom4, omega4, capm4
 	   rms(ipl) = ma4
+      rplsq(ipl)= rplsq4
 	   a1(ipl) = a4
 	   e1(ipl) = e4
 	   ri1(ipl) = ri4

@@ -126,10 +126,15 @@ namespace data
 		 */
 		Vf64 m;
 
+		/**
+		 * The radii^2 of the planets
+		 */
+		Vf64 rplsq;
+
 		/** Default ctor. */
 		inline HostPlanetSnapshot() : n(0), n_alive(0) { }
 		/** Ctor with size argument. */
-		inline HostPlanetSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_), m(n_) { }
+		inline HostPlanetSnapshot(size_t n_) : n(n_), n_alive(n_), r(n_), v(n_), id(n_), m(n_), rplsq(n_) { }
 	};
 
 
@@ -202,7 +207,7 @@ namespace data
 		{ 
 		}
 
-		/** Execute stable partition on alive particles, i.e., `deathflags & 0x00FE = 0` */
+		/** Execute stable partition on alive particles, i.e., `deathflags & 0x00FE = 0 && deathflags != 0x0001` */
 		std::unique_ptr<Vs> stable_partition_alive(size_t begin, size_t length);
 
 		/** Execute stable partition on unflagged particles, i.e., `deathflags & 0x00FF = 0`. */
@@ -273,6 +278,12 @@ namespace data
 		 */
 		inline Vf64& m() { return base.m; }
 		inline const Vf64& m() const { return base.m; }
+
+		/**
+		 * Gets the planet radius^2 array.
+		 */
+		inline Vf64& rplsq() { return base.rplsq; }
+		inline const Vf64& rplsq() const { return base.rplsq; }
 
 		/**
 		 * Gets the planet count.
@@ -379,8 +390,8 @@ namespace data
 		uint32_t num_swift, swift_part_min;
 
 		uint32_t swift_statlen;
-		bool write_bary_track, write_ele_track, write_single_track, write_single_hist;
-		bool interp_planets, use_jacobi_interp, read_single_hist;
+		bool write_bary_track, write_ele_track, write_single_track, write_binary_hist, write_single_hist;
+		bool interp_planets, use_jacobi_interp, read_binary_hist, read_single_hist;
 		uint32_t interp_maxpl;
 		std::string planet_history_file;
 		uint32_t max_kep;
@@ -604,9 +615,10 @@ namespace data
 	void read_configuration(std::istream& in, Configuration* out);
 	void write_configuration(std::ostream& in, const Configuration& config);
 
-	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_elements, bool single_precision);
-	void begin_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, bool single_precision);
-	void save_swift_plhist(std::ostream& trackout, const HostPlanetSnapshot& pl, double time, bool single_precision);
+	void save_binary_track(std::ostream& trackout, const HostPlanetSnapshot& pl, const HostParticleSnapshot& pa, double time, bool to_elements, bool barycentric_track, bool single_precision);
+
+	void save_binary_hist(std::ostream& histout, const HostPlanetSnapshot& pl, double time, bool single_precision);
+	void save_txt_hist(std::ostream& histout, const HostPlanetSnapshot& pl, double time, bool single_precision);
 
 	struct TrackReader
 	{

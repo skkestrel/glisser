@@ -33,6 +33,7 @@ benchmark/*
 benchmark/*/*
 pics/*
 Rogue/*
+swift_data/*
 Rogue_histograms/*
 Rogue_histograms2/*
 *.png

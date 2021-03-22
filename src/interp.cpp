@@ -12,8 +12,8 @@ namespace interp
 	{
 	}
 
-	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool single_precision)
-		: input(file, std::ios_base::binary), single_precision(single_precision)
+	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool binary_hist, bool single_precision)
+		: input(file), binary_hist(binary_hist), single_precision(single_precision)
 	{
 		// temp_log.open("temp_log_interp.txt");
 		// temp_log << std::setprecision(17);
@@ -23,21 +23,20 @@ namespace interp
 
 		pl = sr::data::HostPlanetPhaseSpace(config.interp_maxpl, config.tbsize);
 
-		binary_chunk_size = (single_precision) ? 32 : 60;
-		pl.m()[0] = sr::data::read_binary<float64_t>(input);
-		sr::data::skip_binary(input, binary_chunk_size - 8);
-
 		aei0 = aei1 = oom0 = oom1 = bary_rs = bary_vs = Vf64_3(pl.n());
 		m0 = m1 = bary_cms = Vf64(pl.n());
+		rplsq0 = rplsq1 = Vf64(pl.n());
 
 		// the reduced series of arrays holds data that is aligned - that is, aei_i and aei_f hold the SAME planets - they are gauranteed
 		// to be the same set of planets in the same order, unlike aei0 and aei1 which may hold different sets of planets
 		// i.e. the reduced sets are contain planets in the intersection of aei0 and aei1
+		reduced_ids = reduced_ids_old = Vu32(pl.n());
 		reduced_m = reduced_m_old = Vf64(pl.n());
+		reduced_rplsq = reduced_rplsq_old = Vf64(pl.n());
 		reduced_daei = reduced_doom = Vf64_3(pl.n());
 		reduced_aei_i = reduced_aei_f = reduced_aei_i_old = reduced_aei_f_old = Vf64_3(pl.n());
 		reduced_oom_i = reduced_oom_f = reduced_oom_i_old = reduced_oom_f_old = Vf64_3(pl.n());
-		reduced_ids = reduced_ids_old = Vu32(pl.n());
+		
 
 		jacobi_aei_i = jacobi_aei_f = jacobi_aei_i_old = jacobi_aei_f_old = Vf64_3(pl.n());
 		jacobi_oom_i = jacobi_oom_f = jacobi_oom_i_old = jacobi_oom_f_old = Vf64_3(pl.n());
@@ -45,17 +44,23 @@ namespace interp
 		planet_eta = Vf64(pl.n());
 		planet_rj = planet_vj = Vf64_3(pl.n());	
 
-		t0 = std::numeric_limits<double>::infinity();
-		t1 = sr::data::read_binary<float64_t>(input);
+		t0 = std::numeric_limits<double>::infinity(); 
 		t_m1 = std::numeric_limits<double>::quiet_NaN();
 
-		npl1 = sr::data::read_binary<uint32_t>(input) + 1; 
-
+		if (binary_hist)
+		{
+			t1 = sr::data::read_binary<float64_t>(input);
+			pl.m()[0] = sr::data::read_binary<float64_t>(input);
+			npl1 = sr::data::read_binary<uint32_t>(input) + 1; 
+		}
+		else
+		{
+			input >> t1 >> pl.m()[0] >> npl1;
+			npl1 += 1;
+		}
+						
 		pl.n_alive() = npl1;
 		pl.n_alive_old() = npl1;
-
-	
-		sr::data::skip_binary(input, binary_chunk_size - 8 - 4);
 
 		if (t1 > config.t_0)
 		{
@@ -69,7 +74,16 @@ namespace interp
 		std::vector<size_t> inds;
 		for (size_t i = 1; i < npl1; i++)
 		{
-			uint32_t id = sr::data::read_binary<uint32_t>(input);
+			uint32_t id;
+			if (binary_hist)
+			{
+				id = sr::data::read_binary<uint32_t>(input);
+			}
+			else
+			{
+				input >> id;
+			}
+
 			size_t ind;
 			if (idmap.find(id) == idmap.end())
 			{
@@ -85,34 +99,45 @@ namespace interp
 			ids.push_back(id);
 			inds.push_back(ind);
 
-			if(single_precision)
+			if(binary_hist)
 			{
-				m1[ind] = sr::data::read_binary<float32_t>(input);
-				aei1[ind].x = sr::data::read_binary<float32_t>(input);
-				aei1[ind].y = sr::data::read_binary<float32_t>(input);
-				aei1[ind].z = sr::data::read_binary<float32_t>(input);
-				oom1[ind].x = sr::data::read_binary<float32_t>(input);
-				oom1[ind].y = sr::data::read_binary<float32_t>(input);
-				oom1[ind].z = sr::data::read_binary<float32_t>(input);
+				if (single_precision)
+				{
+					m1[ind] = sr::data::read_binary<float32_t>(input);
+					rplsq1[ind] = sr::data::read_binary<float32_t>(input);
+					aei1[ind].x = sr::data::read_binary<float32_t>(input);
+					aei1[ind].y = sr::data::read_binary<float32_t>(input);
+					aei1[ind].z = sr::data::read_binary<float32_t>(input);
+					oom1[ind].x = sr::data::read_binary<float32_t>(input);
+					oom1[ind].y = sr::data::read_binary<float32_t>(input);
+					oom1[ind].z = sr::data::read_binary<float32_t>(input);
+				}
+				else
+				{
+					m1[ind] = sr::data::read_binary<double>(input);
+					rplsq1[ind] = sr::data::read_binary<double>(input);
+					aei1[ind].x = sr::data::read_binary<double>(input);
+					aei1[ind].y = sr::data::read_binary<double>(input);
+					aei1[ind].z = sr::data::read_binary<double>(input);
+					oom1[ind].x = sr::data::read_binary<double>(input);
+					oom1[ind].y = sr::data::read_binary<double>(input);
+					oom1[ind].z = sr::data::read_binary<double>(input);
+				}
 			}
 			else
 			{
-				m1[ind] = sr::data::read_binary<double>(input);
-				aei1[ind].x = sr::data::read_binary<double>(input);
-				aei1[ind].y = sr::data::read_binary<double>(input);
-				aei1[ind].z = sr::data::read_binary<double>(input);
-				oom1[ind].x = sr::data::read_binary<double>(input);
-				oom1[ind].y = sr::data::read_binary<double>(input);
-				oom1[ind].z = sr::data::read_binary<double>(input);
+				input >> m1[ind] >> rplsq1[ind]>> aei1[ind].x >> aei1[ind].y >> aei1[ind].z
+						  >> oom1[ind].x >> oom1[ind].y >> oom1[ind].z;
 			}
 
 			f64_3 r, v;
 			sr::convert::from_elements_M(pl.m()[0] + m1[ind], aei1[ind].x, aei1[ind].y, aei1[ind].z, oom1[ind].x, oom1[ind].y, oom1[ind].z, &r, &v);
 
+			pl.id()[i] = id;
+			pl.m()[i] = m1[ind];
+			pl.rplsq()[i] = rplsq1[ind];
 			pl.r()[i] = r;
 			pl.v()[i] = v;
-			pl.id()[i] = id;
-			pl.m()[i] = m1[ind];	
 		}
 
 		// Using barycentric orbital elements for interpolation
@@ -205,6 +230,7 @@ namespace interp
 		{
 			pl.id()[j + 1] = reduced_ids[j];
 			pl.m()[j + 1] = reduced_m[j];
+			pl.rplsq()[j + 1] = reduced_rplsq[j];
 		}
 		for (size_t i = 0; i < nstep; i++)
 		{
@@ -268,15 +294,17 @@ namespace interp
 		t_m1 = t0;
 
 		m0 = m1;
+		rplsq0 = rplsq1;
 		npl0 = npl1;
 		aei0 = aei1;
 		oom0 = oom1;
 		t0 = t1;
 		rel_t = 0;
 
-		reduced_m_old = reduced_m;
 		reduced_ids_old = reduced_ids;
-
+		reduced_m_old = reduced_m;
+		reduced_rplsq_old = reduced_rplsq;
+		
 		reduced_aei_i_old = reduced_aei_i;
 		reduced_aei_f_old = reduced_aei_f;
 		reduced_oom_i_old = reduced_oom_i;
@@ -291,14 +319,23 @@ namespace interp
 		jacobi_oom_i = jacobi_oom_f;
 		pl_alive_old = pl_alive;
 
-		t1 = sr::data::read_binary<float64_t>(input);
+		if (binary_hist)
+		{
+			t1 = sr::data::read_binary<float64_t>(input);
+			pl.m()[0] = sr::data::read_binary<float64_t>(input);
+			npl1 = sr::data::read_binary<uint32_t>(input) + 1; 
+		}
+		else
+		{
+			input >> t1 >> pl.m()[0] >> npl1;
+			npl1 += 1;
+		}
 
 		if (!input)
 		{
 			throw EOSError();
 		}
 
-		npl1 = sr::data::read_binary<uint32_t>(input) + 1;
 
 		double dt = t1 - t0;
 
@@ -307,7 +344,6 @@ namespace interp
 		n_ts = std::max<size_t>(1, static_cast<size_t>(std::round(dt / user_dt)));
 		eff_dt = dt / static_cast<double>(n_ts);
 
-		sr::data::skip_binary(input, binary_chunk_size - 8 - 4);
 
 		for (size_t i = 1; i < pl.n(); i++)
 		{
@@ -322,7 +358,15 @@ namespace interp
 		pl_alive = 0;
 		for (size_t i = 1; i < npl1; i++)
 		{
-			uint32_t id = sr::data::read_binary<uint32_t>(input);
+			uint32_t id;
+			if (binary_hist)
+			{
+				id = sr::data::read_binary<uint32_t>(input);
+			}
+			else
+			{
+				input >> id;
+			}
 			size_t ind;
 			if (idmap.find(id) == idmap.end())
 			{
@@ -337,25 +381,35 @@ namespace interp
 			inds.push_back(ind);
 
 			// Read heliocentric orbital elements of all planets.
-			if (single_precision)
+			if(binary_hist)
 			{
-				pl.m()[ind] = sr::data::read_binary<float32_t>(input);
-				aei1[ind].x = sr::data::read_binary<float32_t>(input);
-				aei1[ind].y = sr::data::read_binary<float32_t>(input);
-				aei1[ind].z = sr::data::read_binary<float32_t>(input);
-				oom1[ind].x = sr::data::read_binary<float32_t>(input);
-				oom1[ind].y = sr::data::read_binary<float32_t>(input);
-				oom1[ind].z = sr::data::read_binary<float32_t>(input);
+				if (single_precision)
+				{
+					m1[ind] = sr::data::read_binary<float32_t>(input);
+					rplsq1[ind] = sr::data::read_binary<float32_t>(input);
+					aei1[ind].x = sr::data::read_binary<float32_t>(input);
+					aei1[ind].y = sr::data::read_binary<float32_t>(input);
+					aei1[ind].z = sr::data::read_binary<float32_t>(input);
+					oom1[ind].x = sr::data::read_binary<float32_t>(input);
+					oom1[ind].y = sr::data::read_binary<float32_t>(input);
+					oom1[ind].z = sr::data::read_binary<float32_t>(input);
+				}
+				else
+				{
+					m1[ind] = sr::data::read_binary<double>(input);
+					rplsq1[ind] = sr::data::read_binary<double>(input);
+					aei1[ind].x = sr::data::read_binary<double>(input);
+					aei1[ind].y = sr::data::read_binary<double>(input);
+					aei1[ind].z = sr::data::read_binary<double>(input);
+					oom1[ind].x = sr::data::read_binary<double>(input);
+					oom1[ind].y = sr::data::read_binary<double>(input);
+					oom1[ind].z = sr::data::read_binary<double>(input);
+				}
 			}
 			else
 			{
-				pl.m()[ind] = sr::data::read_binary<double>(input);
-				aei1[ind].x = sr::data::read_binary<double>(input);
-				aei1[ind].y = sr::data::read_binary<double>(input);
-				aei1[ind].z = sr::data::read_binary<double>(input);
-				oom1[ind].x = sr::data::read_binary<double>(input);
-				oom1[ind].y = sr::data::read_binary<double>(input);
-				oom1[ind].z = sr::data::read_binary<double>(input);
+				input >> m1[ind] >> rplsq1[ind] >> aei1[ind].x >> aei1[ind].y >> aei1[ind].z
+						  >> oom1[ind].x >> oom1[ind].y >> oom1[ind].z;
 			}
 
 
@@ -426,6 +480,7 @@ namespace interp
 
 			// the mass is the mass at the end of the interval
 			reduced_m[i] = m1[ind];
+			reduced_rplsq[i] = rplsq1[ind];
 
 			reduced_aei_i[i] = aei0[ind];
 			reduced_oom_i[i] = oom0[ind];

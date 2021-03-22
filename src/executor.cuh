@@ -41,6 +41,7 @@ namespace exec
 
 		std::ostream& output;
 		std::ostream* encounter_output;
+		std::ofstream discard_output;
 		std::ofstream temp_log;
 
 		size_t resync_counter;
@@ -56,19 +57,17 @@ namespace exec
 		Executor(HostData& hd, DeviceData& dd, const Configuration& config, std::ostream& out);
 
 		void init();
+		size_t write_encounter(size_t begin, size_t end, double prev_t);
 		void upload_data(size_t begin, size_t length);
 		void upload_planet_log();
 		void download_data(size_t begin, size_t length);
 
-		std::ofstream out_timing;
-
-
 		double time() const;
-		bool loop(double* cputime, double* gputime);
-		void handle_encounters(bool do_work);
+		bool loop(double* cputime, double* gputime, double* totaltime, size_t* nencounter);
+		size_t handle_encounters(bool do_work);
 		void add_job(const std::function<void()>& job);
 		void resync();
-		void resync2();
+		size_t resync2();
 		void finish();
 		void swap_logs();
 		void update_planets();
