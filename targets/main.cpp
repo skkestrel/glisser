@@ -205,13 +205,13 @@ int main(int argc, char** argv)
 					if (log_out)
 					{
 						tout << std::setprecision(4) << std::endl;
-						tout << "t=" << ex.t << " (" << std::setw(4) << elapsed / total * 100 << "%) | " << std::setw(6) << elapsed << "m elapsed | "
-							 << std::setw(6) << total << "m total | " << std::setw(6) <<  total - elapsed << "m remain | ";
+						tout << std::setw(4) << "t=" << ex.t << " (" << std::setw(4) << elapsed / total * 100 << "%) | " << std::setw(6) 
+						     << elapsed << "m elapsed | "  << std::setw(6) << total << "m total | " << std::setw(6) <<  total - elapsed << "m remain | ";
 						tout << ex.hd.particles.n_alive() << " particles alive " << std::endl;
 
-						tout << "GPU time (First)    : " << std::setw(6) << gputime                << " | CPU time (First):     " 
-							 << std::setw(6) << cputime                 << " | LOOP time (First):     " 
-							 << std::setw(6) << looptime                << " (ms)" << " | N encounters (First):     " 
+						tout << "GPU time (Single)    : " << std::setw(6) << gputime                << " | CPU time (Single):     " 
+							 << std::setw(6) << cputime                 << " | LOOP time (Single):     " 
+							 << std::setw(6) << looptime                << " (ms)" << " | N encounters (Single):     " 
 							 << n_encounter << std::endl;
 
 						tout << "GPU time (Cumulative): " << std::setw(6) << cumulated_gputime/1000 << " | CPU time (Cumulative): " 

@@ -1,5 +1,5 @@
 c*************************************************************************
-c                            UTIL_HILLS.F
+c                            UTIL_HILLS_R.F
 c*************************************************************************
 c This subroutine calculates the hill's sphere for the planets using heliocentric distance
 c
@@ -20,7 +20,7 @@ c Authors:  Hal Levison , KZ
 c Date:    2/19/93
 c Last revision: 1/6/97
 
-      subroutine util_hills_g(nbod,mass,xh,yh,zh,vxh,vyh,vzh,r2hill) 
+      subroutine util_hills_r(nbod,mass,xh,yh,zh,vxh,vyh,vzh,r2hill) 
 
       include '../swift.inc'
 
