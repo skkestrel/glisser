@@ -84,14 +84,16 @@ namespace exec
 	Executor::Executor(HostData& _hd, DeviceData& _dd, const Configuration& _config, std::ostream& out)
 		: hd(_hd), dd(_dd), output(out), config(_config), resync_counter(0) { }
 
+
 	// this should be called after hd is populated
 	void Executor::init()
 	{
 		alloc_packed();
 			
 		// temp_log.open("temp_log_executor.txt");
+
 		// glisse only supports helio
-		sr::convert::to_helio(hd);
+		// sr::convert::to_helio(hd);
 
 		if (config.interp_planets)
 		{
@@ -180,21 +182,23 @@ namespace exec
 		// ** INITIALIZE PARTICLES
 
 
-		// partition alive
+		// partition unflagged (any particles with zero low byte, or deathflag & 0x00FF == 0)
 		hd.particles.stable_partition_unflagged(0, hd.particles.n());
 
 		// now, n_alive = n_unflagged
-		size_t n_alive = hd.particles.n_alive();
+		size_t n_unflagged = hd.particles.n_alive();
 
-		// bring the encounter particles to the beginning
-		hd.particles.stable_partition_alive(n_alive, hd.particles.n() - n_alive);
-		// now, n_alive = total alive (enc + nonenc)
+		// particles having close encounters with any planets (sun excluded)
+		hd.particles.stable_partition_alive(n_unflagged, hd.particles.n() - n_unflagged);
+
+		// now, n_alive = total alive (enc + unflagged)
+		size_t n_alive = hd.particles.n_alive();
 
 		// don't need to upload if no particles
 		if (hd.particles.n() > 0)
 		{
 			upload_data(0, hd.particles.n());
-			dd.particle_phase_space().n_alive = hd.particles.n_alive();
+			dd.particle_phase_space().n_alive = n_alive;
 		}
 
 		// download data right after uploading -
@@ -206,72 +210,18 @@ namespace exec
 		output << "       Starting simulation.       " << std::endl << std::endl;
 
 		discard_output = std::ofstream(sr::util::joinpath(config.outfolder, "discard.out"));
-		*encounter_output << std::setprecision(17);
+		if(config.write_encounter_log) *encounter_output << std::setprecision(17);
 		discard_output << std::setprecision(17);
 
 		hd.planets_snapshot = hd.planets.base;
 
 		// upload planet data before the first timechunk
-		update_planets();	
+		update_planets();
+
+		// write all dead particles before the integration starts.
 		write_encounter(n_alive, hd.particles.n(), t);
 
 		// out_timing << "t,      n_enc,  enc,    wswift, iswift, swift,  rswift, dswift, io,     planet, planetu,encup,  sort,   dl,     endenc, resync, cpu,    gpu,    total" << std::endl;
-	}
-
-	size_t Executor::write_encounter(size_t begin, size_t end, double prev_t)
-	{
-		size_t deathcount = 0;
-		for (size_t i = begin; i < end; i++)
-		{	
-			uint32_t d_index = hd.particles.deathtime_index()[i];
-			double deathtime = static_cast<double>(d_index) * cur_dt  + prev_t;
-			hd.particles.deathtime_map()[hd.particles.id()[i]] = deathtime;
-			// t = time at the end of this chunk
-			// hd.particles.deathtime_map()[hd.particles.id()[i]] = static_cast<float>(t);
-			// deathtime = t;
-
-			if (encounter_output)
-			{
-				if (hd.particles.deathflags()[i] & 0x01)
-				{
-					if (hd.particles.deathflags()[i] >> 8) 
-					{
-						*encounter_output << "[E] " << hd.particles.id()[i] << " w/ " << (hd.particles.deathflags()[i] >> 8) << " at " << deathtime << std::endl;
-					}
-					else
-					{
-						discard_output << "[D] " << hd.particles.id()[i] << " enter_inner_bound_at " << deathtime << std::endl;
-						output << "[D] " << hd.particles.id()[i] << " enter inner bound at " << deathtime << std::endl;
-						deathcount++;
-					}
-				}
-				else if (hd.particles.deathflags()[i] & 0x02)
-				{
-					discard_output << "[D] " << hd.particles.id()[i] << " exceed_outer_bound_at " << deathtime << std::endl;
-					output << "[D] " << hd.particles.id()[i] << " exceed outer bound at " << deathtime << std::endl;
-					deathcount++;
-				}
-				else if (hd.particles.deathflags()[i] & 0x04)
-				{
-					discard_output << "[D] " << hd.particles.id()[i] << " did_not_converge_at " << deathtime << std::endl;
-					output << "[D] " << hd.particles.id()[i] << " did not converge at " << deathtime << std::endl;
-					deathcount++;
-				}
-				else if (hd.particles.deathflags()[i] & 0x08)
-				{
-					discard_output << "[D] " << hd.particles.id()[i] << " orbit_unbound_at " << deathtime << std::endl;
-					output << "[D] " << hd.particles.id()[i] << " orbit unbound at " << deathtime << std::endl;
-					deathcount++;
-				}
-				else if (hd.particles.deathflags()[i] & 0x80)
-				{
-					discard_output << "[D] " << hd.particles.id()[i] << " absorbed_by "  << (hd.particles.deathflags()[i] >> 8) << " at " << deathtime << std::endl;
-					output << "[D] " << hd.particles.id()[i] << " absorbed by "  << (hd.particles.deathflags()[i] >> 8) << " at " << deathtime << std::endl;
-					deathcount++;
-				}
-			}
-		}
-		return deathcount;
 	}
 
 	void Executor::swap_logs()
@@ -411,9 +361,10 @@ namespace exec
 			VEC_EL_SIZE(hd.particles.deathflags()) + 
 			VEC_EL_SIZE(hd.particles.deathtime_index());
 
-		cudaMallocHost((uint8_t**) &cpu_packed_mem, size_particle * n_particle);
-		cudaMalloc((uint8_t**) &gpu_packed_mem, size_particle * n_particle);
 		packed_mem_size = size_particle * n_particle;
+		cudaMallocHost((uint8_t**) &cpu_packed_mem, packed_mem_size);
+		cudaMalloc((uint8_t**) &gpu_packed_mem, packed_mem_size);
+		
 	}
 
 	void Executor::download_data(size_t begin, size_t length)
@@ -540,6 +491,293 @@ namespace exec
 		return millis.count() / 60000;
 	}
 
+
+
+	bool Executor::loop(double* cputimeout, double* gputimeout, double* totaltimeout, size_t* nencounter)
+	{
+		// At the beginning of the loop the following things should be true:
+		// No GPU or CPU processes are running
+		// The next timeblock should be loaded on the GPU
+		// cur_tbsize refers to the size of that timeblock
+		// prev_tbsize refers to the size of the previous timeblock
+		// planet logs (old and new are filled with prev_tbsize and cur_tbsize entries, respectively)
+		// particles on the GPU have an acceleration loaded (integerator.particle_a)
+		// -> this can come from either the previous GPU kernel run, or, the WHIntegrator constructor
+		// the time refers to the time before the next GPU kernel, which is also equal to the time at the start of the current planet log
+		// it's possible that not all particles have reached the current t, since they might be about to be stepped forward on SWIFT all the way until
+		// t + cur_tbsize * dt
+		// t = the time at the start of the block that is about to be calculated
+
+		// t_initswift = t_delayswift = t_enc = t_swift = t_writeswift = t_readswift = t_io = t_planet = t_planetup = t_encup = t_sort = t_dl = t_enc2 = t_resync = 0;
+
+		// size_t n_swift = 0;
+		auto t_start = hrclock::now();
+
+		size_t n_enc = hd.particles.n_encounter();
+		*nencounter = 0;
+		
+		if (dd.particle_phase_space().n_alive > 0)
+		{
+			// if resolving encounters, we need the particle states at the beginning of the chunk
+			// so that encounter particles can be rolled back to their initial state
+
+			// manual diagram [1] Backup particle states (Copy particle states to duplicate array)
+			if (config.resolve_encounters)
+			{
+				memcpy_dtd(rollback_state.r, dd.particle_phase_space().r, main_stream);
+				memcpy_dtd(rollback_state.v, dd.particle_phase_space().v, main_stream);
+				memcpy_dtd(rollback_state.deathflags, dd.particle_phase_space().deathflags, main_stream);
+				memcpy_dtd(rollback_state.deathtime_index, dd.particle_phase_space().deathtime_index, main_stream);
+				memcpy_dtd(rollback_state.id, dd.particle_phase_space().id, main_stream);
+
+				rollback_state.n_alive = dd.particle_phase_space().n_alive;
+				rollback_state.n_total = dd.particle_phase_space().n_total;
+				cudaStreamSynchronize(main_stream);
+			}
+			
+
+			cudaEventRecord(start_event, main_stream);
+
+			// manual diagram [2] Commence GPU integration
+			integrator.integrate_particles_timeblock_cuda(
+				main_stream,
+				dd.planet_data_id,
+				dd.planet_phase_space(),
+				dd.particle_phase_space(),
+				cur_dt
+			);
+
+			cudaEventRecord(gpu_finish_event, main_stream);
+		}
+
+		auto c_start = hrclock::now();
+
+		// do work after GPU starts
+		// this is typically all file I/O
+		// when encounters are enabled, handle_encounters handles the work vector
+		if (config.resolve_encounters && hd.particles.n_encounter() > 0)
+		{
+			auto cl = hrclock::now();
+			*nencounter += handle_encounters(false);
+			t_enc = dt_ms(cl, hrclock::now());
+		}
+		else
+		{
+			auto cl = hrclock::now();
+			nvtxRangeId_t id2 = nvtxRangeStartA("io");
+
+			for (auto& i : work) i();
+			work.clear();
+			t_io = dt_ms(cl, hrclock::now());
+			nvtxRangeEnd(id2);
+
+			nvtxRangeId_t id3 = nvtxRangeStartA("planets");
+
+			// The snapshot contains the planet states at the end of the current timechunk (= beginning of next timechunk)
+			// this is necessary since update_planets brings all the planets one timechunk forward
+			// e.g. if the integration finishes at t=1, update_planets will still bring the planets forward to t=1 + dt
+			// so in order to get the correct planetary positions, we need to record the planet positions before they get updated
+			hd.planets_snapshot = hd.planets.base;
+
+			// step time forward
+			t += cur_dt * static_cast<double>(cur_tbsize);
+
+			// calculate planetary positions for the next chunk - this is REALLY important and also very subtle
+			// usually, this would be called at the very end of loop() but
+			// we can save some time by doing this here
+			// HOWEVER, doing this here means that the planets are now one entire time chunk ahead of the particles
+			// for the remainder of loop()
+			// it's VERY important to make sure that we're using the correct data
+
+			// IF A FUNCTION IS CALLED AFTER UPDATE_PLANETS: USE OLD DATA (e.g. prev_dt, prev_tbsize, pl.r_log.get<old=true>, etc...)
+			update_planets();
+			nvtxRangeEnd(id3);
+		}
+		if (cputimeout) *cputimeout = dt_ms(c_start, hrclock::now());
+
+
+		float gputime = 0;
+
+		// there's nothing to resync if the GPU didn't integrate any particles, i.e. dd.particles.n_alive = 0
+		if (dd.particle_phase_space().n_alive > 0)
+		{
+			// this stuff is queued up after the integration finishes
+			auto& particles = dd.particle_phase_space();
+
+			// kill particles in encounters - we do this by setting
+			// the dead bit if the encounter bit is also set
+			if (!config.resolve_encounters)
+			{
+				auto it = particles.begin();
+				thrust::async::for_each(thrust::cuda::par.on(main_stream), it, it + particles.n_alive, KillEncounterKernel());
+			}
+
+			// manual diagram [3] GPU presort
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
+			presort_index = thrust::partition(thrust::cuda::par.on(main_stream),
+					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+
+			// ------------------------
+
+			// manual diagram [17] WAIT FOR GPU
+			cudaStreamSynchronize(main_stream);
+			cudaStreamSynchronize(htd_stream);
+			cudaEventSynchronize(gpu_finish_event);
+
+			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
+			if (gputimeout) *gputimeout = gputime;
+
+			// resync_every is guaranteed to be 1 if encounters are enabled
+			resync_counter++;
+			if (resync_counter % config.resync_every == 0)
+			{
+				auto clock = hrclock::now();
+				*nencounter += resync2();
+				t_resync = dt_ms(clock, hrclock::now());
+				if (cputimeout) *cputimeout += t_resync;
+			}
+		}
+
+		
+
+		// out_timing << std::left << std::fixed << std::setprecision(3);
+		// out_timing << std::setw(8) << t;
+		// out_timing << std::setw(8) << n_enc;
+		// out_timing << std::setw(8) << t_enc;
+		// out_timing << std::setw(8) << t_writeswift;
+		// out_timing << std::setw(8) << t_initswift;
+		// out_timing << std::setw(8) << t_swift;
+		// out_timing << std::setw(8) << t_readswift;
+		// out_timing << std::setw(8) << t_delayswift;
+		// out_timing << std::setw(8) << t_io;
+		// out_timing << std::setw(8) << t_planet;
+		// out_timing << std::setw(8) << t_planetup;
+		// out_timing << std::setw(8) << t_encup;
+		// out_timing << std::setw(8) << t_sort;
+		// out_timing << std::setw(8) << t_dl;
+		// out_timing << std::setw(8) << t_enc2;
+		// out_timing << std::setw(8) << t_resync;
+		// out_timing << std::setw(8) << *cputimeout;
+		// out_timing << std::setw(8) << *gputimeout;
+		
+		// out_timing << std::endl;
+
+		// if not resolving encounters, every time is safe to end on
+		// if resolving encounters, only timechunks that end the lookup interval are safe
+
+		if (totaltimeout) *totaltimeout = dt_ms(t_start, hrclock::now());
+		return starting_lookup_interval || !config.resolve_encounters;
+	}
+
+	size_t Executor::resync2()
+	{
+		// this is a simplified version of the resync algorithm which reads the entire particle arrays, this
+		// means that the algorithm doesn't need to match particle ids when reading
+
+		auto& particles = dd.particle_phase_space();
+		
+		// previous alive particles
+		size_t prev_alive = particles.n_alive;
+		
+
+		auto clock = hrclock::now();
+
+		cudaEventRecord(start_event, sort_stream);
+
+		// partition twice
+		// manual diagram [18] Postsort
+		if (config.resolve_encounters)
+		{
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
+
+			// Here particles.n_alive = all particles with non-zero flags, which is actually n_flagged.
+			// Notice alive encounter particles coming from SWIFT have their deathflags reset to 0,
+			particles.n_alive = thrust::partition(thrust::cuda::par.on(sort_stream),
+					partition_it + presort_index, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+			
+			// the second partition for encounter particles only needs to run between n_alive and prev_alive, since all the alive particles
+			// will be pushed to the beginning anyways
+			hd.particles.n_encounter() = (thrust::partition(thrust::cuda::par.on(sort_stream),
+					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
+
+			cudaStreamSynchronize(sort_stream);
+		}
+		else
+		{
+			particles.n_alive = presort_index;
+		}
+
+		size_t n_unflagged = particles.n_alive;
+
+		cudaEventRecord(gpu_finish_event, sort_stream);
+
+		cudaEventSynchronize(gpu_finish_event);
+		t_sort = dt_ms(clock, hrclock::now());
+
+		float elapsed;
+		cudaEventElapsedTime(&elapsed, start_event, gpu_finish_event);
+		t_sort = elapsed;
+
+
+		clock = hrclock::now();
+		// copy everything back - n_alive is also copied from device to host
+		// manual diagram [19] Download particle data
+		download_data(0, particles.n_total);
+		
+		t_dl = dt_ms(clock, hrclock::now());
+		
+		// output << std::setprecision(8) << t << " " << n_unflagged;
+
+		
+		// for encounter particles, use the rollback data
+		// manual diagram [20] Roll-back encounte particles
+		if (hd.particles.n_encounter() > 0)
+		{
+			memcpy_dth(hd.particles.r(), rollback_state.r, dth_stream, particles.n_alive, particles.n_alive, hd.particles.n_encounter());
+			cudaStreamSynchronize(dth_stream);
+			memcpy_dth(hd.particles.v(), rollback_state.v, dth_stream, particles.n_alive, particles.n_alive, hd.particles.n_encounter());
+			cudaStreamSynchronize(dth_stream);
+		}
+
+		bool sync_to_end = starting_lookup_interval && hd.particles.n_encounter() > 0;
+		size_t nencounter = 0;
+
+		// handle particles that just entered encounter, and partition again
+		if (sync_to_end)
+		{
+			clock = hrclock::now();
+
+			size_t n_encounters = hd.particles.n_encounter();
+
+			// manual diagram [21] Perform end-chunk encounters to sync to interval boundary
+			nencounter = handle_encounters(true);
+
+			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
+
+			// since we only updated encounter particles, we do a partial partition
+
+			particles.n_alive = thrust::partition(thrust::cuda::par.on(sort_stream),
+					partition_it + particles.n_alive - n_encounters, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+			
+			hd.particles.n_encounter() = (thrust::partition(thrust::cuda::par.on(sort_stream),
+					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
+
+			// and also only a partial download
+			// download_data(n_unflagged, n_encounters);
+
+			cudaStreamSynchronize(main_stream);
+			cudaStreamSynchronize(htd_stream);
+			cudaStreamSynchronize(dth_stream);
+			cudaStreamSynchronize(sort_stream);
+
+			download_data(0, particles.n_total);
+			t_enc2 = dt_ms(clock, hrclock::now());
+			// output << " " << n_encounters;
+		}
+		write_encounter(n_unflagged, prev_alive, t - cur_dt * static_cast<double>(cur_tbsize));
+		return nencounter;
+	}
+
 	size_t Executor::handle_encounters(bool called_from_resync)
 	{
 		size_t encounter_start = hd.particles.n_alive() - hd.particles.n_encounter();
@@ -631,6 +869,8 @@ namespace exec
 		// load accelerations (the planets already have h0 loaded, so no problem here)
 
 		// manual diagram [12]
+		// Done on CPU
+		// helio_acc_particles detect all encounter particles and particles leave the inner or outer bounds, and reset their deathflags.
 		integrator.helio_acc_particles(
 			hd.planets,
 			hd.particles,
@@ -641,14 +881,14 @@ namespace exec
 			true // use the old log since we just updated the planets
 		);
 
-		// since helio_acc_particles sets deathflags, unset them IFF in encounter since we want the GPU to detect an encounter, delayed
-		for (size_t i = encounter_start; i < encounter_start + hd.particles.n_encounter(); i++)
-		{
-			if ((hd.particles.deathflags()[i] & 0xFF) == 0x01)
-			{
-				hd.particles.deathflags()[i] = 0;
-			}
-		}
+		// Since helio_acc_particles sets deathflags, unset them IFF in encounter since we want the GPU to detect an encounter, delayed
+		// for (size_t i = encounter_start; i < encounter_start + hd.particles.n_encounter(); i++)
+		// {
+		// 	if ((hd.particles.deathflags()[i] & 0xFF) == 0x01)
+		// 	{
+		// 		hd.particles.deathflags()[i] = 0;
+		// 	}
+		// }
 
 		clocks = hrclock::now();
 		nvtxRangeId_t id4 = nvtxRangeStartA("io");
@@ -670,279 +910,60 @@ namespace exec
 		return hd.particles.n_encounter();
 	}
 
-	bool Executor::loop(double* cputimeout, double* gputimeout, double* totaltimeout, size_t* nencounter)
+	void Executor::write_encounter(size_t begin, size_t end, double prev_t)
 	{
-		// At the beginning of the loop the following things should be true:
-		// No GPU or CPU processes are running
-		// The next timeblock should be loaded on the GPU
-		// cur_tbsize refers to the size of that timeblock
-		// prev_tbsize refers to the size of the previous timeblock
-		// planet logs (old and new are filled with prev_tbsize and cur_tbsize entries, respectively)
-		// particles on the GPU have an acceleration loaded (integerator.particle_a)
-		// -> this can come from either the previous GPU kernel run, or, the WHIntegrator constructor
-		// the time refers to the time before the next GPU kernel, which is also equal to the time at the start of the current planet log
-		// it's possible that not all particles have reached the current t, since they might be about to be stepped forward on SWIFT all the way until
-		// t + cur_tbsize * dt
-		// t = the time at the start of the block that is about to be calculated
+		for (size_t i = begin; i < end; i++)
+		{	
+			auto& pa = hd.particles;
+			uint32_t d_index = pa.deathtime_index()[i];
+			double deathtime = static_cast<double>(d_index) * cur_dt  + prev_t;
+			// t = time at the end of this chunk
+			// hd.particles.deathtime_map()[hd.particles.id()[i]] = static_cast<float>(t);
+			// deathtime = t;
 
-		// t_initswift = t_delayswift = t_enc = t_swift = t_writeswift = t_readswift = t_io = t_planet = t_planetup = t_encup = t_sort = t_dl = t_enc2 = t_resync = 0;
+			discard_output << std::setprecision(17);
 
-		size_t n_swift = 0;
-		auto t_start = hrclock::now();
-
-		size_t n_enc = hd.particles.n_encounter();
-		*nencounter = 0;
-		
-		if (dd.particle_phase_space().n_alive > 0)
-		{
-			// if resolving encounters, we need the particle states at the beginning of the chunk
-			// so that encounter particles can be rolled back to their initial state
-
-			// manual diagram [1] Backup particle states (Copy particle states to duplicate array)
-			if (config.resolve_encounters)
+			if (pa.deathflags()[i] & 0x01)
 			{
-				memcpy_dtd(rollback_state.r, dd.particle_phase_space().r, main_stream);
-				memcpy_dtd(rollback_state.v, dd.particle_phase_space().v, main_stream);
-				memcpy_dtd(rollback_state.deathflags, dd.particle_phase_space().deathflags, main_stream);
-				memcpy_dtd(rollback_state.deathtime_index, dd.particle_phase_space().deathtime_index, main_stream);
-				memcpy_dtd(rollback_state.id, dd.particle_phase_space().id, main_stream);
-
-				rollback_state.n_alive = dd.particle_phase_space().n_alive;
-				rollback_state.n_total = dd.particle_phase_space().n_total;
-				cudaStreamSynchronize(main_stream);
+				if (pa.deathflags()[i] >> 8) 
+				{
+					if(config.write_encounter_log) *encounter_output << "[E] " << pa.id()[i] << " w/ " << (pa.deathflags()[i] >> 8) << " at " << deathtime << std::endl;
+				}
+				else
+				{
+					double helio_dist = sqrt(pa.r()[i].lensq());
+					discard_output << "[D] " << pa.id()[i] << " enter_inner_bound_at " << deathtime << " at_helio_dist_of " << std::setprecision(7) << helio_dist << std::endl;
+					output << "[D] " << pa.id()[i] << " enter inner bound at " << deathtime << " at helio dist of " << helio_dist << std::endl;
+				}
+			}
+			else if (pa.deathflags()[i] & 0x02)
+			{
+				double helio_dist = sqrt(pa.r()[i].lensq());
+				discard_output << "[D] " << pa.id()[i] << " exceed_outer_bound_at " << deathtime << " at_helio_dist_of " << std::setprecision(7) << helio_dist << std::endl;
+				output << "[D] " << pa.id()[i] << " exceed outer bound at " << deathtime << " at helio dist of " << helio_dist << std::endl;
+			}
+			else if (pa.deathflags()[i] & 0x04)
+			{
+				double a, e;
+				sr::convert::to_elements(hd.planets.m()[0], pa.r()[i], pa.v()[i], nullptr, &a, &e);
+				discard_output << "[D] " << pa.id()[i] << " did_not_converge_at " << deathtime << " at_e_of " << std::setprecision(7) << e << std::endl;
+				output << "[D] " << pa.id()[i] << " did not converge at " << deathtime << " at e of " << e << std::endl;
+			}
+			else if (pa.deathflags()[i] & 0x08)
+			{
+				double helio_dist = sqrt(pa.r()[i].lensq());
+				discard_output << "[D] " << pa.id()[i] << " orbit_unbound_at " << deathtime << " at_helio_dist_of " << std::setprecision(7) << helio_dist << std::endl;
+				output << "[D] " << pa.id()[i] << " orbit unbound at " << deathtime << " at helio dist of " << helio_dist << std::endl;
+			}
+			else if (pa.deathflags()[i] & 0x80)
+			{
+				double closest_approch = pa.deathtime_map()[pa.id()[i]];
+				discard_output << "[D] " << pa.id()[i] << " absorbed_by "  << (pa.deathflags()[i] >> 8) << " at " << deathtime << " at_closest_approach_of "<< std::setprecision(7) << closest_approch << std::endl;
+				output << "[D] " << pa.id()[i] << " absorbed by "  << (pa.deathflags()[i] >> 8) << " at " << deathtime << " at closest approach of " << closest_approch << std::endl;
 			}
 
-			cudaEventRecord(start_event, main_stream);
-
-			// manual diagram [2] Commence GPU integration
-			integrator.integrate_particles_timeblock_cuda(
-				main_stream,
-				dd.planet_data_id,
-				dd.planet_phase_space(),
-				dd.particle_phase_space(),
-				cur_dt
-			);
-
-			cudaEventRecord(gpu_finish_event, main_stream);
-
-			// this stuff is queued up after the integration finishes
-
-			auto& particles = dd.particle_phase_space();
-
-			// kill particles in encounters - we do this by setting
-			// the dead bit if the encounter bit is also set
-			if (!config.resolve_encounters)
-			{
-				auto it = particles.begin();
-				thrust::for_each(thrust::cuda::par.on(main_stream), it, it + particles.n_alive, KillEncounterKernel());
-			}
-
-			// manual diagram [3] Queue GPU presort
-			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
-			presort_index = thrust::partition(thrust::cuda::par.on(main_stream),
-					partition_it, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
+			pa.deathtime_map()[pa.id()[i]] = deathtime;
 		}
-
-		auto c_start = hrclock::now();
-
-		size_t n_encounter_start = hd.particles.n_encounter();
-		// do work after GPU starts
-		// this is typically all file I/O
-		// when encounters are enabled, handle_encounters handles the work vector
-		if (config.resolve_encounters && hd.particles.n_encounter() > 0)
-		{
-			auto cl = hrclock::now();
-			*nencounter += handle_encounters(false);
-			t_enc = dt_ms(cl, hrclock::now());
-		}
-		else
-		{
-			auto cl = hrclock::now();
-			nvtxRangeId_t id2 = nvtxRangeStartA("io");
-
-			for (auto& i : work) i();
-			work.clear();
-			t_io = dt_ms(cl, hrclock::now());
-			nvtxRangeEnd(id2);
-
-			nvtxRangeId_t id3 = nvtxRangeStartA("planets");
-
-			// The snapshot contains the planet states at the end of the current timechunk (= beginning of next timechunk)
-			// this is necessary since update_planets brings all the planets one timechunk forward
-			// e.g. if the integration finishes at t=1, update_planets will still bring the planets forward to t=1 + dt
-			// so in order to get the correct planetary positions, we need to record the planet positions before they get updated
-			hd.planets_snapshot = hd.planets.base;
-
-			// step time forward
-			t += cur_dt * static_cast<double>(cur_tbsize);
-
-			// calculate planetary positions for the next chunk - this is REALLY important and also very subtle
-			// usually, this would be called at the very end of loop() but
-			// we can save some time by doing this here
-			// HOWEVER, doing this here means that the planets are now one entire time chunk ahead of the particles
-			// for the remainder of loop()
-			// it's VERY important to make sure that we're using the correct data
-
-			// IF A FUNCTION IS CALLED AFTER UPDATE_PLANETS: USE OLD DATA (e.g. prev_dt, prev_tbsize, pl.r_log.get<old=true>, etc...)
-			update_planets();
-			nvtxRangeEnd(id3);
-		}
-		if (cputimeout) *cputimeout = dt_ms(c_start, hrclock::now());
-
-		float gputime = 0;
-
-		// there's nothing to resync if the GPU didn't integrate any particles, i.e. dd.particles.n_alive = 0
-		if (dd.particle_phase_space().n_alive > 0)
-		{
-			// manual diagram [17] WAIT FOR GPU
-			cudaStreamSynchronize(main_stream);
-			cudaStreamSynchronize(htd_stream);
-			cudaEventSynchronize(gpu_finish_event);
-
-			cudaEventElapsedTime(&gputime, start_event, gpu_finish_event);
-			if (gputimeout) *gputimeout = gputime;
-
-			// resync_every is guaranteed to be 1 if encounters are enabled
-			resync_counter++;
-			if (resync_counter % config.resync_every == 0)
-			{
-				auto clock = hrclock::now();
-				*nencounter += resync2();
-				t_resync = dt_ms(clock, hrclock::now());
-				if (cputimeout) *cputimeout += t_resync;
-			}
-		}
-
-		
-
-		// out_timing << std::left << std::fixed << std::setprecision(3);
-		// out_timing << std::setw(8) << t;
-		// out_timing << std::setw(8) << n_enc;
-		// out_timing << std::setw(8) << t_enc;
-		// out_timing << std::setw(8) << t_writeswift;
-		// out_timing << std::setw(8) << t_initswift;
-		// out_timing << std::setw(8) << t_swift;
-		// out_timing << std::setw(8) << t_readswift;
-		// out_timing << std::setw(8) << t_delayswift;
-		// out_timing << std::setw(8) << t_io;
-		// out_timing << std::setw(8) << t_planet;
-		// out_timing << std::setw(8) << t_planetup;
-		// out_timing << std::setw(8) << t_encup;
-		// out_timing << std::setw(8) << t_sort;
-		// out_timing << std::setw(8) << t_dl;
-		// out_timing << std::setw(8) << t_enc2;
-		// out_timing << std::setw(8) << t_resync;
-		// out_timing << std::setw(8) << *cputimeout;
-		// out_timing << std::setw(8) << *gputimeout;
-		
-		// out_timing << std::endl;
-
-		// if not resolving encounters, every time is safe to end on
-		// if resolving encounters, only timechunks that end the lookup interval are safe
-
-		if (totaltimeout) *totaltimeout = dt_ms(t_start, hrclock::now());
-		return starting_lookup_interval || !config.resolve_encounters;
-	}
-
-	size_t Executor::resync2()
-	{
-		// this is a simplified version of the resync algorithm which reads the entire particle arrays, this
-		// means that the algorithm doesn't need to match particle ids when reading
-
-		auto& particles = dd.particle_phase_space();
-		
-		// previous alive particles
-		size_t prev_alive = particles.n_alive;
-
-		auto clock = hrclock::now();
-
-		cudaEventRecord(start_event, sort_stream);
-
-		// partition twice
-		// manual diagram [18] Postsort
-		if (config.resolve_encounters)
-		{
-			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
-
-			particles.n_alive = thrust::partition(thrust::cuda::par.on(sort_stream),
-					partition_it + presort_index, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
-			
-			// the second partition for encounter particles only needs to run between n_alive and prev_alive, since all the alive particles
-			// will be pushed to the beginning anyways
-			hd.particles.n_encounter() = (thrust::partition(thrust::cuda::par.on(sort_stream),
-					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
-
-			cudaStreamSynchronize(sort_stream);
-		}
-		else
-		{
-			particles.n_alive = presort_index;
-		}
-
-		cudaEventRecord(gpu_finish_event, sort_stream);
-
-		cudaEventSynchronize(gpu_finish_event);
-		t_sort = dt_ms(clock, hrclock::now());
-
-		float elapsed;
-		cudaEventElapsedTime(&elapsed, start_event, gpu_finish_event);
-		t_sort = elapsed;
-
-
-		clock = hrclock::now();
-		// copy everything back - n_alive is also copied from device to host
-		// manual diagram [19] Download particle data
-		download_data(0, particles.n_total);
-		
-		t_dl = dt_ms(clock, hrclock::now());
-
-		// set the deathtime for dead particles - let's set the encounter particles deathtimes too, just to show when they entered encounter
-		// here t refers to the ending time of the timechunk
-		
-		size_t temp_alive = particles.n_alive;
-		// output << std::setprecision(8) << t << " " << temp_alive;
-
-		size_t deathcount = write_encounter(temp_alive, prev_alive, t - cur_dt * static_cast<double>(cur_tbsize));
-		// for encounter particles, use the rollback data
-		// manual diagram [20] Roll-back encounte particles
-		if (hd.particles.n_encounter() > 0)
-		{
-			memcpy_dth(hd.particles.r(), rollback_state.r, dth_stream, particles.n_alive, particles.n_alive, hd.particles.n_encounter());
-			cudaStreamSynchronize(dth_stream);
-			memcpy_dth(hd.particles.v(), rollback_state.v, dth_stream, particles.n_alive, particles.n_alive, hd.particles.n_encounter());
-			cudaStreamSynchronize(dth_stream);
-		}
-		size_t nencounter = 0;
-		// handle particles that just entered encounter, and partition again
-		if (starting_lookup_interval && hd.particles.n_encounter() > 0)
-		{
-			clock = hrclock::now();
-
-			size_t n_encounters = hd.particles.n_encounter();
-
-			// manual diagram [21] Perform end-chunk encounters to sync to interval boundary
-			nencounter = handle_encounters(true);
-
-			auto partition_it = thrust::make_zip_iterator(thrust::make_tuple(particles.begin(), rollback_state.begin(), integrator.device_begin()));
-
-			// since we only updated encounter particles, we do a partial partition
-
-			particles.n_alive = thrust::partition(thrust::cuda::par.on(sort_stream),
-					partition_it + particles.n_alive - n_encounters, partition_it + particles.n_alive, DeviceParticleUnflaggedPredicate()) - partition_it;
-			
-			hd.particles.n_encounter() = (thrust::partition(thrust::cuda::par.on(sort_stream),
-					partition_it + particles.n_alive, partition_it + prev_alive, DeviceParticleAlivePredicate()) - partition_it) - particles.n_alive;
-
-			cudaStreamSynchronize(sort_stream);
-
-			// and also only a partial download
-			download_data(temp_alive, n_encounters);
-			t_enc2 = dt_ms(clock, hrclock::now());
-			// output << " " << n_encounters;
-			write_encounter(particles.n_alive, prev_alive-deathcount, t - cur_dt * static_cast<double>(cur_tbsize));
-		}
-		// output << " " << particles.n_alive << " " << prev_alive << std::endl;
-		return nencounter;
 	}
 
 

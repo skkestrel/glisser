@@ -41,7 +41,7 @@ namespace swift
 			rstat.push_back(std::vector<double>(npa));
 		}
 
-		// temp_log.open("temp_log_swift.txt");
+		// temp_log.open("temp_log_swift.out");
 	}
 
 	std::pair<double, double> SwiftEncounterIntegrator::begin_integrate(
@@ -254,7 +254,7 @@ namespace swift
 					}
 				}
 
-				uint16_t deathflags = 0x0000;
+				uint16_t deathflags;
 				
 				// particle is dead
 				if (istat[0][statindex] == 1)
@@ -267,24 +267,45 @@ namespace swift
 					else if (istat[1][statindex] == -2)
 					{
 						// Orbit unbound (two body energy > 0)
-						deathflags = 0x08;
+						// Let GPU detect orbit unbound
+						deathflags = 0;
 					}
 					else if (istat[1][statindex] == -3)
 					{
 						// Exceed outer bound
-						deathflags = 0x02;
+						// Let GPU detect exceed outer
+						deathflags = 0;
 					}
 					else if (istat[1][statindex] == -4 || istat[1][statindex] == 1)
 					{
 						// enter inner bound
-						deathflags = 0x01;
+						// Let GPU detect enter inner bound
+						deathflags = 0;
 					}
 					else
 					{
+						// absorbed by planets
 						// first planet is index 1 here, or index 2 in swift
 						uint32_t planet_index = istat[1][statindex] - 2;
 						deathflags = static_cast<uint16_t>(planet_id_list[planet_index] << 8) | 0x80;
+
+						// uint32_t swift_planet_index = std::abs(istat[1][statindex]);
+						pa.deathtime_map()[pa.id()[i + child.chunk_begin]] = rstat[1][statindex];
 						// std::cout << istat[1][statindex] << " " << planet_id_list[planet_index] << std::endl;
+
+						// print out tpout
+						// temp_log << pa.id()[i + child.chunk_begin] << std::endl;
+						// for (size_t j = 0; j < swift_statlen; j++)
+						// {
+						// 	temp_log << istat[j][statindex] << " ";
+						// }
+						// temp_log << std::endl;
+						// for (size_t j = 0; j < swift_statlen; j++)
+						// {
+						// 	temp_log << rstat[j][statindex] << " ";
+						// }
+						// temp_log << std::endl << std::endl;
+						
 					}
 				}
 				
@@ -292,18 +313,18 @@ namespace swift
 				else
 				{
 					// still in encounter!
-					if (istat[1][statindex] != 0)
-					{
-						uint32_t swift_planet_index = std::abs(istat[1][statindex]);
-						// if we're in planet's hill sphere, decrease the istat count of that planet by one since we are ending in an encounter
-						if (istat[1][statindex] < 0)
-						{
-							istat[swift_planet_index + 1][statindex] -= 1;
-						}
+					// if (istat[1][statindex] != 0)
+					// {
+					// 	uint32_t swift_planet_index = std::abs(istat[1][statindex]);
+					// 	// if we're in planet's hill sphere, decrease the istat count of that planet by one since we are ending in an encounter
+					// 	if (istat[1][statindex] < 0)
+					// 	{
+					// 		istat[swift_planet_index + 1][statindex] -= 1;
+					// 	}
 
-						// even if we're in encounter, don't update the particle encounter flag
-						// instead, set the encounter flag to 0 and let the GPU detect that the particle is in encounter using hill radius
-					}
+					// 	// even if we're in encounter, don't update the particle encounter flag
+					// 	// instead, set the encounter flag to 0 and let the GPU detect that the particle is in encounter using hill radius
+					// }
 					deathflags = 0;
 				}
 

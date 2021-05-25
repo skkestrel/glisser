@@ -1,0 +1,25 @@
+# Directories
+Input-File examples/_input/big-JSUN.in
+Output-Folder examples/hist-JSUN-100m
+
+# Time
+Initial-Time 0
+Final-Time 36525000000
+Time-Step 100
+Time-Block-Size 5000
+
+# Write Intervals
+Resync-Interval 0
+Log-Interval 1000
+Dump-Interval 0
+Track-Interval 0
+Planet-History-Interval 1
+    Write-Binary-History 1
+    Write-Single-Precision-History 1
+
+# Other Parameters
+Max-Kepler-Iterations 5
+Hill-Radius-Factor 3.5
+Particle-Inner-Boundary 0.005
+Particle-Outer-Boundary 3000
+Particle-Count-Limit 0

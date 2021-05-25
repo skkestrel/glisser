@@ -1,6 +1,6 @@
 .PHONY: all clean
 
-CUDA_ARCH=sm_35
+CUDA_ARCH=sm_70
 
 SRC_DIR = src
 BIN_DIR = bin
@@ -12,19 +12,23 @@ OBJ_FILES = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRC_FILES)) $(OBJ_DIR)/
 DEP_FILES = $(OBJ_FILES:%.o=%.d)
 
 WFLAGS = -Wcast-align -Wshadow -Wcast-qual -Wconversion -Wdisabled-optimization \
--Wfloat-equal -Wformat=2 -Wformat-nonliteral -Wformat-security -Wformat-y2k \
+-Wformat=2 -Wformat-nonliteral -Wformat-security -Wformat-y2k \
 -Wimport  -Winit-self -Winvalid-pch -Wmissing-field-initializers -Wmissing-format-attribute   \
 -Wmissing-include-dirs -Wmissing-noreturn -Wpointer-arith -Wstack-protector \
--Wstrict-aliasing=2 -Wswitch-default -Wswitch-enum -Wunreachable-code -Wunused \
--Wunused-parameter -Wvariadic-macros -Wwrite-strings -Wunused-result
+-Wswitch-default -Wunreachable-code -Wunused \
+-Wvariadic-macros -Wwrite-strings -Wunused-result
 
-CPPFLAGS = ${WFLAGS} -g --std=c++11 -Wall -Wextra -Wpedantic ${WFLAGS} -DNO_CUDA -O3 # -fsanitize=address
+# -Wfloat-equal -Wunused-parameter -Wstrict-aliasing=2 -Wswitch-enum
+
+CPPFLAGS = ${WFLAGS} -g --std=c++14 -Wall -Wextra -Wpedantic ${WFLAGS} -DNO_CUDA -O3 # -fsanitize=address
 
 LDFLAGS = -pthread # -lasan
 
 glisser:
 	@mkdir -p $(BIN_DIR)
-	@nvcc $(TARGETS_DIR)/main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -arch=$(CUDA_ARCH) -maxrregcount 64 --std=c++11 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/glisser -O3 -lnvToolsExt
+	@nvcc $(TARGETS_DIR)/_main.cpp $(DOCOPT_DIR)/docopt.cpp $(SRC_FILES) $(SRC_DIR)/*.cu -lineinfo -g -arch=$(CUDA_ARCH) -maxrregcount 64 --std=c++14 -D_GLIBC_USE_C99 --compiler-options "-Wall -Wextra ${WFLAGS} -fstack-protector" -o $(BIN_DIR)/glisser -O3 -lnvToolsExt
+
+# -DCUDA_USE_SHARED_MEM_CACHE
 
 clean:
 	rm -r $(OBJ_DIR)/* 

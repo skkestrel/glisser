@@ -77,7 +77,6 @@ done: ;
 		{
 			float64_t dist = sqrt(r.lensq());
 			float64_t vdotr = v.x * r.x + v.y * r.y + v.z * r.z;
-
 			float64_t energy = v.lensq() * 0.5 - mu / dist;
 
 			if (energy >= 0)
@@ -162,7 +161,7 @@ done: ;
 					{
 						flags = 0x0002;
 					}
-					deathtime_index = step;
+					if (flags != 0) deathtime_index = step;
 				}
 
 				
@@ -377,7 +376,7 @@ done: ;
 	{
 #ifndef CUDA_USE_SHARED_MEM_CACHE
 		auto it = thrust::make_zip_iterator(thrust::make_tuple(pa.begin(), device_begin()));
-		thrust::for_each(
+		thrust::async::for_each(
 				thrust::cuda::par.on(stream),
 				it,
 				it + pa.n_alive,
@@ -423,7 +422,7 @@ done: ;
 				base.outer_bound,
 				dt,
 				pl.m[0],
-				base.maxkep
+				base.max_kep
 		);
 #endif
 	}

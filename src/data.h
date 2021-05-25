@@ -390,11 +390,12 @@ namespace data
 		uint32_t num_swift, swift_part_min;
 
 		uint32_t swift_statlen;
-		bool write_bary_track, write_ele_track, write_single_track, write_binary_hist, write_single_hist;
+		bool write_bary_track, write_ele_track, write_single_track, write_binary_hist, write_single_hist, write_encounter_log;
 		bool interp_planets, use_jacobi_interp, read_binary_hist, read_single_hist;
+
 		uint32_t interp_maxpl;
 		std::string planet_history_file;
-		uint32_t max_kep;
+		uint16_t max_kep;
 
 		double inner_bound;
 
@@ -619,6 +620,8 @@ namespace data
 
 	void save_binary_hist(std::ostream& histout, const HostPlanetSnapshot& pl, double time, bool single_precision);
 	void save_txt_hist(std::ostream& histout, const HostPlanetSnapshot& pl, double time, bool single_precision);
+
+	void write_summary(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, const float64_t current_time, const float64_t elapsed_time, const std::string& outfile);
 
 	struct TrackReader
 	{

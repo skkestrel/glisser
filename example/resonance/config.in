@@ -1,9 +1,0 @@
-Initial-Time 0
-Time-Step 180
-Final-Time 365e6
-Time-Block-Size 2048
-Track-Interval 2
-Log-Interval 32
-Output-Folder example/resonance-out
-Dump-Interval 20000
-Input-File example/resonance/state.in

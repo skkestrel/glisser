@@ -15,6 +15,7 @@
 #include <thrust/host_vector.h>
 #include <thrust/device_vector.h>
 #include <thrust/for_each.h>
+#include <thrust/async/for_each.h>
 #include <thrust/iterator/zip_iterator.h>
 template<typename T>
 void write_binary(std::ostream& o, const T& t)
@@ -867,7 +868,7 @@ int main(int argv, char** argc)
 
 		if (hd.n_part > 0)
 		{
-			thrust::for_each(thrust::cuda::par.on(work_stream),
+			thrust::async::for_each(thrust::cuda::par.on(work_stream),
 					iterator,
 					iterator + n,
 					SIA4Kernel(dd.coefdt.data().get(), hd.t, r_log_buffer.data().get(), dd.m_planet.data().get(), hd.n_planet));

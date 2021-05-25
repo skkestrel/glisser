@@ -57,7 +57,7 @@ namespace exec
 		Executor(HostData& hd, DeviceData& dd, const Configuration& config, std::ostream& out);
 
 		void init();
-		size_t write_encounter(size_t begin, size_t end, double prev_t);
+		void write_encounter(size_t begin, size_t end, double prev_t);
 		void upload_data(size_t begin, size_t length);
 		void upload_planet_log();
 		void download_data(size_t begin, size_t length);

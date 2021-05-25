@@ -12,8 +12,8 @@ namespace interp
 	{
 	}
 
-	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool binary_hist, bool single_precision)
-		: input(file), binary_hist(binary_hist), single_precision(single_precision)
+	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool _binary_hist, bool _single_precision)
+		: input(file), binary_hist(_binary_hist), single_precision(_single_precision)
 	{
 		// temp_log.open("temp_log_interp.txt");
 		// temp_log << std::setprecision(17);
@@ -445,7 +445,7 @@ namespace interp
 
 
 			planet_eta[0] = pl.m()[0];
-			for (size_t i = 1; i < pl.n_alive(); i++)
+			for (i = 1; i < pl.n_alive(); i++)
 			{
 				planet_eta[i] = planet_eta[i - 1] + pl.m()[i];
 			}

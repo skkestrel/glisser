@@ -1,0 +1,40 @@
+# Directories
+Input-File examples/_input/state-JSUN-Polar-80000.in
+Output-Folder examples/out-JSUN-Polar-100m-80000
+
+# Read Planet History
+Read-Planet-History 1
+    Planet-History-File examples/hist-JSUN-100m/plhist.out
+    Planet-History-Max-Body-Count 5
+    Read-Binary-History 1
+    Read-Single-Precision-History 1
+
+# Time
+Initial-Time 0
+Final-Time 36525000000
+Time-Step 50
+Time-Block-Size 100
+
+# Write Intervals
+Resync-Interval 1
+Log-Interval 10
+Dump-Interval 100
+Track-Interval 50
+    Write-Single-Precision-Track 1
+    Write-Elements-Track 1
+    Write-Bary-Track 1
+Write-Encounter-Log 0
+
+# Close Encounters
+Resolve-Encounters 1
+    Swift-Path bin/swift_readpl4glisser
+    Swift-Process-Count 8
+    Swift-Process-Min-Particle-Count 4
+    Swift-Status-Length 13
+
+# Other Parameters
+Max-Kepler-Iterations 8
+Hill-Radius-Factor 3.5
+Particle-Inner-Boundary 1
+Particle-Outer-Boundary 3000
+Particle-Count-Limit 50000

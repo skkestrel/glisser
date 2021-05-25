@@ -166,7 +166,7 @@ c...      remember the current position of the planets
        enddo
 
 
-c...   Have to update istat just in case damby had problems
+c...   Have to update istat just in case danby had problems
       do i=1,ntp
          if( (ienc(i).ne.0) .and. (istattmp(i,1).ne.0) ) then
             istat(i,1) = 1       ! it had problems

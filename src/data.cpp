@@ -15,6 +15,7 @@ namespace sr
 {
 namespace data
 {
+	// particles having close encounters with any planets (sun excluded)
 	size_t stable_partition_alive_indices(const Vu16& flags, size_t begin, size_t length, std::unique_ptr<Vs>* indices)
 	{
 		auto new_indices = std::make_unique<Vs>(length);
@@ -27,13 +28,14 @@ namespace data
 		return val;
 	}
 
+	// particles with non-zero low byte are unflagged.
 	size_t stable_partition_unflagged_indices(const Vu16& flags, size_t begin, size_t length, std::unique_ptr<Vs>* indices)
 	{
 		auto new_indices = std::make_unique<Vs>(length);
 		std::iota(new_indices->begin(), new_indices->end(), 0);
 
 		auto val = std::stable_partition(new_indices->begin(), new_indices->end(), [begin, &flags](size_t index)
-				{ return (flags[index + begin] & 0x00FF) == 0; }) - new_indices->begin() + begin;
+				{ return flags[index + begin] == 0; }) - new_indices->begin() + begin;
 
 		*indices = std::move(new_indices);
 		return val;
@@ -191,11 +193,13 @@ namespace data
 		read_binary_hist = true;
 		write_single_hist = true;
 		write_binary_hist = true;
+
+		write_encounter_log = false;
 	}
 
 	Configuration Configuration::output_config() const
 	{
-#pragma GCC warning "TODO"
+// #pragma GCC warning "TODO"
 		Configuration new_conf = *this;
 		return new_conf;
 	}
@@ -251,8 +255,8 @@ namespace data
 						out->read_binary_hist = std::stoi(second) != 0;
 					else if (first == "Read-Single-Precision-History")
 						out->read_single_hist = std::stoi(second) != 0;
-					else if (first == "Use-Jacobi-Interpolation")
-						out->use_jacobi_interp = std::stoi(second) != 0;
+					// else if (first == "Use-Jacobi-Interpolation")
+					// 	out->use_jacobi_interp = std::stoi(second) != 0;
 
 				// Time
 				else if (first == "Initial-Time")
@@ -289,6 +293,8 @@ namespace data
 						out->write_binary_hist = std::stoi(second) != 0;
 					else if (first == "Write-Single-Precision-History")
 						out->write_single_hist = std::stoi(second) != 0;
+				else if (first == "Write-Encounter-Log")
+					out->write_encounter_log = std::stoi(second) != 0;
 		
 				// Close Encounters
 				else if (first == "Resolve-Encounters")
@@ -363,7 +369,7 @@ namespace data
 			outstream << "    Planet-History-Max-Body-Count " << out.interp_maxpl << std::endl;
 			outstream << "    Read-Binary-History " << out.read_binary_hist << std::endl;
 			outstream << "    Read-Single-Precision-History " << out.read_single_hist << std::endl;
-			outstream << "    Use-Jacobi-Interpolation " << out.use_jacobi_interp << std::endl;
+			// outstream << "    Use-Jacobi-Interpolation " << out.use_jacobi_interp << std::endl;
 			outstream << std::endl;
 		}
 		
@@ -392,6 +398,7 @@ namespace data
 			outstream << "    Write-Binary-History " << out.write_binary_hist << std::endl;
 			outstream << "    Write-Single-Precision-History " << out.write_single_hist << std::endl;
 		}
+		outstream << "Write-Encounter-Log " << out.write_encounter_log << std::endl;
 		outstream << std::endl;
 
 		if (out.resolve_encounters) 
@@ -747,9 +754,6 @@ namespace data
 
 	void save_data(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, const std::string& outfile)
 	{
-		
-		std::ostringstream ss;
-
 		if (config.writebinary)
 		{
 			std::ofstream out(outfile, std::ios_base::binary);
@@ -759,6 +763,88 @@ namespace data
 		{
 			std::ofstream out(outfile);
 			save_data_hybrid(pl, pa, config, out);
+		}
+	}
+
+	void write_summary(const HostPlanetSnapshot& pl, const HostParticlePhaseSpace& pa, const Configuration& config, const float64_t current_time, 
+	const float64_t elapsed_time,  const std::string& outfile)
+	{
+		Vs pl_death_count = Vs(pl.n, 0);
+		Vs pl_encounter_count = Vs(pl.n, 0);
+		size_t innerbound_count, outerbound_count, unbound_count, kepler_count, absorb_count, encounter_count;
+		innerbound_count = outerbound_count = unbound_count = kepler_count = absorb_count = encounter_count = 0;
+		for (size_t i = 0; i < pa.n(); i++)
+		{
+			auto deathflag = pa.deathflags()[i];
+			if (deathflag == 0x01) innerbound_count++;
+			else if (deathflag & 0x01)
+			{
+				auto idx = deathflag >> 8;
+				pl_encounter_count[idx]++;
+				encounter_count++;
+			}
+			else if (deathflag & 0x02) outerbound_count++;
+			else if (deathflag & 0x08) unbound_count++;
+			else if (deathflag & 0x04) kepler_count++;
+			else if (deathflag & 0x80)
+			{
+				auto idx = deathflag >> 8;
+				pl_death_count[idx]++;
+				absorb_count++;
+			}
+		}
+		std::ofstream out(outfile);
+		size_t discard_count = pa.n() - pa.n_alive();
+
+		out << "GLISSER integrated " << pa.n() << " particles with " << pl.n - 1 << " planets from " << config.t_0 << " to " << current_time << " days (or " << std::setprecision(4) << std::setw(5) << current_time/365.25 << " yr/" << current_time/365.25/1e3 << " kyr/" << current_time/365.25/1e6 << " Myr/" << current_time/365.25/1e9 << " Gyr)" << std::endl ;
+		out << "The whole integration took " << std::setprecision(4) << std::setw(5) << elapsed_time << " min (or " << elapsed_time/60 << " hr/" 
+		<< elapsed_time/60/24 << " days)" << std::endl << std::endl;
+
+
+		out << std::setprecision(17) << pl.n_alive-1 << "/" << pl.n-1 << " (" << std::setprecision(4) << std::setw(5) << 
+		       static_cast<double>(pl.n_alive-1) * 100.0 / static_cast<double>(pl.n-1) << "%)" << " planets are still alive" << std::endl;
+		out << std::setprecision(17) << pa.n_alive() << "/" << pa.n() << " (" << std::setprecision(4) << std::setw(5) << 
+		       static_cast<double>(pa.n_alive()) * 100.0 / static_cast<double>(pa.n()) <<"%)" << " particles are alive" << std::endl
+			<< std::setprecision(17) << encounter_count << "/" << pa.n() << " (" << std::setprecision(4) << std::setw(5) << 
+			   static_cast<double>(encounter_count) * 100.0 / static_cast<double>(pa.n()) <<"%)" << " particles are still in encounter" << std::endl;
+
+		if (encounter_count)
+		{
+			out << std::setprecision(17) << "  Among " << encounter_count << " particles still in encounter:" << std::endl;
+			for (size_t i = 1; i < pl.n; i++)
+			{
+				out << std::setprecision(17) << "    " << pl_encounter_count[i] << " (" << std::setprecision(4) << std::setw(5) << 
+					static_cast<double>(pl_encounter_count[i])*100.0/static_cast<double>(encounter_count) << "%) in encounter with planet " << i << std::endl;
+			}
+		}
+		
+		out << std::endl;
+		out << std::setprecision(17) << discard_count << "/" << pa.n() << " (" << std::setprecision(4) << std::setw(5) << 
+		       static_cast<double>(discard_count)*100.0/static_cast<double>(pa.n()) <<"%)" << " particles are discarded" << std::endl; 
+
+		if (discard_count)
+		{
+			out << std::setprecision(17) << "  Among " << discard_count << " discarded particles:" << std::endl;
+			out << std::setprecision(17) << "    " << innerbound_count << " (" << std::setprecision(4) << std::setw(5) << 
+			static_cast<double>(innerbound_count) * 100.0 / static_cast<double>(discard_count) << "%) entered inner bound" << std::endl;
+			out << std::setprecision(17) << "    " << outerbound_count << " (" << std::setprecision(4) << std::setw(5) << 
+			static_cast<double>(outerbound_count) * 100.0 / static_cast<double>(discard_count) << "%) exceeded outer bound" << std::endl;
+			out << std::setprecision(17) << "    " << unbound_count << " (" << std::setprecision(4) << std::setw(5) << 
+			static_cast<double>(unbound_count) * 100.0 / static_cast<double>(discard_count) << "%) orbits unbound" << std::endl;
+			out << std::setprecision(17) << "    " << kepler_count << " (" << std::setprecision(4) << std::setw(5) << 
+			static_cast<double>(kepler_count) * 100.0 / static_cast<double>(discard_count) << "%) kepler didn't converge" << std::endl;
+			out << std::setprecision(17) << "    " << absorb_count << " (" << std::setprecision(4) << std::setw(5) << 
+			static_cast<double>(absorb_count) * 100.0 / static_cast<double>(discard_count) << "%) absorbed by planets" << std::endl;
+
+			if (absorb_count)
+			{
+				out << std::setprecision(17) << "    Among " << absorb_count << " particles absorbed by planets:" << std::endl;
+				for (size_t i = 1; i < pl.n; i++)
+				{
+					out << std::setprecision(17) << "      " << pl_death_count[i] << " (" << std::setprecision(4) << std::setw(5) << 
+						static_cast<double>(pl_death_count[i]) * 100.0 / static_cast<double>(absorb_count) << "%) absorbed by planet " << i << std::endl;
+				}
+			}
 		}
 	}
 
@@ -919,7 +1005,7 @@ namespace data
 
 	void save_txt_hist(std::ostream& histout, const HostPlanetSnapshot& pl, double time, bool single_precision)
 	{
-		size_t precision = (single_precision) ? 8 : 17;
+		int precision = (single_precision) ? 8 : 17;
 		histout << std::setprecision(precision);
 		histout << static_cast<double>(time) << " " << static_cast<double>(pl.m[0]) << " ";
 

@@ -7,6 +7,7 @@
 
 #include <thrust/system/cuda/execution_policy.h>
 #include <thrust/for_each.h>
+#include <thrust/async/for_each.h>
 #include <thrust/iterator/zip_iterator.h>
 #include <thrust/host_vector.h>
 #include <thrust/partition.h>

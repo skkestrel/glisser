@@ -630,26 +630,26 @@ namespace wh
 			a -= dr * fac;
 #endif
 
-			if (planet_rji2 < planet_rh[j] * planet_rh[j])
-			{
-				pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
-				pa.deathflags()[particle_index] = static_cast<uint16_t>((j << 8) | 0x0001);
-			}
+			// if (planet_rji2 < planet_rh[j] * planet_rh[j])
+			// {
+			// 	pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
+			// 	pa.deathflags()[particle_index] = static_cast<uint16_t>((j << 8) | 0x0001);
+			// }
 		}
 
-		float64_t planet_rji2 = pa.r()[particle_index].lensq();
+		// float64_t planet_rji2 = pa.r()[particle_index].lensq();
 
-		if (planet_rji2 < planet_rh[0] * planet_rh[0])
-		{
-			pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
-			pa.deathflags()[particle_index] = 0x0001;
-		}
+		// if (planet_rji2 < planet_rh[0] * planet_rh[0])
+		// {
+		// 	pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
+		// 	pa.deathflags()[particle_index] = 0x0001;
+		// }
 
-		if (planet_rji2 > outer_bound * outer_bound)
-		{
-			pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
-			pa.deathflags()[particle_index] = 0x0002;
-		}
+		// if (planet_rji2 > outer_bound * outer_bound)
+		// {
+		// 	pa.deathtime_map()[pa.id()[particle_index]] = static_cast<float>(time);
+		// 	pa.deathflags()[particle_index] = 0x0002;
+		// }
 	}
 
 	template<bool old>

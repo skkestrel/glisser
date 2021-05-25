@@ -1,0 +1,7 @@
+--- profile.py   2019-01-01 15:57:23.995206317 -0800
++++ profile.py   2019-01-01 15:54:01.088638527 -0800
+@@ -96,3 +98,3 @@
+        nstep = 16384 * (8 if use_gpu else 2)
+-       for T in nparts * 3:
++       for T in nparts:
+                with open('temp-config.in', 'w') as cfgout:

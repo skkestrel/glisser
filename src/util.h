@@ -11,7 +11,7 @@
 
 
 
-#if __cplusplus < 201404L
+#if __cplusplus < 201402L
 namespace std
 {
 	template<typename T, typename... Args>

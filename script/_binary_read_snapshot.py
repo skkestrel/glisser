@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import struct
 
 folder = "/home/yhuang/GLISSER/glisser/"
-filename1 = "benchmark/rogue-particles-test-out-4200/tracks/track.0.out"
+filename1 = "benchmark/rogue-particles-JSUN-80000/tracks/track.0.out"
 # filename2 = "benchmark/kuiper-particles-out-1000-read/tracks/track.0.out"
 
 files = [filename1]
@@ -15,14 +15,14 @@ label = "GLISSER"
 t, a_pl, e_pl, I_pl, O_pl, o_pl= [], [], [], [], [], []
 a_pa, e_pa, I_pa, O_pa, o_pa= [], [], [], [], []
 with open(folder + filename, 'rb') as f:
-    read = f.read(16)
-    while len(read) == 16:
-        time, npl = struct.unpack('=dQ', read)
+    read = f.read(24)
+    while len(read) == 24:
+        time, solar_mass, npl = struct.unpack('=2dQ', read)
         t.append(time)
         # print(time, npl)
         a1, e1, I1, O1, o1= [], [], [], [], []
         for i in range(npl):
-            pid, a, e, I, O, o, F = struct.unpack('=I6d', f.read(52))
+            pid, pl_mass, a, e, I, O, o, F = struct.unpack('=I7d', f.read(60))
             a1.append(a)
             e1.append(e)
             I1.append(I)
@@ -33,6 +33,8 @@ with open(folder + filename, 'rb') as f:
         I_pl.append(np.array(I1))
         O_pl.append(np.array(O1))
         o_pl.append(np.array(o1))
+
+        
 
         npa, = struct.unpack('=Q', f.read(8))
         # print(npa)
@@ -49,11 +51,11 @@ with open(folder + filename, 'rb') as f:
         I_pa.append(np.array(I1))
         O_pa.append(np.array(O1))
         o_pa.append(np.array(o1))
-        read = f.read(16)
+        read = f.read(24)
 
 print(len(t))
 
-for idx in np.arange(len(t)):
+for idx in np.arange(len(t)-1, len(t)):
     fig, [ax1, ax2] = plt.subplots(2, figsize=(9,10))
     q_pl = a_pl[idx] * (1 - e_pl[idx])
     ax1.scatter(a_pl[idx], q_pl, alpha=0.8, label=label, s=100, color='red', marker='x',lw=2)
@@ -63,7 +65,7 @@ for idx in np.arange(len(t)):
     ax1.scatter(a_pa[idx], q_pa, alpha=0.5, label=label, s=5)
     ax2.scatter(a_pa[idx], np.rad2deg(I_pa[idx]), alpha=0.5, label=label, s=5)
 
-    outer = 600
+    outer = 1500
     x = np.linspace(5,outer,1000)
     ax1.plot(x,x, color='grey', linestyle='dashed',lw=1)
 
@@ -75,12 +77,13 @@ for idx in np.arange(len(t)):
     ax1.set_xscale("log")
     ax1.set_yscale("log")
     ax2.set_xscale("log")
-    ax1.set_xlim(25,700)
-    ax1.set_ylim(25,200)
-    ax2.set_xlim(25,700)
-    ax2.set_ylim(0,60)
+    ax1.set_xlim(2,1000)
+    ax1.set_ylim(2,200)
+    ax2.set_xlim(2,1000)
+    ax2.set_ylim(0,180)
 
     plt.title("Time: {time:6.3f} Myr".format(time=t[idx]/365.25/1e6))
 
-    plt.savefig("Rogue/snapshot_{idx:04d}.jpg".format(idx=idx+4201),dpi=120)
-    print("Saved! frame: {idx:04d}".format(idx=idx+4201))
+    plt.savefig("snapshot_{idx:04d}.jpg".format(idx=idx+1),dpi=120)
+    print("Saved! frame: {idx:04d}".format(idx=idx+1))
+    plt.close()
