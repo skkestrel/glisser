@@ -12,9 +12,10 @@ output_folder = folder + target_folder + "reoutput/hist/"
 label = "GLISSER"
 
 if not os.path.exists(output_folder):
-    os.rmdir(output_folder)
     os.makedirs(output_folder)
-
+else:
+    os.rmdir(output_folder)
+    
 num = 0
 interval = 1000
 with open(folder + filename, 'rb') as f:

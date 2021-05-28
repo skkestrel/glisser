@@ -4,7 +4,7 @@ import os
 import struct
 
 folder = "/home/yhuang/GLISSER/glisser/"
-target_folder = "examples/out-JSUNR-1m-80000/"
+target_folder = "examples/out-JSUN-Polar-100m-80000/"
 # files = [filename1]
                                     
 filename = target_folder + "tracks/track.0.out"
@@ -12,8 +12,9 @@ output_folder = folder + target_folder + "reoutput/snapshots/"
 label = "GLISSER"
 
 if not os.path.exists(output_folder):
-    os.rmdir(output_folder)
     os.makedirs(output_folder)
+else:
+    os.rmdir(output_folder)
 
 num = 0
 interval = 1
