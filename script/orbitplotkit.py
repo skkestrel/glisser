@@ -5,8 +5,7 @@ import matplotlib as mpl
 import matplotlib.colors as colors
 import matplotlib.ticker as ticker
 
-
-# plt.style.use('aiur')
+plt.style.use('aiur')
 
 # Pre-defined string
 STRING_SMA = 'Semimajor axis (au)'
@@ -35,32 +34,31 @@ RED = "#E72C2C"  # Aiur Red
 COLORS = [BLUE, RED, GREEN, YELLOW]
 
 # ------------------------------
-# Semi-major Axes of Nine Planets (PLUTO IS A PLANET!)
+# Semi-major Axes of 8 Planets (PLUTO IS NOT A PLANET!)
 # Ratio to Earth Values (or in AU)
 A_MERCURY = 0.387
 A_VENUS = 0.723
 A_EARTH = 1
 A_MARS = 1.524
 A_JUPITER = 5.20
-A_SATURN = 9.58
-A_URANUS = 19.20
-A_NEPTUNE = 30.05
+A_SATURN = 9.54
+A_URANUS = 19.19
+A_NEPTUNE = 30.07
 A_PLUTO = 39.48
 A_PLANETS = [A_MERCURY, A_VENUS, A_EARTH, A_MARS,
              A_JUPITER, A_SATURN, A_URANUS, A_NEPTUNE]
 
-# Mass of Nine Planets
+# Mass of 8 Planets
 # Ratio to Earth Values
-M_SUN = 333060.402
-M_MERCURY = 0.0553
-M_VENUS = 0.815
-M_EARTH = 1
-M_MARS = 0.107
-M_JUPITER = 317.8
-M_SATURN = 95.2
-M_URANUS = 14.5
-M_NEPTUNE = 17.1
-M_PLUTO = 0.0025
+M_SUN = 1.0
+M_MERCURY = 1.6601141530543488e-07
+M_VENUS = 2.4478382877847715e-06
+M_EARTH = 3.040432648022642e-06
+M_MARS = 3.2271560375549977e-07
+M_JUPITER = 0.0009547919152112404
+M_SATURN = 0.0002858856727222417
+M_URANUS = 4.36624373583127e-05
+M_NEPTUNE = 5.151383772628674e-05
 M_PLANETS = [M_MERCURY, M_VENUS, M_EARTH, M_MARS,
              M_JUPITER, M_SATURN, M_URANUS, M_NEPTUNE]
 
@@ -78,7 +76,22 @@ m_neptune = 1.0241E+26
 m_planets = [m_mercury, m_venus, m_earth, m_mars,
              m_jupiter, m_saturn, m_uranus, m_neptune]
 
-# Diameters of Nine Planets
+# Inclinations of 8 Planets
+# units: degrees
+I_MERCURY = 7.00
+I_VENUS = 3.39
+I_EARTH = 0.0
+I_MARS = 1.85
+I_JUPITER = 1.31
+I_SATURN = 2.48
+I_URANUS = 0.77
+I_NEPTUNE = 1.77
+I_PLUTO = 17.14
+I_PLANETS = [I_MERCURY, I_VENUS, I_EARTH, I_MARS,
+             I_JUPITER, I_SATURN, I_URANUS, I_NEPTUNE]
+
+
+# Diameters of 8 Planets
 # Ratio to Earth Values
 D_MERCURY = 0.383
 D_VENUS = 0.949
@@ -92,7 +105,7 @@ D_PLUTO = 0.186
 D_PLANETS = [D_MERCURY, D_VENUS, D_EARTH, D_MARS,
              D_JUPITER, D_SATURN, D_URANUS, D_NEPTUNE]
 
-# Diameters of Hill Sphere of Nine Planets
+# Diameters of Hill Sphere of 8 Planets
 # in AU
 H_MERCURY = 0.0011718
 H_VENUS = 0.006713
@@ -106,6 +119,55 @@ H_PLUTO = 0.03854
 H_PLANETS = [H_MERCURY, H_VENUS, H_EARTH, H_MARS,
              H_JUPITER, H_SATURN, H_URANUS, H_NEPTUNE]
 
+
+# Eigen frenquencies ans the associated phases of the Solay System
+# frenquencies in arcseconds per year; phases in degrees
+# (Laskar 1990)
+
+# g_freqs = [5.59, 7.455, 17.30, 17.85,
+#            4.24882, 28.2203, 3.08952, 0.66698]
+# f_freqs = [-5.59, -7.00, -18.88, -17.80,
+#            0.0, -26.33020, -3.00563, -0.69195]
+g_freqs = [5.46, 7.34, 17.32, 18.00,
+           4.30, 27.77, 2.72, 0.63332]
+f_freqs = [-5.20, -6.57, -18.74, -17.63,
+           0.0, -25.73, -2.90, -0.67752]
+beta_phases = [92.182, 196.881, 335.224,
+               317.948, 29.550, 125.120, 131.944, 69.021]
+gamma_phases = [19.433, 318.057, 255.031,
+                296.514, 107.102, 127.367, 315.063, 202.293]
+
+g1 = 5.59
+g2 = 7.453
+g3 = 17.368
+g4 = 17.916
+g5 = 4.257482
+g6 = 28.2449
+g7 = 3.087946
+g8 = 0.673019
+
+s1 = -5.61
+s2 = -7.06
+s3 = -18.848
+s4 = -17.751
+s5 = 0.0
+s6 = -26.347841
+s7 = -2.9925258
+s8 = -0.691740
+
+
+Iij = [12449, 1178, 849, 180, -2, -3, 2, 0,
+       -3545, 1004, 810, 180, -1, -2, 1, 0,
+       409, -2680, 2448, -3589, 0, 0, 0, 0,
+       116,  -685,  453, 5025, 0, -2, 0, 0,
+       2757, 2757, 2757, 2757, 2757, 2757, 2757, 2757,
+       28, 12, 281, 965, -631, 1572, -69, -8,
+       -332, -192, -173, -126, -96, -78, 1760, -207,
+       -145, -132, -130, -123, -117, -113, 110, 1175]
+
+Iij = np.array(Iij).reshape(8, 8)*1e-5
+Iji = Iij.T
+
 # Handy constants
 G = 6.67408e-11
 YEAR_IN_SEC = 365.25 * 24 * 3600
@@ -115,12 +177,50 @@ CENT_IN_DAY = 100*YEAR_IN_DAY
 AU = 149597870700
 ARCSEC_CIRCLE = 1296000
 RAD_TO_ARCSEC = 206264.806
+ARCSEC_TO_RAD = 1/RAD_TO_ARCSEC
 
 # ------------------------------
 
 
 def meanMotion(M, a, G=1):
     return np.sqrt(G*M/a**3)
+
+
+def F2M(f, e):
+    tanE2 = np.tan(f/2)*np.sqrt((1-e)/(1+e))
+    E2 = np.arctan(tanE2)
+    E = E2 * 2
+    return E2M(E, e)
+
+
+def E2M(E, e):
+    return E - e*np.sin(E)
+
+
+def elements2R(a, e, f):
+    return a*(1-e**2)/(1+e*np.cos(f))
+
+
+def M2F(M, e):
+    # input: radians
+    # output: radians
+    acc = 1e-14
+    if (M == 0.0):
+        return 0.0
+    if (M < np.pi and M > 0):
+        E = M + e / 2
+    else:
+        E = M - e / 2
+    incr = 1
+    count = 0
+    while (np.abs(incr) > acc):
+        incr = keplerIteration(E, e, M)
+        E += incr
+    result = 2 * np.arctan(np.sqrt((1 + e) / (1 - e)) * np.tan(E / 2))
+    return result
+
+def keplerIteration(E, e, M):
+    return -(E - e * np.sin(E) - M) / (1 - e * np.cos(E))
 
 # ------------------------------
 
@@ -149,7 +249,11 @@ def resonanceLocation(planet, p, q):
         print("ERROR!! Planet index number must be in the range of (0,8)")
 
 
-def resonantAngle(ome1, Ome1, M1, ome2, Ome2, M2, kj, k):
+def resonanceLocationBYA(a, p, q):
+    return (q/p) ** (2/3) * a
+
+
+def resonantAngle(Ome1, ome1, M1, Ome2, ome2, M2, kj, k):
     varpi1 = ome1 + Ome1
     varpi2 = ome2 + Ome2
     lambda1 = varpi1 + M1
@@ -166,6 +270,16 @@ def resonantAngle(ome1, Ome1, M1, ome2, Ome2, M2, kj, k):
         phi /= kj+k
     return phi
 
+
+def resonantAngleOuter(O_pl, o_pl, M_pl, O_pa, o_pa, M_pa, j, k):
+    # for a j:k outer resonance (j > k)
+    varpi_pl = O_pl + o_pl
+    varpi_pa = O_pa + o_pa
+    lambda_pl = varpi_pl + M_pl
+    lambda_pa = varpi_pa + M_pa
+    phi_jk = j * lambda_pa - k * lambda_pl - \
+        (j-k) * varpi_pa  # Gladman et al. (2012)
+    return phi_jk
 
 # ------------------------------
 

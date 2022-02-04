@@ -122,11 +122,9 @@ int main(int argc, char** argv)
 	std::time_t t = std::time(nullptr);
 	std::tm tm = *std::localtime(&t);
 
-	if (config.write_encounter_log)
-	{
-		std::ofstream encounterlog(sr::util::joinpath(config.outfolder, "encounter.out"));
-		ex.encounter_output = &encounterlog;
-	}
+
+	std::ofstream encounterlog(sr::util::joinpath(config.outfolder, "encounter.out"));
+	ex.encounter_output = &encounterlog;
 
 
 	std::ofstream timelog(sr::util::joinpath(config.outfolder, "time.out"));

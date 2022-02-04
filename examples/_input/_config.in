@@ -1,29 +1,29 @@
 # Directories
-Input-File examples/_input/state-JSUN-Polar-80000.in
-Output-Folder examples/out-JSUN-Polar-100m-80000
+Input-File examples/_input/state-REBOUND-1000.in
+Output-Folder examples/out-REBOUND-100
 
 # Read Planet History
 Read-Planet-History 1
-    Planet-History-File examples/hist-JSUN-100m/plhist.out
-    Planet-History-Max-Body-Count 5
-    Read-Binary-History 1
+    Planet-History-File examples/hist-REBOUND-txt/plhist_100.out
+    Planet-History-Max-Body-Count 6
+    Read-Binary-History 0
     Read-Single-Precision-History 1
 
 # Time
 Initial-Time 0
-Final-Time 36525000000
-Time-Step 50
-Time-Block-Size 100
+Final-Time 20000000
+Time-Step 100
+Time-Block-Size 200
 
 # Write Intervals
 Resync-Interval 1
-Log-Interval 10
+Log-Interval 1
 Dump-Interval 100
-Track-Interval 50
+Track-Interval 1
     Write-Single-Precision-Track 1
     Write-Elements-Track 1
     Write-Bary-Track 1
-Write-Encounter-Log 0
+Write-Encounter-Log 1
 
 # Close Encounters
 Resolve-Encounters 1
@@ -35,6 +35,7 @@ Resolve-Encounters 1
 # Other Parameters
 Max-Kepler-Iterations 8
 Hill-Radius-Factor 3.5
-Particle-Inner-Boundary 1
+Particle-Inner-Boundary 5
 Particle-Outer-Boundary 3000
-Particle-Count-Limit 50000
+Particle-Count-Limit 1000
+Diagnositc-Mode 1

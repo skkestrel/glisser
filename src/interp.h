@@ -76,7 +76,7 @@ namespace interp
 
 		std::unordered_map<uint32_t, size_t> idmap;
 
-		bool use_jacobi_interp;
+		bool use_jacobi_interp, diagnostic_mode;
 		bool binary_hist, single_precision;
 		size_t binary_chunk_size;
 	};

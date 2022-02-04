@@ -401,6 +401,8 @@ namespace data
 
 		bool resolve_encounters, trackbinary, readsplit, writesplit, dumpbinary, writebinary, readbinary;
 
+		bool diagnostic_mode;
+
 		std::string icsin, plin, hybridin, hybridout;
 		std::string outfolder;
 		std::string swift_path;

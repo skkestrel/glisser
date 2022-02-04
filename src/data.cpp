@@ -195,6 +195,7 @@ namespace data
 		write_binary_hist = true;
 
 		write_encounter_log = false;
+		diagnostic_mode = false;
 	}
 
 	Configuration Configuration::output_config() const
@@ -322,7 +323,8 @@ namespace data
 					out->outer_bound = std::stod(second);
 				else if (first == "Particle-Count-Limit")
 					out->max_particle = std::stou(second);
-
+				else if (first == "Diagnositc-Mode")
+					out->diagnostic_mode = std::stoi(second) != 0;
 				else
 					throw std::invalid_argument("bad");
 			}
@@ -419,6 +421,7 @@ namespace data
 		outstream << "Particle-Inner-Boundary " << out.inner_bound << std::endl;
 		outstream << "Particle-Outer-Boundary " << out.outer_bound << std::endl;
 		outstream << "Particle-Count-Limit " << out.max_particle << std::endl;		
+		if (out.diagnostic_mode) outstream << "Diagnositc-Mode " << out.diagnostic_mode << std::endl;	
 	}	
 
 	/* 	
@@ -882,8 +885,8 @@ namespace data
 				double a, e, in, capom, om, f;	
 				if (barycentric_track) 
 				{
-					sr::convert::to_elements(sr::convert::get_bary_mu(center_mass, pl.m[i]), 
-					pl.r[i] - center_r, pl.v[i] - center_v, nullptr, &a, &e, &in, &capom, &om, &f);
+					// sr::convert::get_bary_mu(center_mass, pl.m[i])
+					sr::convert::to_elements(center_mass + pl.m[i], pl.r[i] - center_r, pl.v[i] - center_v, nullptr, &a, &e, &in, &capom, &om, &f);
 				}
 				else 
 				{

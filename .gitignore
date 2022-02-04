@@ -11,7 +11,7 @@ swift/51/follow_bary
 swift/51/gen_ai
 swift/51/left
 swift/51/to_readpl
-swift/51/tp 
+swift/51/tp
 swift/51/tp_helio2bary
 swift/51/swift_lyap
 swift/51/swift_lyap2
@@ -37,3 +37,9 @@ benchmark/*/*
 *.txt
 *.out
 .vscode
+benchmark
+rogue
+rogue/*
+cold
+cold/*
+fast

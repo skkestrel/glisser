@@ -15,11 +15,11 @@ namespace interp
 	Interpolator::Interpolator(const sr::data::Configuration& config, sr::data::HostPlanetPhaseSpace& pl, std::string file, bool _binary_hist, bool _single_precision)
 		: input(file), binary_hist(_binary_hist), single_precision(_single_precision)
 	{
-		// temp_log.open("temp_log_interp.txt");
-		// temp_log << std::setprecision(17);
 		cur_ts = 0;
 		user_dt = config.dt;
 		use_jacobi_interp = config.use_jacobi_interp;
+		diagnostic_mode = config.diagnostic_mode;
+		
 
 		pl = sr::data::HostPlanetPhaseSpace(config.interp_maxpl, config.tbsize);
 
@@ -46,6 +46,12 @@ namespace interp
 
 		t0 = std::numeric_limits<double>::infinity(); 
 		t_m1 = std::numeric_limits<double>::quiet_NaN();
+
+		if (diagnostic_mode)
+		{
+			temp_log.open(sr::util::joinpath(config.outfolder, "temp_log.out"));
+			temp_log << std::setprecision(8);
+		}
 
 		if (binary_hist)
 		{
@@ -161,7 +167,6 @@ namespace interp
 				oom1[ind] = f64_3(capom, om, sr::convert::get_mean_anomaly(e, f));
 				jacobi_aei_f[i-1] = aei1[ind];
 				jacobi_oom_f[i-1] = oom1[ind];
-				// temp_log  << t1 << " " << pl.r()[i] << std::endl;
 				i++;
 			}
 
@@ -196,7 +201,12 @@ namespace interp
 			}
 
 			sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
-			// temp_log << t0 + relative_t << " " << pl.r()[pl_alive] << std::endl;
+			if (diagnostic_mode)
+				{
+					temp_log << t0  << " " << pl.r()[pl_alive-2] << std::endl;
+					temp_log << t0  << " " << pl.r()[pl_alive-1] << std::endl;
+					temp_log << t0  << " " << pl.r()[pl_alive] << std::endl;
+				}
 		}
 		else
 		{
@@ -260,8 +270,12 @@ namespace interp
 				}
 
 				sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
-				// temp_log << t0 + relative_t << " " << pl.r()[pl_alive] << std::endl;
-				
+				if (diagnostic_mode)
+				{
+					temp_log << t0 + relative_t << " " << pl.r()[pl_alive-2] << std::endl;
+					temp_log << t0 + relative_t << " " << pl.r()[pl_alive-1] << std::endl;
+					temp_log << t0 + relative_t << " " << pl.r()[pl_alive] << std::endl;
+				}
 			}
 			else 
 			{
@@ -506,18 +520,18 @@ namespace interp
 
 			// guess the mean motion frequency, a must be in AU and t in days
 
-			double mmfreq = std::sqrt(pl.m()[ind] + pl.m()[0]) 
-							* (std::pow(aei0[ind].x, -1.5) + std::pow(aei1[ind].x, -1.5)) / 2;
+			double mmfreq = std::sqrt(pl.m()[ind] + pl.m()[0]) * std::pow((aei0[ind].x + aei1[ind].x)/2, -1.5);
+
+
 			// mmfreq -= (reduced_doom[i].x + reduced_doom[i].y);
 			// std::cout << ind << " predicted orbital period: " << 2 * M_PI / mmfreq << std::endl;
 			// std::cout << ind << " freq: " << mmfreq << std::endl;
-			// std::cout << ind << " dt: " << dt << std::endl;
-			// std::cout << ind << " oom0[ind].z: " << oom0[ind].z << std::endl;
-			// std::cout << ind << " oom1[ind].z: " << oom1[ind].z << std::endl;
 
 			double cmfin = lam0 + mmfreq * dt;
 			cmfin = std::fmod(cmfin, 2 * M_PI);
 			double corr = lam1 - cmfin;
+			corr = std::fmod(corr, 2 * M_PI);
+
 			// std::cout << ind << " corr: " << corr << std::endl;
 			if (corr > M_PI) corr -= 2 * M_PI;
 			else if (corr < -M_PI) corr += 2 * M_PI;
