@@ -278,7 +278,7 @@ namespace sr
 				cur_tbsize = std::min(config.tbsize, static_cast<uint32_t>(interpolator.n_ts - interpolator.cur_ts));
 
 				// fill the planet logs
-
+				// temp_log << cur_dt << std::endl;
 				interpolator.fill(hd.planets, cur_tbsize, interpolator.rel_t, cur_dt);
 
 				// advance rel_t

@@ -416,7 +416,7 @@ namespace sr
 			sr::data::pad_binary(file, binary_chunk_size - 8);
 			// temp_log << std::setprecision(17);
 			// temp_log << "solar mass: "<< pl.m()[0] << std::endl;
-
+			// temp_log << interp.pl_alive_old + 1 << " " <<  pl.n_alive_old() << std::endl;
 			if (old_log)
 			{
 				// temp_log << "old_log" << std::endl;
@@ -425,13 +425,14 @@ namespace sr
 				size_t npl = pl.n_alive_old();
 
 				// interp n_alive doesn't include the sun
-				ASSERT(interp.pl_alive_old + 1 == pl.n_alive_old(), "")
+				
+				// ASSERT(interp.pl_alive_old + 1 == pl.n_alive_old(), "")
 
 				sr::data::write_binary(file, static_cast<double>(0));
 				sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));
 				sr::data::pad_binary(file, binary_chunk_size - 8 - 4);
 
-				temp_log << "planets alive: "<< npl - 1 << std::endl;
+				// temp_log << "planets alive: "<< npl - 1 << std::endl;
 
 				// reduced ones use a d
 				for (size_t i = 0; i < npl - 1; i++)
@@ -479,7 +480,7 @@ namespace sr
 				planet_id_list = interp.reduced_ids;
 
 				size_t npl = pl.n_alive();
-				ASSERT(interp.pl_alive + 1 == pl.n_alive(), "")
+				// ASSERT(interp.pl_alive + 1 == pl.n_alive(), "")
 
 				sr::data::write_binary(file, static_cast<double>(0));
 				sr::data::write_binary(file, static_cast<uint32_t>(npl - 1));

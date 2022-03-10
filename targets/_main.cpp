@@ -209,17 +209,17 @@ int main(int argc, char** argv)
 					{
 						tout << std::setprecision(4) << std::endl;
 						tout << std::setw(4) << "t=" << ex.t << " (" << std::setw(4) << elapsed / total * 100 << "%) | " << std::setw(6) 
-						     << elapsed << "m elapsed | "  << std::setw(6) << total << "m total | " << std::setw(6) <<  total - elapsed << "m remain | ";
-						tout << ex.hd.particles.n_alive() << " particles alive " << std::endl;
+						     << elapsed << "m elapsed | "  << std::setw(6) << total << "m total | " << std::setw(6) <<  total - elapsed << "m remain\n";
+						tout << ex.hd.planets.n_alive() - 1 << " planets alive | " << ex.hd.particles.n_alive() << " particles alive " << std::endl;
 
-						tout << "GPU time (Single)    : " << std::setw(6) << gputime                << " | CPU time (Single):     " 
-							 << std::setw(6) << cputime                 << " | LOOP time (Single):     " 
-							 << std::setw(6) << looptime                << " (ms)" << " | N encounters (Single):     " 
+						tout << "GPU time (S):   " << std::setw(6) << gputime                << " | CPU time (S):  " 
+							 << std::setw(6) << cputime                 << " | LOOP time (S):  " 
+							 << std::setw(6) << looptime                << " (ms)" << " | N encounters (S):  " 
 							 << n_encounter << std::endl;
 
-						tout << "GPU time (Cumulative): " << std::setw(6) << cumulated_gputime/1000 << " | CPU time (Cumulative): " 
-							 << std::setw(6) << cumulated_cputime/1000  << " | LOOP time (Cumulative): " 
-							 << std::setw(6) << cumulated_looptime/1000 << "  (s)" << " | N encounters (Cumulative): " 
+						tout << "GPU time (C):   " << std::setw(6) << cumulated_gputime/1000 << " | CPU time (C):  " 
+							 << std::setw(6) << cumulated_cputime/1000  << " | LOOP time (C):  " 
+							 << std::setw(6) << cumulated_looptime/1000 << "  (s)" << " | N encounters (C):  " 
 							 << cumulated_encounter << std::endl;
 
 						cumulated_cputime = cumulated_gputime = cumulated_looptime = 0;
