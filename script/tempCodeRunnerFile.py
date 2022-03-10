@@ -1,2 +1,3 @@
+import numpy as np
 
-target_pl = 4
+print(np.arange(1, 100001))

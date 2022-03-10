@@ -240,7 +240,7 @@ frame = legend.get_frame()
 frame.set_color('white')
 
 
-# plt.title("Time: {time:6.3f} Myr".format(time=time[1]/365/1e6), loc='left')
+# plt.title("Time: {time:6.3f} Myr".format(time=time[1]/365.25/1e6), loc='left')
 
 plt.savefig("stability_grid_G.jpg".format(idx=idx),dpi=400)
 print("Saved! frame: {idx:04d}".format(idx=idx))

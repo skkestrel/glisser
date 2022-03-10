@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.colors as colors
 import matplotlib.ticker as ticker
+from math import gcd as bltin_gcd
 
 plt.style.use('aiur')
 
@@ -182,6 +183,11 @@ ARCSEC_TO_RAD = 1/RAD_TO_ARCSEC
 # ------------------------------
 
 
+
+def coprime(a, b):
+    return bltin_gcd(a, b) == 1
+
+
 def meanMotion(M, a, G=1):
     return np.sqrt(G*M/a**3)
 
@@ -251,6 +257,20 @@ def resonanceLocation(planet, p, q):
 
 def resonanceLocationBYA(a, p, q):
     return (q/p) ** (2/3) * a
+
+
+def genOuterRes(a_pl, a1, a2, high1 = 4, high2 = 30, order_lim = 15):
+    klist, jlist = [], []
+    a_rlist = []
+    for h1 in range(1, high1+1):
+        for h2 in range(1, high2+1):
+            if coprime(h1, h2) and abs(h1 - h2) <= order_lim:
+                a_res = resonanceLocationBYA(a_pl, h1, h2)
+                if a_res < a2 and a_res > a1:
+                    klist.append(h1)
+                    jlist.append(h2)
+                    a_rlist.append(a_res)
+    return klist, jlist, a_rlist
 
 
 def resonantAngle(Ome1, ome1, M1, Ome2, ome2, M2, kj, k):

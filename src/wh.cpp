@@ -471,10 +471,10 @@ namespace wh
 
 	void WHIntegrator::recalculate_rh(const HostPlanetPhaseSpace& pl)
 	{
-			// reinterpret cull radius to be the sun's radius
+			// reinterpret inner bound to be the sun's radius
 			planet_rh[0] = inner_bound;
 
-			// for the rest of the planets, use the factor times the hill sphere
+			// for the rest of the planets, use the factor times the calculated hill sphere
 			for (size_t i = 1; i < pl.n(); i++)
 			{
 				double r_dist = sqrt(pl.r()[i].lensq());

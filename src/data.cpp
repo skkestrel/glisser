@@ -195,6 +195,7 @@ namespace data
 		write_binary_hist = true;
 
 		write_encounter_log = false;
+		write_encounter_factor = 1;
 		diagnostic_mode = false;
 	}
 
@@ -296,6 +297,9 @@ namespace data
 						out->write_single_hist = std::stoi(second) != 0;
 				else if (first == "Write-Encounter-Log")
 					out->write_encounter_log = std::stoi(second) != 0;
+					// If "Write-Encounter-Log" is set to 0, the following parameters will be ignored.
+					else if (first == "Write-Encounter-Factor")
+						out->write_encounter_factor = std::stod(second) != 0;
 		
 				// Close Encounters
 				else if (first == "Resolve-Encounters")
@@ -400,7 +404,12 @@ namespace data
 			outstream << "    Write-Binary-History " << out.write_binary_hist << std::endl;
 			outstream << "    Write-Single-Precision-History " << out.write_single_hist << std::endl;
 		}
-		outstream << "Write-Encounter-Log " << out.write_encounter_log << std::endl;
+
+		if (out.write_encounter_log)
+		{
+			outstream << "Write-Encounter-Log " << out.write_encounter_log << std::endl;
+			outstream << "Write-Encounter-Factor " << out.write_encounter_factor << std::endl;
+		}
 		outstream << std::endl;
 
 		if (out.resolve_encounters) 

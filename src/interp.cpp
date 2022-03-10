@@ -203,7 +203,6 @@ namespace interp
 			sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
 			if (diagnostic_mode)
 				{
-					temp_log << t0  << " " << pl.r()[pl_alive-2] << std::endl;
 					temp_log << t0  << " " << pl.r()[pl_alive-1] << std::endl;
 					temp_log << t0  << " " << pl.r()[pl_alive] << std::endl;
 				}
@@ -272,7 +271,7 @@ namespace interp
 				sr::convert::jacobi_to_helio_planets(planet_eta, planet_rj, planet_vj, pl);
 				if (diagnostic_mode)
 				{
-					temp_log << t0 + relative_t << " " << pl.r()[pl_alive-2] << std::endl;
+
 					temp_log << t0 + relative_t << " " << pl.r()[pl_alive-1] << std::endl;
 					temp_log << t0 + relative_t << " " << pl.r()[pl_alive] << std::endl;
 				}
@@ -443,6 +442,7 @@ namespace interp
 
 		if(use_jacobi_interp)
 		{
+			temp_log << dt << std::endl;
 			size_t i = 0;
 			for (auto ind : inds)
 			{	
@@ -500,6 +500,7 @@ namespace interp
 			reduced_oom_i[i] = oom0[ind];
 			reduced_aei_f[i] = aei1[ind];
 			reduced_oom_f[i] = oom1[ind];
+
 
 			reduced_daei[i] = (aei1[ind] - aei0[ind]) / dt;
 

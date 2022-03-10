@@ -22,7 +22,7 @@ namespace interp
 		void fill(sr::data::HostPlanetPhaseSpace& pl, size_t nstep, double relative_t, double dt);
 
 		// This is the effective dt, calculated by taking the nearest timestep to the user-defined timestep
-		// this ensures that itme chunk boundaries always occur on the lookup boundary
+		// this ensures that time chunk boundaries always occur on the lookup boundary
 		float64_t eff_dt;
 
 		// number of effective timesteps

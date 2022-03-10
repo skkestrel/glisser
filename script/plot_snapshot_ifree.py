@@ -53,7 +53,7 @@ df_target['q'] = df_target['a'] * (1 - df_target['e'])
 
 # cut = np.deg2rad(1)
 # df_pa2 = df_target[df_target['If_diff'] < cut].copy()
-df_pa2 = df_target.copy() 
+df_pa2 = df_target.copy()
 # print(df_pa2)
 df_pa2['a']  = df_pa2['a'] + df_pa2['delta_a']
 
@@ -196,7 +196,7 @@ ax1.scatter(df_non['a'][df_non['If_da'].between(cut0, cut1)], df_non['q'][df_non
 ax1.legend(fancybox=True, scatterpoints=3, fontsize=13)
 
 
-plt.title("Time: {time:6.3f} Myr".format(time=time[1]/365/1e6))
+plt.title("Time: {time:6.3f} Myr".format(time=time[1]/365.25/1e6))
 
 plt.savefig(output_folder+"ifree_cold_overlay_low.jpg".format(idx=idx),dpi=300)
 print("Saved! frame: {idx:04d}".format(idx=idx))

@@ -4,7 +4,7 @@ import os
 import struct
 
 folder = "/home/yhuang/GLISSER/glisser/"
-target_folder = "fast/cold_output/out-ivp-ifree-low-N1/"
+target_folder = "fast/rogue_output/out-JSUNR-Resonant-filter/"
 # files = [filename1]
                                     
 filename = target_folder + "state.out"

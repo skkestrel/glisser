@@ -1,0 +1,21 @@
+# Directories
+Output-Folder output/
+
+# Time
+Initial-Time 0
+Final-Time 10000
+Time-Step 1
+Time-Block-Size 1024
+
+# Write Intervals
+Resync-Interval 1
+Log-Interval 10
+Dump-Interval 1000
+Track-Interval 0
+
+# Other Parameters
+Max-Kepler-Iterations 10
+Hill-Radius-Factor 3
+Particle-Inner-Boundary 0.0050000000000000001
+Particle-Outer-Boundary 3000
+Particle-Count-Limit 4294967295
