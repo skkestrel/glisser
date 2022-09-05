@@ -7,7 +7,7 @@ import orbitplotkit as opk
 import invariant_plane as ivp
 
 folder = "/home/yhuang/GLISSER/glisser/"
-target_folder = "fast/cold_output/out-ivp-ifree-low/"
+target_folder = "fast/rogue_output/out-JSUNT-Cold/"
 # files = [filename1]
 
 filename = target_folder + "tracks/track.0.out"
@@ -21,9 +21,8 @@ num = 0
 # interval = 1
 start = 0
 end = 1460000000000
-output_t = np.arange(start, end, 20000000000)
-# print(output_t)
-output_t = [40000000000]
+# output_t = np.arange(start, end, 20000000000)
+output_t = [0, 36600000000]
 with open(folder + filename, 'rb') as f:
     read = f.read(24)
     while len(read) == 24:
@@ -33,18 +32,21 @@ with open(folder + filename, 'rb') as f:
         # print(time, npl)
         if isOutput:
             output = open(output_folder + "planets_{0:d}.txt".format(int(time)), "w")
-        mlist, alist, elist, inclist, Omegalist, omegalist = [], [], [], [], [], []
+            mlist, alist, elist, inclist, Omegalist, omegalist = [], [], [], [], [], []
         for i in range(npl):
             pid, pl_mass, a, e, I, O, o, F = struct.unpack('=I7f', f.read(32))
-            mlist.append(pl_mass)
-            alist.append(a)
-            elist.append(e)
-            inclist.append(I)
-            Omegalist.append(O)
-            omegalist.append(o)
             if isOutput:
                 output.write("{id:d} {a:.6f} {e:.6f} {I:.6f} {O:.6f} {o:.6f} {F:.6f}\n"
                             .format(id=pid,a=a,e=e,I=I, O=O, o=o, F=F))
+                if i >=4:
+                    continue
+                mlist.append(pl_mass)
+                alist.append(a)
+                elist.append(e)
+                inclist.append(I)
+                Omegalist.append(O)
+                omegalist.append(o)
+
         if isOutput:
             output.close()
             output = open(output_folder + "particles_{0:d}.txt".format(int(time)), "w")

@@ -7,7 +7,7 @@ import orbitplotkit as opk
 import invariant_plane as ivp
 
 folder = "/home/yhuang/GLISSER/glisser/"
-target_folder = "fast/rogue_output/out-JSUNR-move-temp/"
+target_folder = "fast/rogue_output/out-JSUNT1-Migration-2EM/"
 # files = [filename1]
 
 filename = target_folder + "tracks/track.0.out"

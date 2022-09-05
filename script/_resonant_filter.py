@@ -12,7 +12,7 @@ font = {'weight': 'bold',
 matplotlib.rc('font', **font)
 
 
-folder = "/home/yhuang/GLISSER/glisser/fast/rogue_output/out-JSUNR-Resonant-4Gy-filter/"
+folder = "/home/yhuang/GLISSER/glisser/fast/rogue_output/out-JSUNT-Synthetic-4Gyr-filter/"
 output_folder = folder + "pics/hist/"
 enc_folder = folder + "reoutput/enc/"
 snapshot_folder = folder + "reoutput/snapshots/"
@@ -28,7 +28,7 @@ if not os.path.exists(enc_folder):
 
 def resonantRatio(a_pl, a_pa):
     klist, jlist, a_rlist = opk.genOuterRes(
-        a_pl, 49, 126, high1=5, high2=50, order_lim=45)
+        a_pl, 49, 600, high1=5, high2=90, order_lim=90)
     # print(np.sort(a_rlist))
 
     idx = np.argmin(np.abs(a_pa-a_rlist))
@@ -54,7 +54,7 @@ def resonantRatioRunningWindow(a_pl, a_pa, window_size=0.12, reslim=0.08, scalim
     num_step = int(num_pl - num_window + 1)
 
     klist, jlist, a_rlist = opk.genOuterRes(
-        a_plmean, 49, 126, high1=5, high2=50, order_lim=45)
+        np.mean(a_pl), 49, 600, high1=5, high2=90, order_lim=90)
     # print(np.sort(a_rlist))
 
     apl_window, apa_window, window_idx = [], [], []
@@ -109,7 +109,7 @@ def plotHistRes(target_pa, target_pl, code, k, j, outputEnc):
     Q_pa = a_pa * (1 + e_pa)
 
     if outputEnc:
-        command = "cat {2}{0} | grep ' {1} ' > {2}reoutput/enc/pa_{1}.txt".format(
+        command = "cat {2}{0} | grep ' {1} w/' > {2}reoutput/enc/pa_{1}.txt".format(
             encounter_file, target_pa, folder)
         os.system(command)
 
@@ -231,10 +231,11 @@ def plotHistRes(target_pa, target_pl, code, k, j, outputEnc):
 
 
 target_pl = 4
-output = open(folder + "classes.txt", "w")
+
 
 for target_pa in np.arange(1, 100001):
 
+    output = open(folder + "classes.txt", "a")
     pl, pa = target_pl, target_pa
     pl_txt, pa_txt = "reoutput/hist/pl_{0:d}.txt".format(
         pl), "reoutput/hist/pa_{0:d}.txt".format(pa)
@@ -245,9 +246,10 @@ for target_pa in np.arange(1, 100001):
         code, k, j, apl_window, apa_window, window_idx = resonantRatioRunningWindow(
             a_pl, a_pa)
         # plotHistRes(pa, pl, code, k, j, False)
-        print(code, k, j, pa)
+        print(pa, code, k, j)
         output.write("{0:d} {1:d} {2:d} {3:d}\n".format(
             pa, code, k, j))
     except:
+        # print(folder+pl_txt)
         print("File doesn't exist!!")
-# output.close()
+    output.close()

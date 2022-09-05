@@ -11,7 +11,8 @@ font = {'weight' : 'bold',
 matplotlib.rc('font', **font)
 
 
-folder = "/home/yhuang/GLISSER/glisser/benchmark/rogue-particles-JSUNR-80000-V100/reoutput/"
+folder = "/home/yhuang/GLISSER/glisser/fast/rogue_output/out-JSUNT-Giant-Synthetic/"
+target_folder = folder + "reoutput/hist/"
 output_folder = folder + "pics/hist/"
 label = "GLISSER"
 
@@ -22,8 +23,8 @@ target_pl = [1,2,3,4,5]
 
 
 for pl in target_pl:
-    pl_txt = "hist/pl_{0:d}.txt".format(pl)
-    data = np.loadtxt(folder+pl_txt, usecols=[0,1,2,3,4,5,6])
+    pl_txt = "pl_{0:d}.txt".format(pl)
+    data = np.loadtxt(target_folder+pl_txt, usecols=[0,1,2,3,4,5,6])
     t_pl, a_pl, e_pl, I_pl, O_pl, o_pl, M_pl = data[:,0], data[:,1], data[:,2], data[:,3], data[:,4], data[:,5], data[:,6]
     t_pl /= 365.25*1e6
     q_pl = a_pl * (1 - e_pl)
@@ -42,7 +43,12 @@ for pl in target_pl:
     ax4.scatter(t_pl, opk.wrapTo360(np.rad2deg(o_pl)), alpha=alpha, s=par_size)
     axO = ax3
     axO.scatter(t_pl, opk.wrapTo360(np.rad2deg(O_pl)), alpha=alpha, s=par_size)
-    ax5.scatter(t_pl, opk.wrapTo360(np.rad2deg(o_pl+O_pl)), alpha=alpha, s=par_size)
+
+
+    node1 = (a_pl * (1 - e_pl**2))/(1+e_pl*np.cos(o_pl))
+    node2 = (a_pl * (1 - e_pl**2))/(1-e_pl*np.cos(o_pl))
+    ax5.scatter(t_pl, node1, alpha=alpha, s=par_size)
+    ax5.scatter(t_pl, node2, alpha=alpha, s=par_size)
 
 
     # ax1.text(50, 80, "Non-physical", fontsize = 16, color='black',alpha=0.5,rotation=36)
@@ -64,8 +70,9 @@ for pl in target_pl:
     ax4.set_ylim([0, 360])
     axO.set_ylim([0, 360])
 
-    ax5.set_ylabel(r"$\varpi$ (deg)")
-    ax5.set_ylim([0, 360])
+    # ax5.set_ylabel(r"$\varpi$ (deg)")
+    ax5.set_ylabel("Nodal distance (au)")
+    ax5.set_ylim([30, 100])
     ax5.set_xlabel("Time (Myr)")
     for ax in [ax1, ax2, ax3, ax4, ax5]:
         ax.set_xlim([t_pl[0], t_pl[-1]])

@@ -15,13 +15,13 @@ yellow = '#ffb545'
 red = '#ff2521'
 
 
-# jpl_data = pd.read_csv("sbdb_query_results_1.19.csv")
-# jpl_data = jpl_data[jpl_data['q'] > 38]
-# jpl = jpl_data[jpl_data['a'] > 50].copy()
-# print(jpl)
+jpl_data = pd.read_csv("sbdb_query_results_1.19.csv")
+jpl_data = jpl_data[jpl_data['q'] > 38]
+jpl = jpl_data[jpl_data['a'] > 50].copy()
+print(jpl)
 
 # folder = "/home/yhuang/GLISSER/glisser/fast/cold_output/out-ivp-ifree-low/reoutput/"
-folder = "/home/yhuang/GLISSER/glisser/fast/rogue_output/out-JSUNR-move-temp/"
+folder = "/home/yhuang/GLISSER/glisser/fast/rogue_output/out-JSUNT-Ice-Giant-Rogue-Scattering/"
 output_folder = folder + "pics/snapshots/"
 label = "GLISSER"
 
@@ -30,21 +30,21 @@ if not os.path.exists(output_folder):
 
 # time = [0, 182000000000]
 # time = [6275000000]
-time = np.arange(0, 36520000001, 20000000)
+time = np.arange(0, 36000000001, 500000000)
 # print(time.shape[0])
 idx = 1
-time = [0, 3640000000]
+# time = [0, 36000000000]
 par_size = 8
 
 for t in time:
     pl_txt = "reoutput/snapshots/planets_{0:d}.txt".format(t)
     df_pl = pd.read_csv(
-        folder+pl_txt, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ')
+        folder+pl_txt, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ', nrows=100000)
     # print(df_pl)
 
     pa_txt = "reoutput/snapshots/particles_{0:d}.txt".format(t)
     df_pa = pd.read_csv(
-        folder+pa_txt, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ')
+        folder+pa_txt, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ', nrows=100000)
     df_pl['q'] = df_pl['a'] * (1 - df_pl['e'])
     df_pa['q'] = df_pa['a'] * (1 - df_pa['e'])
 
@@ -54,10 +54,10 @@ for t in time:
     fig, [ax1, ax2] = plt.subplots(2, figsize=(
         18, 10), gridspec_kw={'height_ratios': [3, 1]})
 
-    # ax1.scatter(jpl['a'], jpl['q'], alpha=0.5, s=30,
-    #             facecolor='none', edgecolor=red, marker='^', lw=2, zorder=2)
-    # ax2.scatter(jpl['a'], jpl['i'], alpha=0.5, s=30,
-    #             facecolor='none', edgecolor=red, marker='^', lw=2, zorder=2)
+    ax1.scatter(jpl['a'], jpl['q'], alpha=0.5, s=30,
+                facecolor='none', edgecolor=red, marker='^', lw=2, zorder=2)
+    ax2.scatter(jpl['a'], jpl['i'], alpha=0.5, s=30,
+                facecolor='none', edgecolor=red, marker='^', lw=2, zorder=2)
 
     ax1.scatter(df_pl['a'], df_pl['q'], alpha=0.8, s=150,
                 color='black', marker='x', lw=3, zorder=2)
@@ -77,7 +77,7 @@ for t in time:
     # ax1.text(51, 52.5, "Non-physical", fontsize = 16, color='black',alpha=0.5,rotation=24)
 
     aN = df_pl['a'].iloc[3]
-    outer = 126
+    outer = 800
     inner = 49
     x = np.linspace(inner, outer, 1000)
     y = np.linspace(inner, outer*10000, 1000)
@@ -113,21 +113,21 @@ for t in time:
     ax1.set_xlim(inner_bound, outer_bound)
     ax2.set_xlim(inner_bound, outer_bound)
 
-    q_low_bound = 28
-    q_up_bound = 75
+    q_low_bound = 29.5
+    q_up_bound = 200
     ax1.set_ylim(q_low_bound, q_up_bound)
-    ax2.set_ylim(0, 60)
+    ax2.set_ylim(0, 90)
     # ax2.set_yscale("log")
 
     a_N = aN
     klist, jlist, a_rlist = opk.genOuterRes(
         a_N, 49, 126, high1=5, high2=50, order_lim=45)
-    for k, j, a_res in zip(klist, jlist, a_rlist):
-        label = "{0}/{1}".format(j, k)
-        ax1.text(a_res-0.3, q_up_bound+1, label, fontsize=8, rotation=70)
-        # print(a)
-        ax1.plot([a_res, a_res], [0, 100], ls='dashed',
-                 color='gray', zorder=1, alpha=0.6)
+    # for k, j, a_res in zip(klist, jlist, a_rlist):
+    #     label = "{0}/{1}".format(j, k)
+    #     ax1.text(a_res-0.3, q_up_bound+1, label, fontsize=8, rotation=70)
+    #     # print(a)
+    #     ax1.plot([a_res, a_res], [0, 100], ls='dashed',
+    #              color='gray', zorder=1, alpha=0.6)
 
     hlines = [30, 38]
     for line in hlines:
@@ -138,7 +138,7 @@ for t in time:
     plt.tight_layout()
 
     plt.savefig(output_folder +
-                "frame_{idx:04d}_non.jpg".format(idx=idx), dpi=200)
+                "frame_{idx:04d}_zoomout.jpg".format(idx=idx), dpi=200)
     print("Saved! frame: {idx:04d}".format(idx=idx))
     plt.close()
     idx += 1

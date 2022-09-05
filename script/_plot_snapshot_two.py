@@ -21,7 +21,7 @@ jpl = jpl_data[jpl_data['a'] > 50].copy()
 # print(jpl)
 
 # folder = "/home/yhuang/GLISSER/glisser/fast/cold_output/out-ivp-ifree-low/reoutput/"
-folder = "/home/yhuang/GLISSER/glisser/fast/rogue_output/out-JSUNR-Resonant-filter/"
+folder = "/home/yhuang/GLISSER/glisser/fast/rogue_output/out-JSUNT-Giant-Scattering/"
 output_folder = folder + "pics/snapshots/"
 label = "GLISSER"
 
@@ -30,26 +30,45 @@ if not os.path.exists(output_folder):
 
 # time = [0, 182000000000]
 # time = [6275000000]
-time = np.arange(0, 36520000001, 20000000)
+time = np.arange(0, 4750000001, 50000000)
 # print(time.shape[0])
 idx = 1
-time = [0, 3640000000]
+# time = [0, 4750000000]
+# time = [0]
 par_size = 15
 
 for t in time:
     pl_txt = "reoutput/snapshots/planets_{0:d}.txt".format(t)
     df_pl = pd.read_csv(
         folder+pl_txt, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ')
-    # print(df_pl)
+    df_pl['q'] = df_pl['a'] * (1 - df_pl['e'])
+    df_pl['inc'] = np.rad2deg(df_pl['inc'])
+    df_pl['Omega'] = np.rad2deg(df_pl['Omega'])
+    df_pl['omega'] = np.rad2deg(df_pl['omega'])
+    df_pl['f'] = np.rad2deg(df_pl['f'])
 
     pa_txt = "reoutput/snapshots/particles_{0:d}.txt".format(t)
     df_pa = pd.read_csv(
         folder+pa_txt, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ')
-    df_pl['q'] = df_pl['a'] * (1 - df_pl['e'])
     df_pa['q'] = df_pa['a'] * (1 - df_pa['e'])
+    df_pa['inc'] = np.rad2deg(df_pa['inc'])
+    df_pa['Omega'] = np.rad2deg(df_pa['Omega'])
+    df_pa['omega'] = np.rad2deg(df_pa['omega'])
+    df_pa['f'] = np.rad2deg(df_pa['f'])
 
-    df_pa2 = df_pa[df_pa['id'] > 90000]
-    df_pa = df_pa[df_pa['id'] <= 90000]
+    df_pa['color'] = opk.BLUE
+    # df_pa.loc[df_pa['id'] > 40000, 'color'] = opk.GREEN
+    # df_pa.loc[df_pa['id'] > 80000, 'color'] = 'orange'
+    # df_pa.loc[df_pa['id'] > 120000, 'color'] = opk.YELLOW
+    # df_pa.loc[df_pa['id'] > 160000, 'color'] = opk.RED
+
+    df_pa['alpha'] = 0.8
+    df_pa.loc[df_pa['q'] < 38, 'alpha'] = 0.15
+    df_pa.loc[df_pa['id'] > 160000, 'alpha'] = 0.15
+    # print(df_pa)
+
+    # df_pa2 = df_pa[df_pa['id'] > 200000]
+    # df_pa = df_pa[df_pa['id'] <= 200000]
 
     fig, [ax1, ax2] = plt.subplots(2, figsize=(
         18, 10), gridspec_kw={'height_ratios': [3, 1]})
@@ -61,30 +80,22 @@ for t in time:
 
     ax1.scatter(df_pl['a'], df_pl['q'], alpha=0.8, s=150,
                 color='black', marker='x', lw=3, zorder=2)
-    ax2.scatter(df_pl['a'], np.rad2deg(df_pl['inc']), alpha=0.8,
+    ax2.scatter(df_pl['a'], df_pl['inc'], alpha=0.8,
                 s=150, color='black', marker='x', lw=3, zorder=2)
 
-    ax1.scatter(df_pa['a'][df_pa['q'] > 38], df_pa['q'][df_pa['q'] > 38],
-                alpha=0.8, s=par_size, edgecolors='none', facecolors='C0')
-    ax1.scatter(df_pa['a'][df_pa['q'] < 38], df_pa['q'][df_pa['q'] < 38],
-                alpha=0.15, s=par_size, edgecolors='none', facecolors='C0')
-    ax1.scatter(df_pa2['a'], df_pa2['q'],
-                alpha=0.15, s=par_size, edgecolors='none', facecolors='C1')
+    ax1.scatter(df_pa['a'], df_pa['q'], alpha=df_pa['alpha'],
+                s=par_size, edgecolors='none', facecolors=df_pa['color'])
+    ax2.scatter(df_pa['a'], df_pa['inc'], alpha=df_pa['alpha'],
+                s=par_size, edgecolors='none', facecolors=df_pa['color'])
 
-    ax2.scatter(df_pa['a'][df_pa['q'] > 38], np.rad2deg(
-        df_pa['inc'][df_pa['q'] > 38]), alpha=0.8, s=par_size, edgecolors='none', facecolors='C0')
-    ax2.scatter(df_pa['a'][df_pa['q'] < 38], np.rad2deg(
-        df_pa['inc'][df_pa['q'] < 38]), alpha=0.1, s=par_size, edgecolors='none', facecolors='C0')
-    ax2.scatter(df_pa2['a'], df_pa2['inc'],
-                alpha=0.15, s=par_size, edgecolors='none', facecolors='C1')
     # ax1.text(50, 80, "Non-physical", fontsize = 16, color='black',alpha=0.5,rotation=36)
     # ax1.text(51, 52.5, "Non-physical", fontsize = 16, color='black',alpha=0.5,rotation=24)
 
     aN = df_pl['a'].iloc[3]
-    outer = 127
-    inner = 20
-    x = np.linspace(inner, outer, 1000)
-    y = np.linspace(inner, outer*10000, 1000)
+    outer = 800
+    inner = 3
+    x = np.linspace(inner-1, outer, 1000)
+    y = np.linspace(inner-1, outer*1000000, 1000)
     ax1.plot(x, x, color='grey', linestyle='dashed', lw=1)
     ax1.fill_between(x, x, y, facecolor='gray', alpha=0.5)
 
@@ -117,44 +128,32 @@ for t in time:
     ax1.set_xlim(inner_bound, outer_bound)
     ax2.set_xlim(inner_bound, outer_bound)
 
-    q_low_bound = 24
-    q_up_bound = 75
+    q_low_bound = 3
+    q_up_bound = 120
     ax1.set_ylim(q_low_bound, q_up_bound)
+    ax1.set_xscale("log")
+    ax1.set_yscale("log")
+    xticks = [5, 10, 20, 30, 40, 50, 60, 70, 80,
+              90, 100, 200, 300, 400, 500, 600, 700, 800]
+    yticks = np.arange(10, 120, 10)
+    ax1.set_xticks(xticks)
+    ax1.set_yticks(yticks)
+    ax1.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax1.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+
     ax2.set_ylim(0, 60)
-    # ax2.set_yscale("log")
+    ax2.set_xscale("log")
+    ax2.set_xticks(xticks)
+    ax2.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
 
     a_N = aN
-    a_21 = opk.resonanceLocationBYA(a_N, 1, 2)
-    a_94 = opk.resonanceLocationBYA(a_N, 4, 9)
-    a_52 = opk.resonanceLocationBYA(a_N, 2, 5)
-    a_72 = opk.resonanceLocationBYA(a_N, 2, 7)
-    a_92 = opk.resonanceLocationBYA(a_N, 2, 9)
-    a_112 = opk.resonanceLocationBYA(a_N, 2, 11)
-    a_132 = opk.resonanceLocationBYA(a_N, 2, 13)
-    a_73 = opk.resonanceLocationBYA(a_N, 3, 7)
-    a_83 = opk.resonanceLocationBYA(a_N, 3, 8)
-    a_103 = opk.resonanceLocationBYA(a_N, 3, 10)
-    a_113 = opk.resonanceLocationBYA(a_N, 3, 11)
-    a_133 = opk.resonanceLocationBYA(a_N, 3, 13)
-    a_143 = opk.resonanceLocationBYA(a_N, 3, 14)
-    a_163 = opk.resonanceLocationBYA(a_N, 3, 16)
-    a_173 = opk.resonanceLocationBYA(a_N, 3, 17)
-    a_193 = opk.resonanceLocationBYA(a_N, 3, 19)
-    a_203 = opk.resonanceLocationBYA(a_N, 3, 20)
-    a_31 = opk.resonanceLocationBYA(a_N, 1, 3)
-    a_41 = opk.resonanceLocationBYA(a_N, 1, 4)
-    a_51 = opk.resonanceLocationBYA(a_N, 1, 5)
-    a_61 = opk.resonanceLocationBYA(a_N, 1, 6)
-    a_71 = opk.resonanceLocationBYA(a_N, 1, 7)
-    a_81 = opk.resonanceLocationBYA(a_N, 1, 8)
-    a_152 = opk.resonanceLocationBYA(a_N, 2, 15)
-
-    for a, label in zip([a_21, a_94, a_52, a_31, a_72, a_41, a_92, a_51, a_112, a_61, a_132, a_71, a_73, a_83, a_103, a_113, a_133, a_143, a_163, a_173, a_193, a_203, a_81, a_152],
-                        [" 2/1", " 9/4", " 5/2", " 3/1", " 7/2", " 4/1", " 9/2", " 5/1", "11/2", " 6/1", "13/2", " 7/1", " 7/3", " 8/3", "10/3", "11/3", "13/3", "14/3",
-                         "16/3", "17/3", "19/3", "20/3", "8/1", "15/2"]):
-        ax1.text(a-1, q_up_bound+1, label, fontsize=12, rotation=60)
+    klist, jlist, a_rlist = opk.genOuterRes(
+        a_N, 30, 100, high1=3, high2=50, order_lim=7)
+    for k, j, a_res in zip(klist, jlist, a_rlist):
+        label = "{0}/{1}".format(j, k)
+        ax1.text(a_res-0.3, q_up_bound+1, label, fontsize=8, rotation=70)
         # print(a)
-        ax1.plot([a, a], [0, 100], ls='dashed',
+        ax1.plot([a_res, a_res], [0, 300], ls='dashed',
                  color='gray', zorder=1, alpha=0.6)
 
     hlines = [30, 38]

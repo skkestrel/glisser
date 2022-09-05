@@ -1,12 +1,28 @@
 # -*- coding: UTF-8 -*-
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import matplotlib.colors as colors
 import matplotlib.ticker as ticker
+import matplotlib.font_manager as font_manager
 from math import gcd as bltin_gcd
+from astropy.io import fits
+from astropy.table import Table
 
 plt.style.use('aiur')
+# the location of the font file
+font_path = '/home/yhuang/GLISSER/roboto/PingFang.ttc'
+font_manager.fontManager.addfont(font_path)
+roboto = font_manager.FontProperties(fname=font_path)
+
+
+font = {'family': roboto.get_name(),
+        'size': 16}
+mpl.rc('font', **font)
+mpl.rcParams['mathtext.fontset'] = 'custom'
+mpl.rcParams['mathtext.rm'] = roboto.get_name()
+# mpl.rcParams['mathtext.rm'] = roboto.get_name()
 
 # Pre-defined string
 STRING_SMA = 'Semimajor axis (au)'
@@ -31,6 +47,15 @@ BLUE = "#3390B5"  # Khala Blue
 LIGHT_BLUE = "#51B9DE"  # Khala Light Blue
 GREEN = "#77CC68"  # Aiur Green
 RED = "#E72C2C"  # Aiur Red
+DARK_RED = "#db5d4d"
+LIGHT_YELLOW = "#fdecbc"
+DARK_GREEN = "#439e64"
+ORANGE = "#ffb545"
+PINK = "#f10075"
+GRAY = "#AEAEAE"
+DARK_GRAY = "#585858"
+BLACK = "#3B3B3B"
+GREY = GRAY
 
 COLORS = [BLUE, RED, GREEN, YELLOW]
 
@@ -183,6 +208,97 @@ ARCSEC_TO_RAD = 1/RAD_TO_ARCSEC
 # ------------------------------
 
 
+def qcrit(a, aN):
+    return aN*np.sqrt(np.log(115.2*m_neptune/m_sun*(a/aN)**(2.5)))
+
+
+def isDetached(a, q, aN, qcut=38):
+    qc = np.nan_to_num(qcrit(a, aN), nan=0.0)
+    qc = np.clip(qc, a_min=qcut, a_max=None)
+    return q > qc
+
+
+def snapshot2df(txtfile, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' '):
+    df = pd.read_csv(txtfile, names=names, delimiter=delimiter).set_index('id')
+    df['q'] = df['a'] * (1 - df['e'])
+    df['ascnode'] = (df['a'] * (1 - df['e']**2)) / \
+        (1+df['e']*np.cos(-df['omega']))
+    df['inc'] = np.rad2deg(df['inc'])
+    df['Omega'] = np.rad2deg(df['Omega'])
+    df['omega'] = np.rad2deg(df['omega'])
+    df['f'] = np.rad2deg(df['f'])
+    return df
+
+
+def fits2csv(fitsfile, output):
+    with fits.open(fitsfile, memmap=True) as hdu:
+
+        print(hdu)
+        # read into an astropy Table object
+        table = Table(hdu[1].data)
+
+        # write to a CSV file
+        table.write(output, delimiter=',', format='ascii', overwrite=True)
+
+
+def mpc2Compact(code):
+    code = code.strip('C/')
+    code = code.replace(" ", "")
+    year = int(code[:2])
+    if year == 18:
+        first = 'I'
+    elif year == 19:
+        first = 'J'
+    elif year == 20:
+        first = 'K'
+
+    year2 = code[2:4]
+    first_letter = code[4]
+    second_letter = code[5]
+    if len(code) == 6:
+        middle = '00'
+    elif len(code) == 7:
+        middle = '0' + code[6]
+    elif len(code) == 8:
+        middle = code[6:]
+    elif len(code) == 9:
+        num1 = int(code[6:8])
+        if num1 < 36:
+            letter = chr(num1 + 55)
+        else:
+            letter = chr(num1 + 61)
+        middle = letter + code[8]
+
+    return first+year2+first_letter+middle+second_letter
+
+
+def Compact2MPC(code):
+    year = ord(code[0]) - 55
+    if year < 18 or year > 20 or len(code) != 7:
+        return '-'
+    year = int(code[1:3]) + year * 100
+    first_letter, second_letter, last_digit, double_digit = code[3], code[6], int(
+        code[5]), code[4]
+    if double_digit.isdigit():
+        number = 10*int(double_digit) + last_digit
+        if number == 0:
+            number = ''
+    elif double_digit.isupper():
+        number = 10*(ord(double_digit) - 55) + last_digit
+    else:
+        number = 10*(ord(double_digit) - 61) + last_digit
+    return (str(year) + ' ' + first_letter + second_letter + str(number))
+
+# ------------------------------
+
+
+def aProbFuncNorm(a, arange, aco):
+    x1, x2, co, xx = arange[0], arange[1], aco, a
+    scale = -1/(1+co) * x1**(1+co) + 1/(1+co) * x2**(1+co)
+    # scale = x1**co
+    # print(scale)
+    return xx**(co)/scale
+
 
 def coprime(a, b):
     return bltin_gcd(a, b) == 1
@@ -225,8 +341,24 @@ def M2F(M, e):
     result = 2 * np.arctan(np.sqrt((1 + e) / (1 - e)) * np.tan(E / 2))
     return result
 
+
 def keplerIteration(E, e, M):
     return -(E - e * np.sin(E) - M) / (1 - e * np.cos(E))
+
+
+def vinf(a, e, inc, apl):
+    a = a/apl
+    vinf2 = 3 - 1/a - 2*np.sqrt(a*(1-e**2))*np.cos(inc)
+    return np.sqrt(vinf2)
+
+
+def vpa(a, apl):
+    a = a/apl
+    return np.sqrt(2 - 1/a)
+
+
+def alpha(vinf, vpa):
+    return np.arccos((vpa**2-vinf**2-1)/(2*vinf))
 
 # ------------------------------
 
@@ -238,9 +370,9 @@ def truncate_colormap(cmap, minval=0.0, maxval=1.0, n=100):
     return new_cmap
 
 
-def fmt(x, pos):
+def percent_fmt(x, pos):
     x *= 100
-    return "{0:0.4f}%".format(x)
+    return "{0:0.0f}%".format(x)
 
 
 def wrapTo360(phi):
@@ -259,7 +391,7 @@ def resonanceLocationBYA(a, p, q):
     return (q/p) ** (2/3) * a
 
 
-def genOuterRes(a_pl, a1, a2, high1 = 4, high2 = 30, order_lim = 15):
+def genOuterRes(a_pl, a1, a2, high1=4, high2=30, order_lim=15):
     klist, jlist = [], []
     a_rlist = []
     for h1 in range(1, high1+1):
