@@ -218,15 +218,38 @@ def isDetached(a, q, aN, qcut=38):
     return q > qc
 
 
-def snapshot2df(txtfile, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' '):
+def snapshot2df(txtfile, names=['id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ', apl=1):
     df = pd.read_csv(txtfile, names=names, delimiter=delimiter).set_index('id')
     df['q'] = df['a'] * (1 - df['e'])
     df['ascnode'] = (df['a'] * (1 - df['e']**2)) / \
         (1+df['e']*np.cos(-df['omega']))
+    if apl != 0:
+        alpha = df['a']/apl
+        df['T'] = 1/(alpha) + 2*np.sqrt(alpha*(1-df['e']**2))*np.cos(df['inc'])
+    df['varpi'] = df['Omega'] + df['omega']
+
     df['inc'] = np.rad2deg(df['inc'])
     df['Omega'] = np.rad2deg(df['Omega'])
     df['omega'] = np.rad2deg(df['omega'])
     df['f'] = np.rad2deg(df['f'])
+
+    return df
+
+def hist2df(txtfile, names=['time', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ', apl=1):
+    df = pd.read_csv(txtfile, names=names, delimiter=delimiter)
+    df['q'] = df['a'] * (1 - df['e'])
+    df['ascnode'] = (df['a'] * (1 - df['e']**2)) / \
+        (1+df['e']*np.cos(-df['omega']))
+    if apl != 0:
+        alpha = df['a']/apl
+        df['T'] = 1/(alpha) + 2*np.sqrt(alpha*(1-df['e']**2))*np.cos(df['inc'])
+    df['varpi'] = df['Omega'] + df['omega']
+
+    df['inc'] = np.rad2deg(df['inc'])
+    df['Omega'] = np.rad2deg(df['Omega'])
+    df['omega'] = np.rad2deg(df['omega'])
+    df['f'] = np.rad2deg(df['f'])
+
     return df
 
 
@@ -377,6 +400,14 @@ def percent_fmt(x, pos):
 
 def wrapTo360(phi):
     return phi % 360
+
+
+def wrapTo180(phi):
+    phi = phi % 360
+    idx = np.where(phi > 180)[0]
+    print(idx)
+    phi[idx] -= 360
+    return phi
 
 
 def resonanceLocation(planet, p, q):

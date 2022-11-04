@@ -6,7 +6,7 @@ import pandas as pd
 import orbitplotkit as opk
 
 folder = "/home/yhuang/GLISSER/glisser/"
-target_folder = "fast/rogue_output/out-JSUN-Giant-Synthetic-Ref/"
+target_folder = "fast/rogue_output/out-JSUNT1-Migration-1EM/"
 # files = [filename1]
 snapshot_folder = folder + target_folder + "reoutput/snapshots/"
 
@@ -14,27 +14,27 @@ filename = target_folder + "tracks/track.0.out"
 output_folder = folder + target_folder + "reoutput/hist/"
 label = "GLISSER"
 
-final_snapshot = "planets_36520000000.txt"
+final_snapshot = "planets_54800000000.txt"
 df_pl = pd.read_csv(snapshot_folder+final_snapshot, names=[
     'id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ').set_index('id')
 
-final_snapshot = "particles_36520000000.txt"
+final_snapshot = "particles_54800000000.txt"
 df_pa = pd.read_csv(snapshot_folder+final_snapshot, names=[
     'id', 'a', 'e', 'inc', 'Omega', 'omega', 'f'], delimiter=' ').set_index('id')
 df_pa['q'] = df_pa['a']*(1-df_pa['e'])
-df_q = df_pa[df_pa['q'] > 45]
+df_q = df_pa[df_pa['q'] > 50]
 
 a_N = df_pl.iloc[3]['a']
 
-a_41 = opk.resonanceLocationBYA(a_N, 1, 4)
-print(a_N, a_41)
+# a_41 = opk.resonanceLocationBYA(a_N, 1, 4)
+# print(a_N, a_41)
 # a_52 = opk.resonanceLocationBYA(a_N, 2, 5)
 
-hw = 1
-df_a = df_q[df_q['a'].between(a_41 - hw, a_41 + hw)]
+# hw = 1
+# df_a = df_q[df_q['a'].between(a_41 - hw, a_41 + hw)]
 
-idx = np.array(df_a.index)
-print(df_a)
+idx = np.array(df_q.index)
+print(idx)
 
 if not os.path.exists(output_folder):
     os.makedirs(output_folder)
@@ -65,4 +65,4 @@ def reoutput():
                     output.close()
             read = f.read(24)
 
-reoutput()
+# reoutput()
